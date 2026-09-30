@@ -2,9 +2,9 @@
 
 Entity Controller v10 targets Home Assistant 2026.9+ and is being rebuilt around Config Entries, Config Subentries, typed `ConfigEntry.runtime_data`, and an explicit async state machine.
 
-## Current milestone: 10.0.0-beta.2
+## Current milestone: 10.0.0-rc.1
 
-`10.0.0-beta.2` contains the typed integration skeleton, standalone async FSM core, structured schedule parsing/window evaluation, bounded HA Context tracking, cancellable timer/backoff logic, controller manager lifecycle, live listener routing, startup/reconfigure reconcile, hot per-controller reconfiguration, initial native controller entities/actions, root Config Entry plus controller Config Subentry flow surface with EN/SK strings, controlled v9 YAML migration importer/legacy mirror, controller-owned restore state helpers, diagnostics, guide-only migration Repairs, and modernized repository metadata/CI/docs.
+`10.0.0-rc.1` contains the typed integration skeleton, standalone async FSM core, structured schedule parsing/window evaluation, bounded HA Context tracking, cancellable timer/backoff logic, controller manager lifecycle, live listener routing, startup/reconfigure reconcile, hot per-controller reconfiguration, initial native controller entities/actions, root Config Entry plus controller Config Subentry flow surface with EN/SK strings, controlled v9 YAML migration importer/legacy mirror, controller-owned restore state helpers, diagnostics, guide-only migration Repairs, modernized repository metadata/CI/docs, and a release-candidate migration/smoke checklist.
 
 Persistence is intentionally limited to Entity Controller-owned state: Enabled, Stay Mode, valid active timer expiry, and runtime timestamps. External Helper state stays owned by Home Assistant's Helper integrations.
 

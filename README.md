@@ -2,7 +2,7 @@
 
 Entity Controller v10 is a Home Assistant helper integration for reusable "when this happens, keep that active for a while" automations. The v10 line is being rebuilt around Config Entries, Config Subentries, native controller entities, hot reconfiguration, diagnostics, and controlled migration from legacy v9 YAML.
 
-Current prerelease: `10.0.0-beta.2`
+Current prerelease: `10.0.0-rc.1`
 
 ## Status
 
@@ -16,6 +16,7 @@ The `v10-modernization` branch is active prerelease work. It targets Home Assist
 - [Migration from v9 YAML](docs/migration-v9-to-v10.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Development notes](docs/development.md)
+- [Release checklist](docs/release-checklist.md)
 
 ## Migration model
 

@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+<a name="10.0.0-rc.1"></a>
+## [10.0.0-rc.1](https://github.com/denkz0ne/entity-controller/compare/10.0.0-beta.2...10.0.0-rc.1) (2026-09-30)
+
+
+### Features
+
+* prepare the v10 release-candidate migration and smoke checklist
+* document v9.7.6 -> v10 migration rehearsal requirements
+* document EC01-EC10 smoke scenarios, validation gates, and known limitations
+* mark the integration version as `10.0.0-rc.1`
+
+
 <a name="10.0.0-beta.2"></a>
 ## [10.0.0-beta.2](https://github.com/denkz0ne/entity-controller/compare/10.0.0-beta.1...10.0.0-beta.2) (2026-09-30)
 
