@@ -175,7 +175,12 @@ class ControllerRuntime:
             self.backoff_count = 0
 
         self.effective_delay_seconds = self._calculate_effective_delay()
-        self.expires_at = self._clock() + timedelta(seconds=self.effective_delay_seconds)
+        self._schedule_timer_at(
+            self._clock() + timedelta(seconds=self.effective_delay_seconds)
+        )
+
+    def _schedule_timer_at(self, expires_at: datetime) -> None:
+        self.expires_at = expires_at
         self._timer_generation += 1
         generation = self._timer_generation
 
@@ -204,6 +209,25 @@ class ControllerRuntime:
         """Stop runtime-owned resources and cancel pending callbacks."""
 
         self._cancel_timer()
+
+    async def async_apply_config(self, new_config: ControllerConfig) -> None:
+        """Apply changed configuration without rebuilding runtime state."""
+
+        was_active_timer = self.state is ControllerState.ACTIVE_TIMER
+        trigger_base = self.last_triggered_at
+        self.config = new_config
+        self.effective_delay_seconds = self._calculate_effective_delay()
+
+        if not was_active_timer:
+            return
+
+        self._cancel_timer()
+        base = trigger_base or self._clock()
+        expires_at = base + timedelta(seconds=self.effective_delay_seconds)
+        if expires_at <= self._clock():
+            await self.async_handle_timer_expired()
+            return
+        self._schedule_timer_at(expires_at)
 
     @property
     def _active_target(self) -> ControllerState:

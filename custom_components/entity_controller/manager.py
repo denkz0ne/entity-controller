@@ -74,10 +74,19 @@ class EntityControllerManager:
             await runtime.async_stop()
 
     async def async_update_controller(self, subentry: Any) -> ControllerRuntime:
-        """Replace one controller runtime from updated subentry data."""
+        """Hot-update one controller runtime from updated subentry data."""
 
-        await self.async_remove_controller(subentry.subentry_id)
-        return await self.async_add_controller(subentry)
+        runtime = self.controllers.get(subentry.subentry_id)
+        if runtime is None:
+            return await self.async_add_controller(subentry)
+
+        for remove in self._remove_callbacks.pop(subentry.subentry_id, ()):
+            remove()
+        await runtime.async_apply_config(self._config_from_subentry(subentry))
+        self._register_controller_listeners(runtime)
+        if runtime.state is not ControllerState.ACTIVE_TIMER:
+            await self._safe_reconcile(runtime, ReconcileReason.RECONFIGURE)
+        return runtime
 
     def _config_from_subentry(self, subentry: Any) -> ControllerConfig:
         data = dict(getattr(subentry, "data", {}))
