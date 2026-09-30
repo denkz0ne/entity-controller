@@ -1,0 +1,43 @@
+ec01_izba_pohyb:
+  sensor:
+    - binary_sensor.izba_pohyb
+    - binary_sensor.izba_dvere
+  entity: light.izba
+  state_entities:
+    - light.izba
+  override:
+    - input_boolean.navsteva_block
+  delay: 90
+  sensor_type: duration
+  sensor_resets_timer: true
+  block_timeout: 1800
+  backoff: true
+  backoff_factor: 1.5
+  backoff_max: 600
+  night_mode:
+    start_time: sunset - 00:30:00
+    end_time: sunrise + 00:15:00
+  behaviours:
+    on_enter_idle: off
+    on_enter_active: on
+  unknown_future_field: keep-me-visible
+
+ec02_chodba:
+  sensors:
+    - binary_sensor.chodba_pohyb
+  entities:
+    - light.chodba
+  overrides:
+    - input_boolean.navsteva_block
+  interlocks:
+    - input_boolean.izba_block
+  delay: 120
+  disable_block: true
+
+ec04_vchod:
+  sensor:
+    - binary_sensor.vchod_pohyb
+    - binary_sensor.vchod_dvere
+  entity:
+    - light.vchod
+  delay: 45
