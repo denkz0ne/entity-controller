@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+<a name="10.0.0-beta.1"></a>
+## [10.0.0-beta.1](https://github.com/denkz0ne/entity-controller/compare/10.0.0-alpha.6...10.0.0-beta.1) (2026-09-30)
+
+
+### Features
+
+* add controller-owned restore state helpers for Enabled, Stay Mode, active timer expiry, and runtime timestamps
+* add stable redacted diagnostics for root entries, controller runtime state, and controller-scoped errors
+* add guide-only migration Repair issue builders for legacy YAML cleanup and warnings
+* add recovery reconcile hook for a single controller after an unavailable entity returns
+
+
 <a name="9.7.6"></a>
 ## [9.7.6](https://github.com/danobot/entity-controller/compare/v9.7.5...v9.7.6) (2024-05-04)
 
