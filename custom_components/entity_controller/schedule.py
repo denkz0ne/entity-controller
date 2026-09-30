@@ -30,15 +30,15 @@ class SchedulePoint:
     offset: timedelta = timedelta(0)
 
     @classmethod
-    def fixed(cls, value: time, *, offset: timedelta = timedelta(0)) -> "SchedulePoint":
+    def fixed(cls, value: time, *, offset: timedelta = timedelta(0)) -> SchedulePoint:
         return cls(ScheduleSource.FIXED, value, offset)
 
     @classmethod
-    def sunrise(cls, *, offset: timedelta = timedelta(0)) -> "SchedulePoint":
+    def sunrise(cls, *, offset: timedelta = timedelta(0)) -> SchedulePoint:
         return cls(ScheduleSource.SUNRISE, None, offset)
 
     @classmethod
-    def sunset(cls, *, offset: timedelta = timedelta(0)) -> "SchedulePoint":
+    def sunset(cls, *, offset: timedelta = timedelta(0)) -> SchedulePoint:
         return cls(ScheduleSource.SUNSET, None, offset)
 
 

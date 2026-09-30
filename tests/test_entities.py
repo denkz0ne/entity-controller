@@ -2,18 +2,20 @@ from __future__ import annotations
 
 import pytest
 
-from custom_components.entity_controller.binary_sensor import EntityControllerBlockedBinarySensor
-from custom_components.entity_controller.button import EntityControllerActivateButton
-from custom_components.entity_controller.sensor import EntityControllerStateSensor
-from custom_components.entity_controller.switch import (
-    EntityControllerEnabledSwitch,
-    EntityControllerStayModeSwitch,
+from custom_components.entity_controller.binary_sensor import (
+    EntityControllerBlockedBinarySensor,
 )
+from custom_components.entity_controller.button import EntityControllerActivateButton
 from custom_components.entity_controller.controller import ControllerRuntime
 from custom_components.entity_controller.model import (
     ControllerConfig,
     ControllerState,
     TransitionCause,
+)
+from custom_components.entity_controller.sensor import EntityControllerStateSensor
+from custom_components.entity_controller.switch import (
+    EntityControllerEnabledSwitch,
+    EntityControllerStayModeSwitch,
 )
 
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from custom_components.entity_controller.legacy_entity import LegacyEntityMirror
 from custom_components.entity_controller.controller import ControllerRuntime
+from custom_components.entity_controller.legacy_entity import LegacyEntityMirror
 from custom_components.entity_controller.model import ControllerConfig, ControllerState
 
 

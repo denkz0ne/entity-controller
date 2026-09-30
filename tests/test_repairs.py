@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from custom_components.entity_controller.migration import MigrationReport, MigrationWarning
+from custom_components.entity_controller.migration import (
+    MigrationReport,
+    MigrationWarning,
+)
 from custom_components.entity_controller.repairs import build_migration_repair_issues
 
 

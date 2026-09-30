@@ -6,7 +6,9 @@ from typing import Any
 import pytest
 
 from custom_components.entity_controller.controller import ControllerRuntime
-from custom_components.entity_controller.diagnostics import async_get_config_entry_diagnostics
+from custom_components.entity_controller.diagnostics import (
+    async_get_config_entry_diagnostics,
+)
 from custom_components.entity_controller.manager import EntityControllerManager
 from custom_components.entity_controller.model import ControllerConfig, ControllerState
 

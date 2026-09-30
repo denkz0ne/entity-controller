@@ -7,7 +7,6 @@ from custom_components.entity_controller.migration import (
     parse_legacy_yaml,
 )
 
-
 FIXTURE = Path("tests/fixtures/legacy_ec.yaml")
 
 

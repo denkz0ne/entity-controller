@@ -5,7 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from custom_components.entity_controller.config_flow import ControllerSubentryFlowHandler
+from custom_components.entity_controller.config_flow import (
+    ControllerSubentryFlowHandler,
+)
 
 
 @pytest.mark.asyncio

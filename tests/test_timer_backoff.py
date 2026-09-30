@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
-from typing import Awaitable, Callable
 
 import pytest
 
 from custom_components.entity_controller.controller import ControllerRuntime
-from custom_components.entity_controller.model import ControllerConfig, ControllerState, SensorType
+from custom_components.entity_controller.model import (
+    ControllerConfig,
+    ControllerState,
+    SensorType,
+)
 
 
 class FakeScheduledCall:

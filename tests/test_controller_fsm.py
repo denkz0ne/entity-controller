@@ -4,7 +4,10 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from custom_components.entity_controller.controller import ControllerRuntime, ReconcileSnapshot
+from custom_components.entity_controller.controller import (
+    ControllerRuntime,
+    ReconcileSnapshot,
+)
 from custom_components.entity_controller.model import (
     ControllerConfig,
     ControllerState,

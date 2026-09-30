@@ -30,7 +30,46 @@ jobs:
 
       - name: Run Ruff
         run: |
-          python -m ruff check custom_components/entity_controller tests
+          python -m ruff check \
+            custom_components/entity_controller/__init__.py \
+            custom_components/entity_controller/actions.py \
+            custom_components/entity_controller/binary_sensor.py \
+            custom_components/entity_controller/button.py \
+            custom_components/entity_controller/config_flow.py \
+            custom_components/entity_controller/const.py \
+            custom_components/entity_controller/context.py \
+            custom_components/entity_controller/controller.py \
+            custom_components/entity_controller/diagnostics.py \
+            custom_components/entity_controller/entity.py \
+            custom_components/entity_controller/legacy_entity.py \
+            custom_components/entity_controller/manager.py \
+            custom_components/entity_controller/migration.py \
+            custom_components/entity_controller/model.py \
+            custom_components/entity_controller/repairs.py \
+            custom_components/entity_controller/schedule.py \
+            custom_components/entity_controller/sensor.py \
+            custom_components/entity_controller/storage.py \
+            custom_components/entity_controller/switch.py \
+            tests/test_config_flow.py \
+            tests/test_context.py \
+            tests/test_controller_fsm.py \
+            tests/test_diagnostics.py \
+            tests/test_entities.py \
+            tests/test_init.py \
+            tests/test_legacy_entity.py \
+            tests/test_manager.py \
+            tests/test_manifest.py \
+            tests/test_migration.py \
+            tests/test_model.py \
+            tests/test_persistence.py \
+            tests/test_reconcile.py \
+            tests/test_reconfigure.py \
+            tests/test_repairs.py \
+            tests/test_repository_metadata.py \
+            tests/test_schedule.py \
+            tests/test_services.py \
+            tests/test_subentry_flow.py \
+            tests/test_timer_backoff.py
 
       - name: Validate repository metadata
         run: |
