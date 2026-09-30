@@ -5,9 +5,9 @@
 !!! REPLACE WITH THIS FILE WITH VERSION YOU WANT TO TEST                            !!!
 
 Entity controller component for Home Assistant.
-Maintainer:       Daniel Mason
+Maintainer:       denkz0ne
 Version:          v5.0.2
-Documentation:    https://github.com/danobot/entity-controller
+Documentation:    https://github.com/denkz0ne/entity-controller
 Issues Tracker:   Report issues on Github. Ensure you have the latest version. Include:
                     * YAML configuration (for the misbehaving entity)
                     * log entries at time of error and at time of initialisation
@@ -158,7 +158,7 @@ async def async_setup(hass, config):
     _LOGGER.info(
         "If you have ANY issues with EntityController (v"
         + VERSION
-        + "), please enable DEBUG logging under the logger component and kindly report the issue on Github. https://github.com/danobot/entity-controller/issues"
+        + "), please enable DEBUG logging under the logger component and kindly report the issue on Github. https://github.com/denkz0ne/entity-controller/issues"
     )
     _LOGGER.info("Domain Configuration: " + str(myconfig))
 

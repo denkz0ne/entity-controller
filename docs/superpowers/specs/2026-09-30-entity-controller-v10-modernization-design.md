@@ -9,7 +9,7 @@
 
 ## 1. Purpose
 
-Entity Controller v10 modernizes the existing `danobot/entity-controller` integration instead of replacing it with a different automation concept.
+Entity Controller v10 modernizes the existing `denkz0ne/entity-controller` integration instead of replacing it with a different automation concept.
 
 The goal is to preserve the useful Entity Controller state-machine behavior while replacing the YAML-first implementation and obsolete Home Assistant patterns with a native Config Entry / Config Subentry UI, async runtime, native entities, diagnostics, Repairs, safe migration, and current repository tooling.
 
