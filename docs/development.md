@@ -2,8 +2,8 @@
 
 Entity Controller v10 targets Home Assistant 2026.9+ and is being rebuilt around Config Entries, Config Subentries, typed `ConfigEntry.runtime_data`, and an explicit async state machine.
 
-## Current milestone: 10.0.0-alpha.3
+## Current milestone: 10.0.0-alpha.4
 
-`10.0.0-alpha.3` contains the typed integration skeleton, standalone async FSM core, structured schedule parsing/window evaluation, bounded HA Context tracking, cancellable timer/backoff logic, controller manager lifecycle, live listener routing, startup/reconfigure reconcile, and hot per-controller reconfiguration. Native controller entities, UI configuration, and migration are intentionally later milestones.
+`10.0.0-alpha.4` contains the typed integration skeleton, standalone async FSM core, structured schedule parsing/window evaluation, bounded HA Context tracking, cancellable timer/backoff logic, controller manager lifecycle, live listener routing, startup/reconfigure reconcile, hot per-controller reconfiguration, and initial native controller entities/actions. UI configuration and migration are intentionally later milestones.
 
 The v10 work is developed on the `v10-modernization` branch. Release milestones, migration requirements, and behavioral compatibility rules are defined in `docs/superpowers/specs/` and `docs/superpowers/plans/`.
