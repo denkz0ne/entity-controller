@@ -1,36 +1,26 @@
-[![License](https://img.shields.io/github/license/danobot/entity-controller.svg?style=flat-square)](https://github.com/danobot/entity-controller/blob/develop/COPYING)
-[![Blog](https://img.shields.io/badge/blog-The%20Budget%20Smart%20Home-orange?style=flat-square)](https://danielbkr.net/?utm_source=github&utm_medium=badge&utm_campaign=entity-controller)
-[![donate paypal](https://img.shields.io/badge/donate-PayPal-blue.svg?style=flat-square)](https://paypal.me/danielb160)
-[![donate gofundme](https://img.shields.io/badge/donate-GoFundMe-orange?style=flat-square)](https://gofund.me/7a2487d5)
+# Entity Controller
 
+Entity Controller v10 is a Home Assistant helper integration for reusable "when this happens, keep that active for a while" automations. The v10 line is being rebuilt around Config Entries, Config Subentries, native controller entities, hot reconfiguration, diagnostics, and controlled migration from legacy v9 YAML.
 
-# :wave: Introduction
-Entity Controller (EC) is an implementation of "When This, Then That for x amount of time" using a finite state machine that ensures basic automations do not interfere with the rest of your home automation setup. This component encapsulates common automation scenarios into a neat package that can be configured easily and reused throughout your home. Traditional automations would need to be duplicated _for each instance_ in your config. The use cases for this component are endless because you can use any entity as input and outputs (there is no restriction to motion sensors and lights).
+Current prerelease: `10.0.0-beta.1`
 
-[Entity Controller Documentation](https://danobot.github.io/ec-docs/)
+## Status
 
-## Installation
-EC is available in HACS store. Once installed, add the the following to your `configuration.yaml`, replacing the values for `sensor` and `entity` with one of your own. Reboot your Home Assistant server and you should have a motion controlled light that turns off after 5 seconds.
-```
-motion_light:
-  sensor: binary_sensor.living_room_motion
-  entity: light.tv_led
-  delay: 5
-```
-## :clapper: Video Demo
-I created the following video to give a high-level overview of all EC features, how they work and how you can configure them for your use cases.
+The `v10-modernization` branch is active prerelease work. It targets Home Assistant `2026.9.0` and newer. Do not treat beta builds as a finished production migration until the release candidate smoke gate is complete.
 
-[![Video](images/video_thumbnail.png)](https://youtu.be/HJQrA6sFlPs)
+## Documentation
 
-## Support
-Maintaining and improving this integration is very time consuming because of the sheer number of supported use cases. If you use this component in your home please donate a few dollars or check the issue tracker to help with the investigation of defects or the implementation of new features. I would be happy to receive your pull request.
+- [Configuration](docs/configuration.md)
+- [Actions](docs/actions.md)
+- [Behavior](docs/behavior.md)
+- [Migration from v9 YAML](docs/migration-v9-to-v10.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [Development notes](docs/development.md)
 
-[![donate paypal](https://img.shields.io/badge/donate-PayPal-blue.svg?style=flat-square)](https://paypal.me/danielb160)
-[![donate gofundme](https://img.shields.io/badge/donate-GoFundMe-orange?style=flat-square)](https://gofund.me/7a2487d5)
+## Migration model
 
-# Contributions
-All contributions are welcome, including raising issues. Expect to be involved in the resolution of any issues. 
+Legacy YAML is imported into v10 controller subentry data, but Entity Controller does not delete Helpers or rewrite `ec.yaml`. External Helpers stay ordinary Home Assistant entities and can be selected by one or more controller rules.
 
-The `close-issue` bot is ruthless. Please provide all requested information to allow me to help you.
+## Development
 
-
+The maintained v10 CI path is `.github/workflows/v10-modernization.yml`. It runs repository metadata checks, Ruff, and the v10 pytest suite.
