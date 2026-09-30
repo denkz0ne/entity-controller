@@ -47,4 +47,7 @@ jobs:
             tests/test_subentry_flow.py \
             tests/test_migration.py \
             tests/test_legacy_entity.py \
+            tests/test_persistence.py \
+            tests/test_diagnostics.py \
+            tests/test_repairs.py \
             -v
