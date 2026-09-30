@@ -197,6 +197,14 @@ class ControllerRuntime:
         if self.state is ControllerState.ACTIVE_TIMER:
             self._schedule_main_timer(reset=True)
 
+    async def async_start(self) -> None:
+        """Start runtime-owned resources."""
+
+    async def async_stop(self) -> None:
+        """Stop runtime-owned resources and cancel pending callbacks."""
+
+        self._cancel_timer()
+
     @property
     def _active_target(self) -> ControllerState:
         return (
