@@ -32,6 +32,7 @@ jobs:
         run: |
           python -m pytest \
             tests/test_manifest.py \
+            tests/test_repository_metadata.py \
             tests/test_model.py \
             tests/test_init.py \
             tests/test_controller_fsm.py \
