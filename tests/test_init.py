@@ -1,16 +1,17 @@
 import pytest
 
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
-
 from custom_components.entity_controller import async_setup_entry, async_unload_entry
 from custom_components.entity_controller.manager import EntityControllerManager
 
 
+class FakeConfigEntry:
+    runtime_data: EntityControllerManager | None = None
+
+
 @pytest.mark.asyncio
 async def test_setup_entry_stores_typed_manager() -> None:
-    hass = HomeAssistant()
-    entry = ConfigEntry()
+    hass = object()
+    entry = FakeConfigEntry()
 
     assert await async_setup_entry(hass, entry) is True
     assert isinstance(entry.runtime_data, EntityControllerManager)
@@ -19,8 +20,8 @@ async def test_setup_entry_stores_typed_manager() -> None:
 
 @pytest.mark.asyncio
 async def test_unload_entry_stops_manager() -> None:
-    hass = HomeAssistant()
-    entry = ConfigEntry()
+    hass = object()
+    entry = FakeConfigEntry()
 
     assert await async_setup_entry(hass, entry) is True
     manager = entry.runtime_data
