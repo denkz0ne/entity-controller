@@ -43,4 +43,6 @@ jobs:
             tests/test_reconfigure.py \
             tests/test_entities.py \
             tests/test_services.py \
+            tests/test_config_flow.py \
+            tests/test_subentry_flow.py \
             -v
