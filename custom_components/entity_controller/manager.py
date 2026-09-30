@@ -88,6 +88,18 @@ class EntityControllerManager:
             await self._safe_reconcile(runtime, ReconcileReason.RECONFIGURE)
         return runtime
 
+    async def async_reconcile_controller(
+        self,
+        subentry_id: str,
+        reason: ReconcileReason,
+    ) -> ControllerState | None:
+        """Reconcile one controller without affecting sibling controllers."""
+
+        runtime = self.controllers.get(subentry_id)
+        if runtime is None:
+            return None
+        return await self._safe_reconcile(runtime, reason)
+
     def _config_from_subentry(self, subentry: Any) -> ControllerConfig:
         data = dict(getattr(subentry, "data", {}))
         kwargs: dict[str, Any] = {
