@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import voluptuous as vol
-from homeassistant import config_entries
+from homeassistant import config_entries, data_entry_flow
 from homeassistant.core import callback
 
 from .const import DEFAULT_DELAY_SECONDS, DOMAIN
@@ -13,7 +13,7 @@ from .const import DEFAULT_DELAY_SECONDS, DOMAIN
 try:
     ConfigSubentryFlow = config_entries.ConfigSubentryFlow
 except AttributeError:
-    class ConfigSubentryFlow:
+    class ConfigSubentryFlow(data_entry_flow.FlowHandler):
         """Compatibility shim for test environments without HA subentry support."""
 
 

@@ -53,6 +53,7 @@ async def test_controller_subentry_flow_adds_basic_motion_controller() -> None:
     assert result["type"] == "create_entry"
     assert result["flow_id"] == "controller-flow"
     assert result["handler"] == ("entry-id", "controller")
+    assert result["context"] == {"source": "user"}
     assert result["title"] == "Hall Motion"
     assert result["data"]["trigger_entities"] == ("binary_sensor.hall_motion",)
     assert result["data"]["control_entities"] == ("light.hall",)

@@ -101,7 +101,7 @@ def test_basic_controller_input_is_normalized_without_advanced_fields() -> None:
 
 
 @pytest.mark.asyncio
-async def test_controller_subentry_form_has_basic_visible_fields() -> None:
+async def test_controller_subentry_form_is_valid_flow_result() -> None:
     flow = _prepare_subentry_flow(ControllerSubentryFlowHandler())
 
     result = await flow.async_step_user()
@@ -109,6 +109,7 @@ async def test_controller_subentry_form_has_basic_visible_fields() -> None:
     assert result["type"] == "form"
     assert result["flow_id"] == "controller-flow"
     assert result["handler"] == ("entry-id", "controller")
+    assert result["step_id"] == "user"
     assert "name" in _schema_keys(result["data_schema"])
     assert "trigger_entities" in _schema_keys(result["data_schema"])
     assert "control_entities" in _schema_keys(result["data_schema"])
