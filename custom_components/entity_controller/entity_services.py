@@ -131,4 +131,3 @@ def async_entity_service_set_night_mode(self, start_time=None, end_time=None):
 
     self.model.prepare_service_data()
 
-

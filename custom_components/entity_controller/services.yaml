@@ -2,46 +2,46 @@ activate:
   description: Activates an Entity Controller. Turns on the entity and transitions
     to the active_timer state. This also clears the blocked state if set.
   fields:
-    entity_id:
-      description: Name(s) of entities to trigger.
-      example: 'entity_controller.motion_light'
+    controller_id:
+      description: Controller subentry id. If omitted, targets all controllers.
+      example: 'motion_light'
 
 clear_block:
   description: Clears the blocked state of an Entity Controller, if set
   fields:
-    entity_id:
-      description: Name(s) of entities to change.
-      example: 'entity_controller.motion_light'
+    controller_id:
+      description: Controller subentry id. If omitted, targets all controllers.
+      example: 'motion_light'
 
 enable_block:
   description: Enables the blocked state of an Entity Controller, if timer is active
   fields:
-    entity_id:
-      description: Name(s) of entities to change.
-      example: 'entity_controller.motion_light'
+    controller_id:
+      description: Controller subentry id. If omitted, targets all controllers.
+      example: 'motion_light'
 
 enable_stay_mode:
   description: Change the stay to on
   fields:
-    entity_id:
-      description: Name(s) of entities to change.
-      example: 'entity_controller.motion_light'
+    controller_id:
+      description: Controller subentry id. If omitted, targets all controllers.
+      example: 'motion_light'
 
 disable_stay_mode:
   description: Change the stay to off
   fields:
-    entity_id:
-      description: Name(s) of entities to change.
-      example: 'entity_controller.motion_light'
+    controller_id:
+      description: Controller subentry id. If omitted, targets all controllers.
+      example: 'motion_light'
 
 set_night_mode:
   description: Change the night mode start and end times, does nothing 
     if night mode is not defined in configuration. If both start_time and end_time
     are not provided, it will set both to midnight, effectivly disabling night mode.
   fields:
-    entity_id:
-      description: Name(s) of entities to change.
-      example: 'entity_controller.motion_light'
+    controller_id:
+      description: Controller subentry id. If omitted, targets all controllers.
+      example: 'motion_light'
     start_time:
       description: new start time to set night mode to.
       example: sunset - 00:30:00 or '18:30:00' or now or constraint (set same as day start)

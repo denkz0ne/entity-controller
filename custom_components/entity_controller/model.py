@@ -93,6 +93,7 @@ class ControllerConfig:
     sensor_resets_timer: bool = False
     blocking_enabled: bool = True
     block_timeout_seconds: float | None = None
+    enabled_default: bool = True
     stay_mode_default: bool = False
     backoff_enabled: bool = False
     backoff_factor: float = 1.1

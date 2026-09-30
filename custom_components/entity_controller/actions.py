@@ -33,13 +33,13 @@ async def async_enable_block(runtime: ControllerRuntime) -> None:
 async def async_enable_stay_mode(runtime: ControllerRuntime) -> None:
     """Enable runtime stay mode."""
 
-    runtime.stay_mode = True
+    await runtime.async_set_stay_mode(True)
 
 
 async def async_disable_stay_mode(runtime: ControllerRuntime) -> None:
     """Disable runtime stay mode."""
 
-    runtime.stay_mode = False
+    await runtime.async_set_stay_mode(False)
 
 
 async def async_set_night_mode(
@@ -49,4 +49,3 @@ async def async_set_night_mode(
     end_time: str | None = None,
 ) -> None:
     """Compatibility placeholder until v10 constraint profiles are implemented."""
-

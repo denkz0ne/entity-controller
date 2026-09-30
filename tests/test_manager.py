@@ -35,6 +35,8 @@ class FakeHass:
     def __init__(self, values: dict[str, str] | None = None) -> None:
         self.states = FakeStates(values)
         self.listeners: dict[str, list[Any]] = {}
+        self.service_calls: list[tuple[str, str, dict[str, Any], Any]] = []
+        self.services = self
 
     def track_state(self, entity_id: str, callback: Any) -> Any:
         self.listeners.setdefault(entity_id, []).append(callback)
@@ -66,6 +68,17 @@ class FakeHass:
     def listener_count(self) -> int:
         return sum(len(callbacks) for callbacks in self.listeners.values())
 
+    async def async_call(
+        self,
+        domain: str,
+        service: str,
+        data: dict[str, Any],
+        *,
+        blocking: bool,
+        context: Any,
+    ) -> None:
+        self.service_calls.append((domain, service, data, context))
+
 
 class FakeEntry:
     entry_id = "entry-id"
@@ -83,7 +96,9 @@ def subentry(subentry_id: str = "controller-a", **data: Any) -> FakeSubentry:
 
 
 @pytest.mark.asyncio
-async def test_add_controller_reconciles_control_entity_on_without_forcing_off() -> None:
+async def test_add_controller_reconciles_control_entity_on_without_forcing_off() -> (
+    None
+):
     hass = FakeHass({"light.hall": "on"})
     manager = EntityControllerManager(hass, FakeEntry())
 
@@ -109,6 +124,42 @@ async def test_manager_routes_multiple_trigger_entities_to_one_controller() -> N
     assert runtime.state is ControllerState.ACTIVE_TIMER
     assert runtime.last_triggered_by == "binary_sensor.two"
     assert runtime.trigger_generation == 2
+
+
+@pytest.mark.asyncio
+async def test_one_trigger_turning_off_keeps_duration_controller_active() -> None:
+    hass = FakeHass()
+    manager = EntityControllerManager(hass, FakeEntry())
+    runtime = await manager.async_add_controller(
+        subentry(
+            trigger_entities=("binary_sensor.one", "binary_sensor.two"),
+            sensor_type="duration",
+        )
+    )
+
+    await hass.fire_state_change("binary_sensor.one", "on")
+    await hass.fire_state_change("binary_sensor.two", "on")
+    await hass.fire_state_change("binary_sensor.one", "off", old_state="on")
+
+    assert runtime.sensor_active is True
+
+
+@pytest.mark.asyncio
+async def test_one_override_turning_off_keeps_other_override_active() -> None:
+    hass = FakeHass()
+    manager = EntityControllerManager(hass, FakeEntry())
+    runtime = await manager.async_add_controller(
+        subentry(
+            override_entities=("input_boolean.one", "input_boolean.two"),
+        )
+    )
+
+    await hass.fire_state_change("input_boolean.one", "on")
+    await hass.fire_state_change("input_boolean.two", "on")
+    await hass.fire_state_change("input_boolean.one", "off", old_state="on")
+
+    assert runtime.override_active is True
+    assert runtime.state is ControllerState.OVERRIDDEN
 
 
 @pytest.mark.asyncio
@@ -143,3 +194,49 @@ async def test_remove_controller_cleans_up_all_registered_callbacks() -> None:
 
     assert "controller-a" not in manager.controllers
     assert hass.listener_count() == 0
+
+
+@pytest.mark.asyncio
+async def test_controller_transition_calls_home_assistant_control_service() -> None:
+    hass = FakeHass()
+    manager = EntityControllerManager(hass, FakeEntry())
+    runtime = await manager.async_add_controller(
+        subentry(
+            trigger_entities=("binary_sensor.motion",),
+            control_entities=("light.hall", "switch.fan"),
+        )
+    )
+
+    await runtime.async_handle_sensor_on("binary_sensor.motion")
+
+    assert [
+        (domain, service, data) for domain, service, data, _ in hass.service_calls
+    ] == [
+        ("light", "turn_on", {"entity_id": ["light.hall"]}),
+        ("switch", "turn_on", {"entity_id": ["switch.fan"]}),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_manager_syncs_added_updated_and_removed_subentries() -> None:
+    hass = FakeHass()
+    entry = FakeEntry()
+    entry.subentries = {"controller-a": subentry()}
+    manager = EntityControllerManager(hass, entry)
+
+    await manager.async_setup()
+    assert set(manager.controllers) == {"controller-a"}
+
+    entry.subentries = {
+        "controller-a": subentry(trigger_entities=("binary_sensor.changed",)),
+        "controller-b": subentry("controller-b", control_entities=("light.b",)),
+    }
+    await manager.async_sync_subentries()
+    assert set(manager.controllers) == {"controller-a", "controller-b"}
+    assert manager.controllers["controller-a"].config.trigger_entities == (
+        "binary_sensor.changed",
+    )
+
+    entry.subentries = {"controller-b": entry.subentries["controller-b"]}
+    await manager.async_sync_subentries()
+    assert set(manager.controllers) == {"controller-b"}

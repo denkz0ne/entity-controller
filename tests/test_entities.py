@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import pytest
+from homeassistant.components.binary_sensor import BinarySensorEntity
+from homeassistant.components.button import ButtonEntity
+from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.switch import SwitchEntity
 
 from custom_components.entity_controller.binary_sensor import (
     EntityControllerBlockedBinarySensor,
@@ -48,10 +52,18 @@ def test_native_entities_have_stable_unique_ids_and_subentry_device_info() -> No
         "entry-1_controller-a_activate",
     ]
     for entity in entities:
-        assert entity.device_info["identifiers"] == {("entity_controller", "controller-a")}
+        assert entity.device_info["identifiers"] == {
+            ("entity_controller", "controller-a")
+        }
         assert entity.device_info["name"] == "Hall Motion"
-        assert entity.device_info["config_entry_id"] == "entry-1"
-        assert entity.device_info["config_subentry_id"] == "controller-a"
+        assert "config_entry_id" not in entity.device_info
+        assert "config_subentry_id" not in entity.device_info
+
+    assert isinstance(entities[0], SensorEntity)
+    assert isinstance(entities[1], SwitchEntity)
+    assert isinstance(entities[2], SwitchEntity)
+    assert isinstance(entities[3], BinarySensorEntity)
+    assert isinstance(entities[4], ButtonEntity)
 
 
 def test_state_sensor_exposes_exact_fsm_state_and_runtime_attributes() -> None:
@@ -67,7 +79,9 @@ def test_state_sensor_exposes_exact_fsm_state_and_runtime_attributes() -> None:
 
 
 @pytest.mark.asyncio
-async def test_enabled_switch_off_disables_decisions_without_turning_loads_off() -> None:
+async def test_enabled_switch_off_disables_decisions_without_turning_loads_off() -> (
+    None
+):
     runtime = make_runtime()
     switch = EntityControllerEnabledSwitch(runtime, "entry-1")
 
@@ -115,7 +129,9 @@ async def test_activate_button_transitions_controller_active() -> None:
 
 def test_disabled_by_default_diagnostics_are_not_primary_entities() -> None:
     runtime = make_runtime()
-    assert EntityControllerStateSensor(runtime, "entry-1").entity_registry_enabled_default
+    assert EntityControllerStateSensor(
+        runtime, "entry-1"
+    ).entity_registry_enabled_default
     assert not EntityControllerStateSensor(
         runtime,
         "entry-1",

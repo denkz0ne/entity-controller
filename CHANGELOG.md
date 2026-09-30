@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+<a name="10.0.0-rc.2"></a>
+## 10.0.0-rc.2 (2026-09-30)
+
+### Bug Fixes
+
+* load controller subentries and register their native Home Assistant entities
+* execute real Home Assistant turn-on/turn-off services with owned contexts
+* make Helper settings open a valid add-controller flow
+* start the first controller flow immediately after root setup
+* apply add, edit, and remove operations live without restarting Home Assistant
+* persist Enabled and Stay Mode and use real Home Assistant timers
+
 <a name="10.0.0-rc.1"></a>
 ## [10.0.0-rc.1](https://github.com/denkz0ne/entity-controller/compare/10.0.0-beta.2...10.0.0-rc.1) (2026-09-30)
 

@@ -11,11 +11,13 @@ from custom_components.entity_controller.actions import (
     async_set_night_mode,
 )
 from custom_components.entity_controller.controller import ControllerRuntime
+from custom_components.entity_controller.manager import EntityControllerManager
 from custom_components.entity_controller.model import (
     ControllerConfig,
     ControllerState,
     TransitionCause,
 )
+from custom_components.entity_controller.services import async_dispatch_service
 
 
 def make_runtime() -> ControllerRuntime:
@@ -70,7 +72,31 @@ async def test_stay_mode_actions_toggle_runtime_flag() -> None:
 async def test_set_night_mode_is_compatibility_noop_until_constraints_exist() -> None:
     runtime = make_runtime()
 
-    result = await async_set_night_mode(runtime, start_time="now", end_time="constraint")
+    result = await async_set_night_mode(
+        runtime, start_time="now", end_time="constraint"
+    )
 
     assert result is None
     assert runtime.state is ControllerState.IDLE
+
+
+@pytest.mark.asyncio
+async def test_registered_action_dispatches_to_selected_controller() -> None:
+    selected = make_runtime()
+    other = ControllerRuntime(
+        ControllerConfig(subentry_id="controller-b", name="Kitchen")
+    )
+    manager = object.__new__(EntityControllerManager)
+    manager.controllers = {
+        "controller-a": selected,
+        "controller-b": other,
+    }
+
+    await async_dispatch_service(
+        {"entry-id": manager},
+        "activate",
+        {"controller_id": "controller-a"},
+    )
+
+    assert selected.state is ControllerState.ACTIVE_TIMER
+    assert other.state is ControllerState.IDLE

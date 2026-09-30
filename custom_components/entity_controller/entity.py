@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+from homeassistant.helpers.entity import Entity
+
 from .const import DOMAIN
 from .controller import ControllerRuntime
 
 
-class EntityControllerEntity:
+class EntityControllerEntity(Entity):
     """Common data for one controller-owned Home Assistant entity."""
 
     entity_registry_enabled_default = True
+    _attr_should_poll = False
 
     def __init__(
         self,
@@ -23,6 +26,13 @@ class EntityControllerEntity:
         self.entry_id = entry_id
         self.key = key
         self.entity_registry_enabled_default = enabled_default
+
+    async def async_added_to_hass(self) -> None:
+        """Update the entity whenever its controller runtime changes."""
+
+        self.async_on_remove(
+            self.runtime.add_update_listener(self.async_write_ha_state)
+        )
 
     @property
     def unique_id(self) -> str:
@@ -46,7 +56,4 @@ class EntityControllerEntity:
             "name": self.runtime.config.name,
             "manufacturer": "Entity Controller",
             "model": "Entity Controller v10",
-            "config_entry_id": self.entry_id,
-            "config_subentry_id": subentry_id,
         }
-

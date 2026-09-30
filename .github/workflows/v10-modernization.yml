@@ -48,6 +48,7 @@ jobs:
             custom_components/entity_controller/repairs.py \
             custom_components/entity_controller/schedule.py \
             custom_components/entity_controller/sensor.py \
+            custom_components/entity_controller/services.py \
             custom_components/entity_controller/storage.py \
             custom_components/entity_controller/switch.py \
             tests/test_config_flow.py \

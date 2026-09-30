@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from homeassistant.components.switch import SwitchEntity
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
 from .entity import EntityControllerEntity
-from .model import ControllerState, ReconcileReason
 
 
-class EntityControllerEnabledSwitch(EntityControllerEntity):
+class EntityControllerEnabledSwitch(EntityControllerEntity, SwitchEntity):
     """Enable or disable EC decisions for one controller."""
 
     def __init__(self, runtime, entry_id: str) -> None:
@@ -21,18 +24,15 @@ class EntityControllerEnabledSwitch(EntityControllerEntity):
     async def async_turn_off(self, **kwargs) -> None:
         """Disable EC decisions without turning controlled loads off."""
 
-        self.runtime.enabled = False
-        await self.runtime.async_reconcile(ReconcileReason.ENABLED)
+        await self.runtime.async_set_enabled(False)
 
     async def async_turn_on(self, **kwargs) -> None:
         """Enable EC decisions and reconcile current reality."""
 
-        self.runtime.enabled = True
-        if self.runtime.state is ControllerState.DISABLED:
-            await self.runtime.async_reconcile(ReconcileReason.ENABLED)
+        await self.runtime.async_set_enabled(True)
 
 
-class EntityControllerStayModeSwitch(EntityControllerEntity):
+class EntityControllerStayModeSwitch(EntityControllerEntity, SwitchEntity):
     """Control runtime stay mode."""
 
     def __init__(self, runtime, entry_id: str) -> None:
@@ -47,10 +47,40 @@ class EntityControllerStayModeSwitch(EntityControllerEntity):
     async def async_turn_on(self, **kwargs) -> None:
         """Enable stay mode."""
 
-        self.runtime.stay_mode = True
+        await self.runtime.async_set_stay_mode(True)
 
     async def async_turn_off(self, **kwargs) -> None:
         """Disable stay mode."""
 
-        self.runtime.stay_mode = False
+        await self.runtime.async_set_stay_mode(False)
 
+
+async def async_setup_entry(
+    hass: HomeAssistant, entry, async_add_entities: AddEntitiesCallback
+) -> None:
+    """Set up controller switches."""
+
+    manager = entry.runtime_data
+    entities: dict[str, list[EntityControllerEntity]] = {}
+
+    def _add(runtime) -> None:
+        controller_entities = [
+            EntityControllerEnabledSwitch(runtime, entry.entry_id),
+            EntityControllerStayModeSwitch(runtime, entry.entry_id),
+        ]
+        entities[runtime.config.subentry_id] = controller_entities
+        async_add_entities(
+            controller_entities,
+            config_subentry_id=runtime.config.subentry_id,
+        )
+
+    def _changed(event: str, subentry_id: str, runtime) -> None:
+        if event == "added" and runtime is not None:
+            _add(runtime)
+        elif event == "removed":
+            for entity in entities.pop(subentry_id, ()):
+                hass.async_create_task(entity.async_remove())
+
+    for runtime in manager.controllers.values():
+        _add(runtime)
+    entry.async_on_unload(manager.add_controller_listener(_changed))

@@ -4,9 +4,38 @@
     "step": {
       "user": {
         "title": "Entity Controller",
-        "description": "Vytvori hlavny zaznam integracie Entity Controller.",
+        "description": "Vytvorí Entity Controller. Následne sa otvorí formulár prvého ovládača.",
         "data": {
-          "name": "Nazov"
+          "name": "Názov"
+        }
+      },
+      "reconfigure": {
+        "title": "Premenovať Entity Controller",
+        "data": {
+          "name": "Názov"
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Entity Controller je už nastavený. Ďalší ovládač pridaj cez jeho nastavenia."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Pridať ovládač",
+        "description": "Nastav nové pravidlo Entity Controller.",
+        "data": {
+          "name": "Názov",
+          "trigger_entities": "Spúšťacie entity",
+          "control_entities": "Ovládané entity",
+          "state_entities": "Stavové entity",
+          "override_entities": "Entity pre override",
+          "interlock_entities": "Blokovacie entity",
+          "sensor_type": "Typ senzora",
+          "delay_seconds": "Oneskorenie v sekundách",
+          "blocking_enabled": "Zapnúť blokovanie",
+          "stay_mode_default": "Predvolene zapnúť trvalý režim"
         }
       }
     }

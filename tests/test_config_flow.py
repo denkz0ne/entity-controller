@@ -4,8 +4,10 @@ import json
 from pathlib import Path
 
 import pytest
+from homeassistant import config_entries
 
 from custom_components.entity_controller.config_flow import (
+    ControllerOptionsFlow,
     ControllerSubentryFlowHandler,
     EntityControllerConfigFlow,
     normalize_controller_user_input,
@@ -13,7 +15,9 @@ from custom_components.entity_controller.config_flow import (
 from custom_components.entity_controller.const import DOMAIN
 
 
-def _prepare_config_flow(flow: EntityControllerConfigFlow) -> EntityControllerConfigFlow:
+def _prepare_config_flow(
+    flow: EntityControllerConfigFlow,
+) -> EntityControllerConfigFlow:
     flow.flow_id = "root-flow"
     flow.handler = DOMAIN
     flow.context = {"source": "user"}
@@ -30,10 +34,7 @@ def _prepare_subentry_flow(
 
 
 def _schema_keys(schema: object) -> set[str]:
-    return {
-        getattr(key, "schema", key)
-        for key in getattr(schema, "schema", {})
-    }
+    return {getattr(key, "schema", key) for key in getattr(schema, "schema", {})}
 
 
 @pytest.mark.asyncio
@@ -48,6 +49,32 @@ async def test_root_flow_creates_single_entity_controller_entry() -> None:
     assert result["title"] == "Entity Controller"
     assert result["data"] == {"name": "Entity Controller"}
     assert result["version"] == 10
+
+
+@pytest.mark.asyncio
+async def test_root_creation_starts_controller_subentry_flow() -> None:
+    class SubentryFlows:
+        async def async_init(self, handler, *, context):
+            assert handler == ("entry-id", "controller")
+            assert context["source"] == "user"
+            return {"flow_id": "subentry-flow"}
+
+    flow = _prepare_config_flow(EntityControllerConfigFlow())
+    flow.hass = type(
+        "Hass",
+        (),
+        {
+            "config_entries": type(
+                "ConfigEntries", (), {"subentries": SubentryFlows()}
+            )()
+        },
+    )()
+
+    result = await flow.async_on_create_entry(
+        {"result": type("Entry", (), {"entry_id": "entry-id"})()}
+    )
+
+    assert result["next_flow"][1] == "subentry-flow"
 
 
 @pytest.mark.asyncio
@@ -66,6 +93,59 @@ def test_root_flow_advertises_controller_subentry_type() -> None:
     supported = EntityControllerConfigFlow.async_get_supported_subentry_types(object())
 
     assert supported == {"controller": ControllerSubentryFlowHandler}
+
+
+@pytest.mark.asyncio
+async def test_helper_settings_opens_add_controller_form() -> None:
+    flow = ControllerOptionsFlow()
+    flow.flow_id = "options-flow"
+    flow.handler = "entry-id"
+    flow.context = {"source": "init"}
+
+    result = await flow.async_step_init()
+
+    assert result["type"] == "form"
+    assert result["handler"] == "entry-id"
+    assert "trigger_entities" in _schema_keys(result["data_schema"])
+
+
+@pytest.mark.asyncio
+async def test_helper_settings_adds_controller_subentry(monkeypatch) -> None:
+    added: list[object] = []
+
+    class Subentry:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+
+    entry = type("Entry", (), {"domain": DOMAIN, "options": {}})()
+
+    class ConfigEntries:
+        def async_get_known_entry(self, entry_id):
+            assert entry_id == "entry-id"
+            return entry
+
+        def async_add_subentry(self, parent, subentry):
+            assert parent is entry
+            added.append(subentry)
+
+    monkeypatch.setattr(config_entries, "ConfigSubentry", Subentry, raising=False)
+    flow = ControllerOptionsFlow()
+    flow.flow_id = "options-flow"
+    flow.handler = "entry-id"
+    flow.context = {"source": "init"}
+    flow.hass = type("Hass", (), {"config_entries": ConfigEntries()})()
+
+    result = await flow.async_step_init(
+        {
+            "name": "Hall",
+            "trigger_entities": ["binary_sensor.hall"],
+            "control_entities": ["light.hall"],
+        }
+    )
+
+    assert result["type"] == "create_entry"
+    assert added[0].subentry_type == "controller"
+    assert added[0].data["control_entities"] == ("light.hall",)
 
 
 def test_manifest_enables_config_flow() -> None:

@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from homeassistant.components.sensor import SensorEntity
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
 from .controller import ControllerRuntime
 from .entity import EntityControllerEntity
 
 
-class EntityControllerStateSensor(EntityControllerEntity):
+class EntityControllerStateSensor(EntityControllerEntity, SensorEntity):
     """Expose the exact controller FSM state."""
 
     def __init__(
@@ -29,7 +33,11 @@ class EntityControllerStateSensor(EntityControllerEntity):
         """Return the runtime FSM state value."""
 
         if self.diagnostic_key == "last_trigger":
-            return "" if self.runtime.last_triggered_at is None else self.runtime.last_triggered_at.isoformat()
+            return (
+                ""
+                if self.runtime.last_triggered_at is None
+                else self.runtime.last_triggered_at.isoformat()
+            )
         return self.runtime.state.value
 
     @property
@@ -49,3 +57,30 @@ class EntityControllerStateSensor(EntityControllerEntity):
             "overridden_by": self.runtime.overridden_by,
         }
 
+
+async def async_setup_entry(
+    hass: HomeAssistant, entry, async_add_entities: AddEntitiesCallback
+) -> None:
+    """Set up controller state sensors."""
+
+    manager = entry.runtime_data
+    entities: dict[str, EntityControllerStateSensor] = {}
+
+    def _add(runtime: ControllerRuntime) -> None:
+        entity = EntityControllerStateSensor(runtime, entry.entry_id)
+        entities[runtime.config.subentry_id] = entity
+        async_add_entities(
+            [entity],
+            config_subentry_id=runtime.config.subentry_id,
+        )
+
+    def _changed(event: str, subentry_id: str, runtime) -> None:
+        if event == "added" and runtime is not None:
+            _add(runtime)
+        elif event == "removed" and (entity := entities.pop(subentry_id, None)):
+            hass.async_create_task(entity.async_remove())
+
+    for runtime in manager.controllers.values():
+        _add(runtime)
+
+    entry.async_on_unload(manager.add_controller_listener(_changed))

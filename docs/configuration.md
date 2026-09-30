@@ -2,12 +2,14 @@
 
 Entity Controller v10 uses one root Config Entry and one controller Config Subentry per controller rule.
 
-The initial alpha.5 UI surface supports:
+The UI supports:
 - creating the root Entity Controller entry;
-- adding a controller subentry;
+- opening the first controller form immediately after setup;
+- adding further controllers from the existing Helper settings;
 - reconfiguring one controller without reloading unrelated controllers;
-- selecting trigger entities;
-- selecting controlled entities;
+- selecting trigger and controlled entities with native entity selectors;
 - preserving external override and interlock Helper/entity references.
 
-Advanced runtime options, full selectors, persistence, migration, and production polish continue in later milestones.
+Controller changes apply live. A trigger turns on the selected controlled
+entities, retriggers reset the timer, and timer expiry turns them off. Enabled
+and Stay Mode state is stored in the controller subentry.

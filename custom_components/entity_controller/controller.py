@@ -18,6 +18,7 @@ from .model import (
 BehaviorExecutor = Callable[[TransitionBehavior], Awaitable[None]]
 TimerCallback = Callable[[], Awaitable[None]]
 ScheduleAt = Callable[[datetime, TimerCallback], Callable[[], None]]
+StatePersistor = Callable[["ControllerRuntime"], Awaitable[None]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,14 +121,16 @@ class ControllerRuntime:
         behavior_executor: BehaviorExecutor | None = None,
         clock: Callable[[], datetime] | None = None,
         schedule_at: ScheduleAt | None = None,
+        state_persistor: StatePersistor | None = None,
     ) -> None:
         self.config = config
         self.state = ControllerState.IDLE
         self._behavior_executor = behavior_executor
         self._clock = clock or (lambda: datetime.now(UTC))
         self._schedule_at = schedule_at
+        self._state_persistor = state_persistor
 
-        self.enabled = True
+        self.enabled = config.enabled_default
         self.constrained = False
         self.override_active = False
         self.interlock_active = False
@@ -149,6 +152,38 @@ class ControllerRuntime:
         self.expires_at: datetime | None = None
         self._timer_cancel: Callable[[], None] | None = None
         self._timer_generation = 0
+        self._update_callbacks: set[Callable[[], None]] = set()
+
+    async def async_set_enabled(self, enabled: bool) -> None:
+        """Set and persist controller decision-making state."""
+
+        self.enabled = enabled
+        await self.async_reconcile(ReconcileReason.ENABLED)
+        if self._state_persistor is not None:
+            await self._state_persistor(self)
+        self._notify_updated()
+
+    async def async_set_stay_mode(self, enabled: bool) -> None:
+        """Set and persist stay mode."""
+
+        self.stay_mode = enabled
+        if self._state_persistor is not None:
+            await self._state_persistor(self)
+        self._notify_updated()
+
+    def add_update_listener(self, callback: Callable[[], None]) -> Callable[[], None]:
+        """Subscribe a native entity to runtime state changes."""
+
+        self._update_callbacks.add(callback)
+
+        def _remove() -> None:
+            self._update_callbacks.discard(callback)
+
+        return _remove
+
+    def _notify_updated(self) -> None:
+        for callback in tuple(self._update_callbacks):
+            callback()
 
     @staticmethod
     def _is_active_state(state: ControllerState) -> bool:
@@ -164,7 +199,9 @@ class ControllerRuntime:
     def _calculate_effective_delay(self) -> float:
         if not self.config.backoff_enabled or self.backoff_count == 0:
             return self.config.delay_seconds
-        delay = self.config.delay_seconds * (self.config.backoff_factor ** self.backoff_count)
+        delay = self.config.delay_seconds * (
+            self.config.backoff_factor**self.backoff_count
+        )
         return min(delay, self.config.backoff_max_seconds)
 
     def _schedule_main_timer(self, *, reset: bool) -> None:
@@ -219,6 +256,7 @@ class ControllerRuntime:
         self.effective_delay_seconds = self._calculate_effective_delay()
 
         if not was_active_timer:
+            self._notify_updated()
             return
 
         self._cancel_timer()
@@ -228,6 +266,7 @@ class ControllerRuntime:
             await self.async_handle_timer_expired()
             return
         self._schedule_timer_at(expires_at)
+        self._notify_updated()
 
     @property
     def _active_target(self) -> ControllerState:
@@ -238,9 +277,7 @@ class ControllerRuntime:
         )
 
     async def _execute_behavior(self, key: str) -> None:
-        behavior = self.config.transition_behaviors.get(
-            key, TransitionBehavior.IGNORE
-        )
+        behavior = self.config.transition_behaviors.get(key, TransitionBehavior.IGNORE)
         if behavior is TransitionBehavior.IGNORE or self._behavior_executor is None:
             return
         await self._behavior_executor(behavior)
@@ -263,7 +300,10 @@ class ControllerRuntime:
         source_behavior = _behavior_state_name(source)
         target_behavior = _behavior_state_name(target)
 
-        if source is ControllerState.ACTIVE_TIMER and target is not ControllerState.ACTIVE_TIMER:
+        if (
+            source is ControllerState.ACTIVE_TIMER
+            and target is not ControllerState.ACTIVE_TIMER
+        ):
             self._cancel_timer()
 
         if source_behavior is not None:
@@ -281,12 +321,16 @@ class ControllerRuntime:
         if target_behavior is not None:
             await self._execute_behavior(f"on_enter_{target_behavior}")
 
-        if target is ControllerState.ACTIVE_TIMER and source is not ControllerState.ACTIVE_TIMER:
+        if (
+            target is ControllerState.ACTIVE_TIMER
+            and source is not ControllerState.ACTIVE_TIMER
+        ):
             self._schedule_main_timer(reset=False)
         elif not self._is_active_state(target):
             self.backoff_count = 0
             self.effective_delay_seconds = self.config.delay_seconds
 
+        self._notify_updated()
         return True
 
     async def async_reconcile(
@@ -321,10 +365,15 @@ class ControllerRuntime:
 
         self.state = target
         self.last_reconcile_reason = reason
+        if target is ControllerState.ACTIVE_TIMER and self.expires_at is None:
+            self._schedule_main_timer(reset=False)
+        elif target is not ControllerState.ACTIVE_TIMER and self.expires_at is not None:
+            self._cancel_timer()
         if target is not ControllerState.BLOCKED:
             self.blocked_by = None
         if target is not ControllerState.OVERRIDDEN:
             self.overridden_by = None
+        self._notify_updated()
         return target
 
     async def async_handle_sensor_on(self, entity_id: str) -> bool:
@@ -356,10 +405,15 @@ class ControllerRuntime:
 
         return False
 
-    async def async_handle_sensor_off(self, entity_id: str) -> bool:
+    async def async_handle_sensor_off(
+        self,
+        entity_id: str,
+        *,
+        sensor_active: bool = False,
+    ) -> bool:
         """Handle an OFF event from a duration trigger sensor."""
 
-        self.sensor_active = False
+        self.sensor_active = sensor_active
         self.last_triggered_by = entity_id
         if (
             self.config.sensor_type is SensorType.DURATION

@@ -4,9 +4,38 @@
     "step": {
       "user": {
         "title": "Entity Controller",
-        "description": "Create the root Entity Controller entry.",
+        "description": "Create Entity Controller. The controller form opens next.",
         "data": {
           "name": "Name"
+        }
+      },
+      "reconfigure": {
+        "title": "Rename Entity Controller",
+        "data": {
+          "name": "Name"
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Entity Controller is already configured. Open its settings to add a controller."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Add controller",
+        "description": "Configure a new Entity Controller rule.",
+        "data": {
+          "name": "Name",
+          "trigger_entities": "Trigger entities",
+          "control_entities": "Control entities",
+          "state_entities": "State entities",
+          "override_entities": "Override entities",
+          "interlock_entities": "Interlock entities",
+          "sensor_type": "Sensor type",
+          "delay_seconds": "Delay seconds",
+          "blocking_enabled": "Blocking enabled",
+          "stay_mode_default": "Stay mode by default"
         }
       }
     }
@@ -17,7 +46,7 @@
       "step": {
         "user": {
           "title": "Add controller",
-          "description": "Configure one Entity Controller rule. Enter multiple entities separated by commas.",
+          "description": "Configure one Entity Controller rule.",
           "data": {
             "name": "Name",
             "trigger_entities": "Trigger entities",
@@ -33,7 +62,7 @@
         },
         "reconfigure": {
           "title": "Edit controller",
-          "description": "Update this controller without reloading unrelated controllers. Enter multiple entities separated by commas.",
+          "description": "Update this controller without reloading unrelated controllers.",
           "data": {
             "name": "Name",
             "trigger_entities": "Trigger entities",

@@ -20,6 +20,24 @@ from custom_components.entity_controller.storage import (
 )
 
 
+@pytest.mark.asyncio
+async def test_runtime_controls_call_persistence_hook() -> None:
+    saved: list[tuple[bool, bool]] = []
+
+    async def save(runtime: ControllerRuntime) -> None:
+        saved.append((runtime.enabled, runtime.stay_mode))
+
+    runtime = ControllerRuntime(
+        ControllerConfig(subentry_id="controller-a", name="Hall"),
+        state_persistor=save,
+    )
+
+    await runtime.async_set_enabled(False)
+    await runtime.async_set_stay_mode(True)
+
+    assert saved == [(False, False), (False, True)]
+
+
 class FakeScheduledCall:
     def __init__(self, when: datetime, callback: Callable[[], Awaitable[None]]) -> None:
         self.when = when
@@ -72,7 +90,9 @@ class FakeSubentry:
 
 
 @pytest.mark.asyncio
-async def test_active_timer_restore_reschedules_without_replaying_transition_actions() -> None:
+async def test_active_timer_restore_reschedules_without_replaying_transition_actions() -> (
+    None
+):
     now = datetime(2026, 9, 30, 12, 0, tzinfo=UTC)
     calls: list[str] = []
     scheduler = FakeScheduler()
