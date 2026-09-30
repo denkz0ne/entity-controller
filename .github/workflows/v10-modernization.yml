@@ -40,4 +40,5 @@ jobs:
             tests/test_context.py \
             tests/test_manager.py \
             tests/test_reconcile.py \
+            tests/test_reconfigure.py \
             -v
