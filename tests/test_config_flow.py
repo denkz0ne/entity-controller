@@ -13,15 +13,32 @@ from custom_components.entity_controller.config_flow import (
 from custom_components.entity_controller.const import DOMAIN
 
 
+def _schema_keys(schema: object) -> set[str]:
+    return {
+        getattr(key, "schema", key)
+        for key in getattr(schema, "schema", {})
+    }
+
+
 @pytest.mark.asyncio
 async def test_root_flow_creates_single_entity_controller_entry() -> None:
     flow = EntityControllerConfigFlow()
 
-    result = await flow.async_step_user({})
+    result = await flow.async_step_user({"name": "Entity Controller"})
 
     assert result["type"] == "create_entry"
     assert result["title"] == "Entity Controller"
-    assert result["data"] == {}
+    assert result["data"] == {"name": "Entity Controller"}
+
+
+@pytest.mark.asyncio
+async def test_root_flow_form_has_visible_fields() -> None:
+    flow = EntityControllerConfigFlow()
+
+    result = await flow.async_step_user()
+
+    assert result["type"] == "form"
+    assert "name" in _schema_keys(result["data_schema"])
 
 
 def test_root_flow_advertises_controller_subentry_type() -> None:
@@ -60,3 +77,15 @@ def test_basic_controller_input_is_normalized_without_advanced_fields() -> None:
         "blocking_enabled": True,
         "stay_mode_default": False,
     }
+
+
+@pytest.mark.asyncio
+async def test_controller_subentry_form_has_basic_visible_fields() -> None:
+    flow = ControllerSubentryFlowHandler()
+
+    result = await flow.async_step_user()
+
+    assert result["type"] == "form"
+    assert "name" in _schema_keys(result["data_schema"])
+    assert "trigger_entities" in _schema_keys(result["data_schema"])
+    assert "control_entities" in _schema_keys(result["data_schema"])

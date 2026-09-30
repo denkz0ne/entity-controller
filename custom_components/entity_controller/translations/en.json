@@ -4,7 +4,10 @@
     "step": {
       "user": {
         "title": "Entity Controller",
-        "description": "Create the root Entity Controller entry."
+        "description": "Create the root Entity Controller entry.",
+        "data": {
+          "name": "Name"
+        }
       }
     }
   },
@@ -14,11 +17,35 @@
       "step": {
         "user": {
           "title": "Add controller",
-          "description": "Configure one Entity Controller rule."
+          "description": "Configure one Entity Controller rule. Enter multiple entities separated by commas.",
+          "data": {
+            "name": "Name",
+            "trigger_entities": "Trigger entities",
+            "control_entities": "Control entities",
+            "state_entities": "State entities",
+            "override_entities": "Override entities",
+            "interlock_entities": "Interlock entities",
+            "sensor_type": "Sensor type",
+            "delay_seconds": "Delay seconds",
+            "blocking_enabled": "Blocking enabled",
+            "stay_mode_default": "Stay mode by default"
+          }
         },
         "reconfigure": {
           "title": "Edit controller",
-          "description": "Update this controller without reloading unrelated controllers."
+          "description": "Update this controller without reloading unrelated controllers. Enter multiple entities separated by commas.",
+          "data": {
+            "name": "Name",
+            "trigger_entities": "Trigger entities",
+            "control_entities": "Control entities",
+            "state_entities": "State entities",
+            "override_entities": "Override entities",
+            "interlock_entities": "Interlock entities",
+            "sensor_type": "Sensor type",
+            "delay_seconds": "Delay seconds",
+            "blocking_enabled": "Blocking enabled",
+            "stay_mode_default": "Stay mode by default"
+          }
         }
       }
     }

@@ -4,7 +4,10 @@
     "step": {
       "user": {
         "title": "Entity Controller",
-        "description": "Vytvori hlavny zaznam integracie Entity Controller."
+        "description": "Vytvori hlavny zaznam integracie Entity Controller.",
+        "data": {
+          "name": "Nazov"
+        }
       }
     }
   },
@@ -14,11 +17,35 @@
       "step": {
         "user": {
           "title": "Pridat controller",
-          "description": "Nastav jedno pravidlo Entity Controller."
+          "description": "Nastav jedno pravidlo Entity Controller. Viac entit zadaj oddelene ciarkou.",
+          "data": {
+            "name": "Nazov",
+            "trigger_entities": "Spustacie entity",
+            "control_entities": "Ovladane entity",
+            "state_entities": "Stavove entity",
+            "override_entities": "Override entity",
+            "interlock_entities": "Interlock entity",
+            "sensor_type": "Typ senzora",
+            "delay_seconds": "Oneskorenie v sekundach",
+            "blocking_enabled": "Blokovanie zapnute",
+            "stay_mode_default": "Stay mod predvolene"
+          }
         },
         "reconfigure": {
           "title": "Upravit controller",
-          "description": "Uprav tento controller bez reloadu nesuvisiacich controllerov."
+          "description": "Uprav tento controller bez reloadu nesuvisiacich controllerov. Viac entit zadaj oddelene ciarkou.",
+          "data": {
+            "name": "Nazov",
+            "trigger_entities": "Spustacie entity",
+            "control_entities": "Ovladane entity",
+            "state_entities": "Stavove entity",
+            "override_entities": "Override entity",
+            "interlock_entities": "Interlock entity",
+            "sensor_type": "Typ senzora",
+            "delay_seconds": "Oneskorenie v sekundach",
+            "blocking_enabled": "Blokovanie zapnute",
+            "stay_mode_default": "Stay mod predvolene"
+          }
         }
       }
     }

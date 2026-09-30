@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 
@@ -20,8 +21,31 @@ def _as_tuple(value: Any) -> tuple[str, ...]:
     if value is None or value == "":
         return ()
     if isinstance(value, str):
-        return (value,)
+        return tuple(item.strip() for item in value.split(",") if item.strip())
     return tuple(value)
+
+
+ROOT_SCHEMA = vol.Schema(
+    {
+        vol.Required("name", default="Entity Controller"): str,
+    }
+)
+
+
+CONTROLLER_SCHEMA = vol.Schema(
+    {
+        vol.Required("name"): str,
+        vol.Required("trigger_entities"): str,
+        vol.Required("control_entities"): str,
+        vol.Optional("state_entities", default=""): str,
+        vol.Optional("override_entities", default=""): str,
+        vol.Optional("interlock_entities", default=""): str,
+        vol.Optional("sensor_type", default="event"): vol.In(("event", "duration")),
+        vol.Optional("delay_seconds", default=DEFAULT_DELAY_SECONDS): vol.Coerce(float),
+        vol.Optional("blocking_enabled", default=True): bool,
+        vol.Optional("stay_mode_default", default=False): bool,
+    }
+)
 
 
 def normalize_controller_user_input(user_input: dict[str, Any]) -> dict[str, Any]:
@@ -63,8 +87,14 @@ class EntityControllerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Create the single root Entity Controller entry."""
 
         if user_input is None:
-            return {"type": "form", "step_id": "user", "errors": {}}
-        return {"type": "create_entry", "title": "Entity Controller", "data": {}}
+            return {
+                "type": "form",
+                "step_id": "user",
+                "data_schema": ROOT_SCHEMA,
+                "errors": {},
+            }
+        title = str(user_input.get("name") or "Entity Controller")
+        return {"type": "create_entry", "title": title, "data": {"name": title}}
 
 
 class ControllerSubentryFlowHandler(ConfigSubentryFlow):
@@ -77,7 +107,12 @@ class ControllerSubentryFlowHandler(ConfigSubentryFlow):
         """Create a controller subentry."""
 
         if user_input is None:
-            return {"type": "form", "step_id": "user", "errors": {}}
+            return {
+                "type": "form",
+                "step_id": "user",
+                "data_schema": CONTROLLER_SCHEMA,
+                "errors": {},
+            }
         data = normalize_controller_user_input(user_input)
         return {
             "type": "create_entry",
@@ -93,7 +128,12 @@ class ControllerSubentryFlowHandler(ConfigSubentryFlow):
         """Reconfigure one controller without reloading the root entry."""
 
         if user_input is None:
-            return {"type": "form", "step_id": "reconfigure", "errors": {}}
+            return {
+                "type": "form",
+                "step_id": "reconfigure",
+                "data_schema": CONTROLLER_SCHEMA,
+                "errors": {},
+            }
         return {
             "type": "update_subentry",
             "data": normalize_controller_user_input(user_input),
