@@ -87,14 +87,13 @@ class EntityControllerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Create the single root Entity Controller entry."""
 
         if user_input is None:
-            return {
-                "type": "form",
-                "step_id": "user",
-                "data_schema": ROOT_SCHEMA,
-                "errors": {},
-            }
+            return self.async_show_form(
+                step_id="user",
+                data_schema=ROOT_SCHEMA,
+                errors={},
+            )
         title = str(user_input.get("name") or "Entity Controller")
-        return {"type": "create_entry", "title": title, "data": {"name": title}}
+        return self.async_create_entry(title=title, data={"name": title})
 
 
 class ControllerSubentryFlowHandler(ConfigSubentryFlow):
@@ -107,19 +106,13 @@ class ControllerSubentryFlowHandler(ConfigSubentryFlow):
         """Create a controller subentry."""
 
         if user_input is None:
-            return {
-                "type": "form",
-                "step_id": "user",
-                "data_schema": CONTROLLER_SCHEMA,
-                "errors": {},
-            }
+            return self.async_show_form(
+                step_id="user",
+                data_schema=CONTROLLER_SCHEMA,
+                errors={},
+            )
         data = normalize_controller_user_input(user_input)
-        return {
-            "type": "create_entry",
-            "title": data["name"],
-            "subentry_type": "controller",
-            "data": data,
-        }
+        return self.async_create_entry(title=data["name"], data=data)
 
     async def async_step_reconfigure(
         self,
@@ -128,14 +121,15 @@ class ControllerSubentryFlowHandler(ConfigSubentryFlow):
         """Reconfigure one controller without reloading the root entry."""
 
         if user_input is None:
-            return {
-                "type": "form",
-                "step_id": "reconfigure",
-                "data_schema": CONTROLLER_SCHEMA,
-                "errors": {},
-            }
-        return {
-            "type": "update_subentry",
-            "data": normalize_controller_user_input(user_input),
-            "reload": False,
-        }
+            return self.async_show_form(
+                step_id="reconfigure",
+                data_schema=CONTROLLER_SCHEMA,
+                errors={},
+            )
+        data = normalize_controller_user_input(user_input)
+        return self.async_update_and_abort(
+            self._get_entry(),
+            self._get_reconfigure_subentry(),
+            data=data,
+            title=data["name"],
+        )

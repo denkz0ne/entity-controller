@@ -10,9 +10,36 @@ from custom_components.entity_controller.config_flow import (
 )
 
 
+def _prepare_subentry_flow(
+    flow: ControllerSubentryFlowHandler,
+    source: str = "user",
+) -> ControllerSubentryFlowHandler:
+    flow.flow_id = "controller-flow"
+    flow.handler = ("entry-id", "controller")
+    flow.context = {"source": source}
+    return flow
+
+
+class ReconfigureFlow(ControllerSubentryFlowHandler):
+    def _get_entry(self) -> object:
+        return "entry"
+
+    def _get_reconfigure_subentry(self) -> object:
+        return "subentry"
+
+    def async_update_and_abort(self, entry: object, subentry: object, **kwargs: object):
+        return {
+            "type": "abort",
+            "reason": "reconfigure_successful",
+            "entry": entry,
+            "subentry": subentry,
+            **kwargs,
+        }
+
+
 @pytest.mark.asyncio
 async def test_controller_subentry_flow_adds_basic_motion_controller() -> None:
-    flow = ControllerSubentryFlowHandler()
+    flow = _prepare_subentry_flow(ControllerSubentryFlowHandler())
 
     result = await flow.async_step_user(
         {
@@ -24,8 +51,9 @@ async def test_controller_subentry_flow_adds_basic_motion_controller() -> None:
     )
 
     assert result["type"] == "create_entry"
+    assert result["flow_id"] == "controller-flow"
+    assert result["handler"] == ("entry-id", "controller")
     assert result["title"] == "Hall Motion"
-    assert result["subentry_type"] == "controller"
     assert result["data"]["trigger_entities"] == ("binary_sensor.hall_motion",)
     assert result["data"]["control_entities"] == ("light.hall",)
     assert result["data"]["delay_seconds"] == 90.0
@@ -33,7 +61,8 @@ async def test_controller_subentry_flow_adds_basic_motion_controller() -> None:
 
 @pytest.mark.asyncio
 async def test_controller_subentry_reconfigure_updates_without_root_reload() -> None:
-    flow = ControllerSubentryFlowHandler()
+    flow = _prepare_subentry_flow(ReconfigureFlow(), source="reconfigure")
+    flow.context["subentry_id"] = "controller-a"
 
     result = await flow.async_step_reconfigure(
         {
@@ -43,14 +72,15 @@ async def test_controller_subentry_reconfigure_updates_without_root_reload() -> 
         }
     )
 
-    assert result["type"] == "update_subentry"
-    assert result["reload"] is False
+    assert result["type"] == "abort"
+    assert result["reason"] == "reconfigure_successful"
+    assert result["title"] == "Hall Motion"
     assert result["data"]["trigger_entities"] == ("binary_sensor.new_motion",)
 
 
 @pytest.mark.asyncio
 async def test_external_helper_selection_is_preserved_as_reference() -> None:
-    flow = ControllerSubentryFlowHandler()
+    flow = _prepare_subentry_flow(ControllerSubentryFlowHandler())
 
     result = await flow.async_step_user(
         {

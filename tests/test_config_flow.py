@@ -13,6 +13,22 @@ from custom_components.entity_controller.config_flow import (
 from custom_components.entity_controller.const import DOMAIN
 
 
+def _prepare_config_flow(flow: EntityControllerConfigFlow) -> EntityControllerConfigFlow:
+    flow.flow_id = "root-flow"
+    flow.handler = DOMAIN
+    flow.context = {"source": "user"}
+    return flow
+
+
+def _prepare_subentry_flow(
+    flow: ControllerSubentryFlowHandler,
+) -> ControllerSubentryFlowHandler:
+    flow.flow_id = "controller-flow"
+    flow.handler = ("entry-id", "controller")
+    flow.context = {"source": "user"}
+    return flow
+
+
 def _schema_keys(schema: object) -> set[str]:
     return {
         getattr(key, "schema", key)
@@ -22,22 +38,27 @@ def _schema_keys(schema: object) -> set[str]:
 
 @pytest.mark.asyncio
 async def test_root_flow_creates_single_entity_controller_entry() -> None:
-    flow = EntityControllerConfigFlow()
+    flow = _prepare_config_flow(EntityControllerConfigFlow())
 
     result = await flow.async_step_user({"name": "Entity Controller"})
 
     assert result["type"] == "create_entry"
+    assert result["flow_id"] == "root-flow"
+    assert result["handler"] == DOMAIN
     assert result["title"] == "Entity Controller"
     assert result["data"] == {"name": "Entity Controller"}
+    assert result["version"] == 10
 
 
 @pytest.mark.asyncio
 async def test_root_flow_form_has_visible_fields() -> None:
-    flow = EntityControllerConfigFlow()
+    flow = _prepare_config_flow(EntityControllerConfigFlow())
 
     result = await flow.async_step_user()
 
     assert result["type"] == "form"
+    assert result["flow_id"] == "root-flow"
+    assert result["handler"] == DOMAIN
     assert "name" in _schema_keys(result["data_schema"])
 
 
@@ -81,11 +102,13 @@ def test_basic_controller_input_is_normalized_without_advanced_fields() -> None:
 
 @pytest.mark.asyncio
 async def test_controller_subentry_form_has_basic_visible_fields() -> None:
-    flow = ControllerSubentryFlowHandler()
+    flow = _prepare_subentry_flow(ControllerSubentryFlowHandler())
 
     result = await flow.async_step_user()
 
     assert result["type"] == "form"
+    assert result["flow_id"] == "controller-flow"
+    assert result["handler"] == ("entry-id", "controller")
     assert "name" in _schema_keys(result["data_schema"])
     assert "trigger_entities" in _schema_keys(result["data_schema"])
     assert "control_entities" in _schema_keys(result["data_schema"])
