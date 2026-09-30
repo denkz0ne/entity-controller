@@ -8,7 +8,7 @@ def test_manifest_is_v10_helper_without_transitions_dependency() -> None:
     )
 
     assert manifest["domain"] == "entity_controller"
-    assert manifest["version"] == "10.0.0-alpha.4"
+    assert manifest["version"] == "10.0.0-alpha.5"
     assert manifest["integration_type"] == "helper"
     assert manifest["iot_class"] == "calculated"
     assert manifest["requirements"] == []
