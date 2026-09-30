@@ -20,14 +20,14 @@ enable_block:
       description: Name(s) of entities to change.
       example: 'entity_controller.motion_light'
 
-set_stay_on:
+enable_stay_mode:
   description: Change the stay to on
   fields:
     entity_id:
       description: Name(s) of entities to change.
       example: 'entity_controller.motion_light'
 
-set_stay_off:
+disable_stay_mode:
   description: Change the stay to off
   fields:
     entity_id:
