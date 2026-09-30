@@ -62,6 +62,7 @@ jobs:
             tests/test_migration.py \
             tests/test_model.py \
             tests/test_persistence.py \
+            tests/test_release_gate.py \
             tests/test_reconcile.py \
             tests/test_reconfigure.py \
             tests/test_repairs.py \
@@ -96,6 +97,7 @@ jobs:
             tests/test_migration.py \
             tests/test_legacy_entity.py \
             tests/test_persistence.py \
+            tests/test_release_gate.py \
             tests/test_diagnostics.py \
             tests/test_repairs.py \
             -v
