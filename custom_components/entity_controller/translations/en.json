@@ -1,0 +1,26 @@
+{
+  "title": "Entity Controller",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Entity Controller",
+        "description": "Create the root Entity Controller entry."
+      }
+    }
+  },
+  "config_subentries": {
+    "controller": {
+      "title": "Controller",
+      "step": {
+        "user": {
+          "title": "Add controller",
+          "description": "Configure one Entity Controller rule."
+        },
+        "reconfigure": {
+          "title": "Edit controller",
+          "description": "Update this controller without reloading unrelated controllers."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "title": "Entity Controller",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Entity Controller",
+        "description": "Vytvori hlavny zaznam integracie Entity Controller."
+      }
+    }
+  },
+  "config_subentries": {
+    "controller": {
+      "title": "Controller",
+      "step": {
+        "user": {
+          "title": "Pridat controller",
+          "description": "Nastav jedno pravidlo Entity Controller."
+        },
+        "reconfigure": {
+          "title": "Upravit controller",
+          "description": "Uprav tento controller bez reloadu nesuvisiacich controllerov."
+        }
+      }
+    }
+  }
+}
