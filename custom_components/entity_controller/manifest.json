@@ -1,18 +1,12 @@
 {
-	"domain": "entity_controller",
-	"name": "Entity Controller",
-	"documentation": "https://github.com/danobot/entity-controller/blob/master/README.md",
-	"requirements": [
-		"transitions==0.8.8"
-	],
-	"dependencies": [],
-	"after_dependencies": [
-		"light",
-		"script"
-	],
-	"codeowners": [
-		"@danobot"
-	],
-	"homeassistant": "2022.7.4",
-	"version": "9.7.6"
+  "domain": "entity_controller",
+  "name": "Entity Controller",
+  "codeowners": ["@denkz0ne"],
+  "documentation": "https://github.com/denkz0ne/entity-controller",
+  "integration_type": "helper",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/denkz0ne/entity-controller/issues",
+  "requirements": [],
+  "after_dependencies": ["light", "script"],
+  "version": "10.0.0-alpha.1"
 }
