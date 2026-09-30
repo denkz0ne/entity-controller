@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+<a name="10.0.0-beta.2"></a>
+## [10.0.0-beta.2](https://github.com/denkz0ne/entity-controller/compare/10.0.0-beta.1...10.0.0-beta.2) (2026-09-30)
+
+
+### Features
+
+* modernize HACS metadata for the Home Assistant 2026.9+ v10 line
+* replace the legacy Node 12 release workflow with maintained v10 CI
+* add Ruff and repository metadata gates to GitHub Actions
+* refresh README and user docs for configuration, actions, behavior, migration, and troubleshooting
+
+
 <a name="10.0.0-beta.1"></a>
 ## [10.0.0-beta.1](https://github.com/denkz0ne/entity-controller/compare/10.0.0-alpha.6...10.0.0-beta.1) (2026-09-30)
 

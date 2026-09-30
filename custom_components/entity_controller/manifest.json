@@ -9,5 +9,5 @@
   "issue_tracker": "https://github.com/denkz0ne/entity-controller/issues",
   "requirements": [],
   "after_dependencies": ["light", "script"],
-  "version": "10.0.0-beta.1"
+  "version": "10.0.0-beta.2"
 }
