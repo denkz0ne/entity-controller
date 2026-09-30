@@ -20,4 +20,4 @@ def test_manifest_is_v10_helper_without_transitions_dependency() -> None:
     )
     assert manifest["codeowners"] == ["@denkz0ne"]
     assert "homeassistant" not in manifest
-    assert "config_flow" not in manifest
+    assert manifest["config_flow"] is True
