@@ -38,4 +38,6 @@ jobs:
             tests/test_schedule.py \
             tests/test_timer_backoff.py \
             tests/test_context.py \
+            tests/test_manager.py \
+            tests/test_reconcile.py \
             -v
