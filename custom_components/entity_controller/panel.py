@@ -46,6 +46,12 @@ def serialize_controllers(hass: Any) -> list[dict[str, Any]]:
                     "enabled_entity_id": _registered_entity_id(
                         hass, "switch", f"{unique_prefix}_enabled"
                     ),
+                    "inputs": list(dict.fromkeys((
+                        *config.trigger_entities,
+                        *config.state_entities,
+                        *config.override_entities,
+                        *config.interlock_entities,
+                    ))),
                     "triggers": list(config.trigger_entities),
                     "outputs": list(config.control_entities),
                     "constraints": list(
