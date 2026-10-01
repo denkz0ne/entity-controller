@@ -147,6 +147,7 @@ def serialize_controllers(hass: Any) -> list[dict[str, Any]]:
                         getattr(runtime, "last_transition_cause", None), "value", None
                     ),
                     "last_triggered_at": getattr(runtime, "last_triggered_at", None),
+                    "effective_delay_seconds": getattr(runtime, "effective_delay_seconds", None),
                     "expires_at": getattr(runtime, "expires_at", None),
                     "block_expires_at": getattr(runtime, "block_expires_at", None),
                     "next_transition_at": (
