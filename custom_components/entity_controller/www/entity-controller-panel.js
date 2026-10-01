@@ -36,6 +36,16 @@ class EntityControllerPanel extends HTMLElement {
     this._removeEvents = [];
     this._timer = null;
     this._clockTimer = null;
+    this.shadowRoot.addEventListener("wheel", (event) => {
+      if (event.ctrlKey || !event.deltaY) return;
+      const list = this.shadowRoot.querySelector(".list");
+      if (!list) return;
+      const maxScroll = list.scrollHeight - list.clientHeight;
+      const canScroll = event.deltaY < 0 ? list.scrollTop > 0 : list.scrollTop < maxScroll;
+      if (!canScroll) return;
+      event.preventDefault();
+      list.scrollTop += event.deltaY;
+    }, { passive: false });
   }
 
   set hass(hass) {
@@ -151,14 +161,18 @@ class EntityControllerPanel extends HTMLElement {
     const activeClass = triggerActive ? " active-trigger" : outputActive ? " active-output" :
       kind === "override" && value === "on" ? " active-override" :
       kind === "interlock" && value === "on" ? " active-interlock" : "";
-    const switchToggle = entityId.startsWith("switch.");
+    const domain = entityId.split(".", 1)[0];
+    const toggleDomain = ["switch", "input_boolean", "light"].includes(domain) ? domain : "";
+    const switchToggle = Boolean(toggleDomain);
     const stateTitle = state ? " · " + value : "";
     return '<button class="chip' + activeClass + '" data-entity="' + esc(entityId) +
-      (switchToggle ? '" data-chip-toggle="' + esc(entityId) : '') +
+      (switchToggle ? '" data-chip-toggle="' + esc(toggleDomain) : '') +
       '" title="' + esc(name + stateTitle) + '" aria-label="' +
       esc(name + stateTitle + (switchToggle ? ", prepínač" : "")) + '">' +
       '<ha-state-icon class="chip-icon" data-entity="' + esc(entityId) + '"></ha-state-icon>' +
       '<span>' + esc(name) + '</span>' +
+      (switchToggle ? '<span class="chip-switch' + (value === "on" ? " is-on" : "") +
+        '" aria-hidden="true"><i></i></span>' : '') +
       (available && (triggerActive || outputActive) ? '<i class="chip-active-dot" aria-hidden="true"></i>' : '') +
       '</button>';
   }
@@ -200,13 +214,8 @@ class EntityControllerPanel extends HTMLElement {
     const entries = [...(history || [])]
       .filter((entry) => entry?.last_changed && Number.isFinite(new Date(entry.last_changed).getTime()))
       .map((entry) => ({ state: String(entry.state), last_changed: entry.last_changed }));
-    // Recorder can be disabled or return no rows. The live HA state still gives
-    // us a trustworthy segment from the entity's latest state change onward.
-    const live = this._hass?.states?.[controller.state_entity_id];
-    if (live?.last_changed && Number.isFinite(new Date(live.last_changed).getTime()) &&
-        !entries.some((entry) => entry.last_changed === live.last_changed)) {
-      entries.push({ state: live.state, last_changed: live.last_changed });
-    }
+    // The timeline is built only from Recorder history so an HA restart does
+    // not invent a segment from the current live state.
     entries.sort((a, b) => new Date(a.last_changed) - new Date(b.last_changed));
     const segments = [];
     if (!entries.length) {
@@ -281,8 +290,13 @@ class EntityControllerPanel extends HTMLElement {
 
     let label = meta.label;
     let countdownAt = null;
-    if (key === "active_timer" && controller.expires_at) {
-      countdownAt = controller.expires_at;
+    if (key === "active_timer") {
+      const derivedExpiry = controller.last_triggered_at &&
+        Number.isFinite(Number(controller.effective_delay_seconds))
+        ? new Date(new Date(controller.last_triggered_at).getTime() +
+          Number(controller.effective_delay_seconds) * 1000).toISOString()
+        : null;
+      countdownAt = controller.expires_at || derivedExpiry;
     } else if (key === "blocked" && controller.block_expires_at) {
       countdownAt = controller.block_expires_at;
     } else if (key !== "disabled") {
@@ -329,7 +343,7 @@ class EntityControllerPanel extends HTMLElement {
     const outputChips = outputs.map((id) => this._entityChip(id, "output")).join("");
     const blockingChips = overrides.map((id) => this._entityChip(id, "override")).join("") +
       interlocks.map((id) => this._entityChip(id, "interlock")).join("");
-    const chipDivider = '<span class="chip-divider" role="separator"></span>';
+    const chipDivider = '<span class="chip-separator" aria-hidden="true">·</span>';
     const groupedChips = [triggerChips, outputChips, blockingChips].filter(Boolean).join(chipDivider);
     const toggle = '<button class="toggle ' + (controller.enabled ? "on" : "") +
       '" data-toggle="' + esc(controller.enabled_entity_id || "") + '" aria-label="' +
@@ -365,7 +379,7 @@ class EntityControllerPanel extends HTMLElement {
       '.controller-control{grid-column:1;grid-row:1/3;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:4px}.controller-avatar{width:36px;height:36px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--ec-row-color) 18%,var(--ha-card-background,var(--card-background-color)));color:var(--ec-row-color)}.controller-icon{color:var(--ec-row-color);--mdc-icon-size:24px}.controller-name{grid-column:2;grid-row:1;align-self:center;min-width:0;font-size:16px;line-height:20px;font-weight:var(--mush-card-primary-font-weight,500);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
       '.status{grid-column:2;grid-row:2;min-width:0;display:flex;flex-direction:column;gap:3px;font-size:var(--mush-card-secondary-font-size,12px);color:var(--mush-card-secondary-color,var(--secondary-text-color))}.status-head{display:flex;align-items:center;gap:9px;min-width:0}.status-label{display:flex;align-items:center;gap:7px;color:var(--mush-card-primary-color,var(--primary-text-color));white-space:nowrap}.status-label b{font-size:var(--mush-card-primary-font-size,14px);font-weight:var(--mush-card-primary-font-weight,500)}.status-label i{flex:none;width:10px;height:10px;border-radius:50%;background:var(--ec-row-color)}.status-countdown{white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--mush-card-primary-color,var(--primary-text-color));font-size:var(--mush-card-primary-font-size,14px);font-weight:var(--mush-card-primary-font-weight,500)}.status-meta{display:flex;align-items:baseline;justify-content:space-between;gap:8px;min-width:0}.status-detail{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.status-meta small{flex:none;white-space:nowrap;font-size:var(--mush-card-secondary-font-size,12px);color:var(--mush-card-secondary-color,var(--secondary-text-color))}',
       '.chips{grid-column:2;grid-row:1;min-width:0;display:flex;flex-wrap:wrap;align-items:flex-start;align-content:flex-start;align-self:start;gap:6px;overflow:visible;padding:0}',
-      '.chip-divider{width:2px;height:20px;flex:0 0 2px;align-self:center;margin:0 3px;border-radius:2px;background:linear-gradient(180deg,transparent,var(--divider-color),transparent);opacity:.85}.chip{height:28px;box-sizing:border-box;flex:0 1 auto;min-width:70px;max-width:175px;display:flex;align-items:center;justify-content:flex-start;gap:7px;padding:0 9px;border:var(--ha-card-border-width,1px) solid var(--ha-card-border-color,var(--divider-color));border-radius:18px;background:var(--chip-background,var(--ha-card-background,var(--card-background-color)));box-shadow:var(--chip-box-shadow,var(--ha-card-box-shadow,none));color:var(--primary-text-color);cursor:pointer;white-space:nowrap;font:inherit;font-size:12px;touch-action:pan-y;user-select:none;-webkit-user-select:none} .chip span{min-width:0;overflow:hidden;text-overflow:ellipsis;pointer-events:none}.chip-icon{--mdc-icon-size:16px;flex:none;color:var(--secondary-text-color);pointer-events:none}.chip.active-trigger{background:rgba(76,175,80,.18);border-color:#43a047;box-shadow:0 0 0 1px rgba(67,160,71,.14)}.chip.active-output{background:rgba(255,213,79,.22);border-color:#d2a500;box-shadow:0 0 0 1px rgba(210,165,0,.14)}.chip.active-override{background:rgba(156,39,176,.14);border-color:#9c27b0;box-shadow:0 0 0 1px rgba(156,39,176,.12)}.chip.active-interlock{background:rgba(3,169,244,.14);border-color:#039be5;box-shadow:0 0 0 1px rgba(3,155,229,.12)}.chip[data-chip-toggle]{cursor:pointer}.chip-active-dot{width:7px;height:7px;flex:none;border-radius:50%;background:#2e8b3c}.chip.active-output .chip-active-dot{background:#b38b00}',
+      '.chip-separator{flex:none;padding:0 1px;align-self:center;color:var(--secondary-text-color);font-size:13px;line-height:1;opacity:.7}.chip{height:28px;box-sizing:border-box;flex:0 1 auto;min-width:70px;max-width:175px;display:flex;align-items:center;justify-content:flex-start;gap:7px;padding:0 9px;border:var(--ha-card-border-width,1px) solid var(--ha-card-border-color,var(--divider-color));border-radius:18px;background:var(--chip-background,var(--ha-card-background,var(--card-background-color)));box-shadow:var(--chip-box-shadow,var(--ha-card-box-shadow,none));color:var(--primary-text-color);cursor:pointer;white-space:nowrap;font:inherit;font-size:12px;touch-action:pan-y;user-select:none;-webkit-user-select:none} .chip span{min-width:0;overflow:hidden;text-overflow:ellipsis;pointer-events:none}.chip-switch{position:relative;width:22px;height:13px;flex:none;box-sizing:border-box;border-radius:8px;background:var(--disabled-text-color,#9e9e9e);opacity:.75;transition:background .15s}.chip-switch i{position:absolute;top:2px;left:2px;width:9px;height:9px;border-radius:50%;background:#fff;transition:transform .15s}.chip-switch.is-on{background:var(--success-color,#43a047);opacity:1}.chip-switch.is-on i{transform:translateX(9px)}.chip-icon{--mdc-icon-size:16px;flex:none;color:var(--secondary-text-color);pointer-events:none}.chip.active-trigger{background:rgba(76,175,80,.18);border-color:#43a047;box-shadow:0 0 0 1px rgba(67,160,71,.14)}.chip.active-output{background:rgba(255,213,79,.22);border-color:#d2a500;box-shadow:0 0 0 1px rgba(210,165,0,.14)}.chip.active-override{background:rgba(156,39,176,.14);border-color:#9c27b0;box-shadow:0 0 0 1px rgba(156,39,176,.12)}.chip.active-interlock{background:rgba(3,169,244,.14);border-color:#039be5;box-shadow:0 0 0 1px rgba(3,155,229,.12)}.chip[data-chip-toggle]{cursor:pointer}.chip-active-dot{width:7px;height:7px;flex:none;border-radius:50%;background:#2e8b3c}.chip.active-output .chip-active-dot{background:#b38b00}',
       '.timeline-line{grid-column:1/-1;grid-row:2;padding-top:2px;min-width:0}.timeline-wrap{width:100%}.timeline{height:16px;position:relative;overflow:hidden;border-radius:5px;background:#d6dbe0}.tick{position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,.9);opacity:.8;pointer-events:none}.timeline-axis{height:16px;display:flex;justify-content:space-between;align-items:flex-start;color:var(--secondary-text-color);font-size:10px;line-height:14px;padding-top:3px}.timeline-axis span{white-space:nowrap}.timeline-error{font-size:11px;color:var(--error-color);padding-top:3px}',
       '.legend{flex:none;box-sizing:border-box;min-height:48px;padding:8px 18px;display:flex;align-items:center;justify-content:space-between;gap:15px;border:var(--ha-card-border-width,1px) solid var(--ha-card-border-color,var(--divider-color));border-radius:var(--ha-card-border-radius,12px);background:var(--ha-card-background,var(--card-background-color));box-shadow:var(--ha-card-box-shadow,none);color:var(--primary-text-color);font-size:13px}.legend-items{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap}.legend-title{font-weight:700}.legend-items span{display:flex;align-items:center;gap:9px;white-space:nowrap}.swatch{width:22px;height:12px;flex:none;border-radius:4px;background:var(--ec-inactive)}.swatch.idle{background:#aab2bd}.swatch.active_timer{background:#28bd57}.swatch.active_stay_on{background:#00a896}.swatch.constrained{background:#1686f5}.swatch.blocked{background:#f04452}.swatch.overridden{background:#9b59d0}.swatch.disabled{background:#667085}.swatch.unknown{background:repeating-linear-gradient(135deg,#d6dbe0 0 3px,#aab2bd 3px 5px)}.count{color:var(--secondary-text-color);white-space:nowrap}',
       '.empty{color:var(--secondary-text-color);text-align:center;padding:48px 16px}.error{color:var(--error-color);padding:10px 14px}',
@@ -395,7 +409,8 @@ class EntityControllerPanel extends HTMLElement {
       const entityId = button.dataset.entity;
       if (button.dataset.chipToggle) {
         const value = String(this._hass?.states?.[entityId]?.state || "").toLowerCase();
-        await this._hass.callService("switch", value === "on" ? "turn_off" : "turn_on", { entity_id: entityId });
+        const domain = button.dataset.chipToggle;
+        await this._hass.callService(domain, value === "on" ? "turn_off" : "turn_on", { entity_id: entityId });
         return;
       }
       this.dispatchEvent(new CustomEvent("hass-more-info", {
