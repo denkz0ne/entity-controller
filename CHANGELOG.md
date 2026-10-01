@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file. See [standa
 
 * keep active interlocks blocked until cleared, regardless of block timeout or Clear Block requests
 * reconcile current conditions after the final interlock clears and retain constraint/override priority
+* apply configured OFF state mappings and ignore unmapped or transitional entity states
 
 ### Features
 

@@ -333,7 +333,7 @@ class EntityControllerManager:
             )
             if self._event_matches(event, runtime.config.trigger_on_states):
                 await runtime.async_handle_sensor_on(entity_id)
-            else:
+            elif self._event_matches(event, runtime.config.trigger_off_states):
                 other_active = any(
                     self._entity_matches(candidate, runtime.config.trigger_on_states)
                     for candidate in runtime.config.trigger_entities
@@ -399,6 +399,19 @@ class EntityControllerManager:
                 return
             context = self._event_context(event)
             entity_id = self._event_entity_id(event)
+            runtime.active_state_entities = tuple(
+                candidate
+                for candidate in (
+                    *runtime.config.state_entities,
+                    *runtime.config.control_entities,
+                )
+                if self._entity_matches(candidate, runtime.config.state_on_states)
+            )
+            if not (
+                self._event_matches(event, runtime.config.state_on_states)
+                or self._event_matches(event, runtime.config.state_off_states)
+            ):
+                return
             is_on = self._event_matches(event, runtime.config.state_on_states)
             other_is_on = any(
                 self._entity_matches(candidate, runtime.config.state_on_states)
@@ -407,14 +420,6 @@ class EntityControllerManager:
                     *runtime.config.state_entities,
                 )
                 if candidate != entity_id
-            )
-            runtime.active_state_entities = tuple(
-                candidate
-                for candidate in (
-                    *runtime.config.state_entities,
-                    *runtime.config.control_entities,
-                )
-                if self._entity_matches(candidate, runtime.config.state_on_states)
             )
             await runtime.async_handle_state_entity_change(
                 entity_id,
@@ -453,17 +458,15 @@ class EntityControllerManager:
                 for candidate in runtime.config.override_entities
                 if self._entity_matches(candidate, runtime.config.override_on_states)
             )
-            is_active = self._event_matches(
-                event, runtime.config.override_on_states
+            is_on_event = self._event_matches(event, runtime.config.override_on_states)
+            is_off_event = self._event_matches(event, runtime.config.override_off_states)
+            if not (is_on_event or is_off_event):
+                return
+            is_active = is_on_event or any(
+                self._entity_matches(candidate, runtime.config.override_on_states)
+                for candidate in runtime.config.override_entities
+                if candidate != entity_id
             )
-            if not is_active:
-                is_active = any(
-                    self._entity_matches(
-                        candidate, runtime.config.override_on_states
-                    )
-                    for candidate in runtime.config.override_entities
-                    if candidate != entity_id
-                )
             await runtime.async_handle_override_change(
                 entity_id,
                 is_active=is_active,
@@ -620,14 +623,6 @@ class EntityControllerManager:
         if isinstance(event, dict):
             return event["entity_id"]
         return event.data["entity_id"]
-
-    @staticmethod
-    def _event_new_is_on(event: Any) -> bool:
-        if isinstance(event, dict):
-            new_state = event["new_state"]
-        else:
-            new_state = event.data["new_state"]
-        return new_state is not None and str(new_state.state).lower() not in _OFF_STATES
 
     @staticmethod
     def _event_matches(event: Any, active_states: tuple[str, ...]) -> bool:

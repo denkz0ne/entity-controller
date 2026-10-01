@@ -439,6 +439,163 @@ async def test_custom_trigger_and_override_states_are_honored() -> None:
 
 
 @pytest.mark.asyncio
+async def test_unmapped_trigger_state_does_not_release_active_condition() -> None:
+    hass = FakeHass({"media_player.room": "playing"})
+    manager = EntityControllerManager(hass, FakeEntry())
+    runtime = await manager.async_add_controller(
+        subentry(
+            trigger_entities=("media_player.room",),
+            trigger_on_states=("playing",),
+            trigger_off_states=("idle", "paused"),
+        )
+    )
+
+    await hass.fire_state_change(
+        "media_player.room", "buffering", old_state="playing"
+    )
+
+    assert runtime.sensor_active is True
+    assert runtime.state is ControllerState.ACTIVE_TIMER
+
+    await hass.fire_state_change(
+        "media_player.room", "paused", old_state="buffering"
+    )
+
+    assert runtime.sensor_active is False
+
+
+@pytest.mark.asyncio
+async def test_trigger_off_recomputes_or_using_other_explicitly_on_triggers() -> None:
+    hass = FakeHass(
+        {"media_player.a": "playing", "media_player.b": "playing"}
+    )
+    manager = EntityControllerManager(hass, FakeEntry())
+    runtime = await manager.async_add_controller(
+        subentry(
+            trigger_entities=("media_player.a", "media_player.b"),
+            trigger_on_states=("playing",),
+            trigger_off_states=("idle", "paused"),
+        )
+    )
+
+    await hass.fire_state_change("media_player.a", "idle", old_state="playing")
+    assert runtime.sensor_active is True
+    assert runtime.active_triggers == ("media_player.b",)
+
+    await hass.fire_state_change("media_player.b", "buffering", old_state="playing")
+    assert runtime.sensor_active is True
+
+    await hass.fire_state_change("media_player.a", "paused", old_state="idle")
+    assert runtime.sensor_active is False
+
+
+@pytest.mark.asyncio
+async def test_unmapped_state_entity_does_not_clear_another_mapped_on_entity() -> None:
+    hass = FakeHass({"light.a": "on", "light.b": "off"})
+    manager = EntityControllerManager(hass, FakeEntry())
+    runtime = await manager.async_add_controller(
+        subentry(
+            state_entities=("light.a", "light.b"),
+            state_on_states=("on", "playing"),
+            state_off_states=("off", "paused"),
+        )
+    )
+    assert runtime.state_entities_on is True
+
+    await hass.fire_state_change("light.a", "unknown", old_state="on")
+
+    assert runtime.state_entities_on is True
+    assert runtime.state is ControllerState.BLOCKED
+    assert runtime.active_state_entities == ()
+
+    await hass.fire_state_change("light.a", "paused", old_state="unknown")
+
+    assert runtime.state_entities_on is False
+    assert runtime.state is ControllerState.IDLE
+
+
+@pytest.mark.asyncio
+async def test_explicit_off_recomputes_state_entity_or_semantics() -> None:
+    hass = FakeHass({"light.a": "on", "light.b": "on"})
+    manager = EntityControllerManager(hass, FakeEntry())
+    runtime = await manager.async_add_controller(
+        subentry(
+            state_entities=("light.a", "light.b"),
+            state_on_states=("on",),
+            state_off_states=("off",),
+        )
+    )
+
+    await hass.fire_state_change("light.a", "off", old_state="on")
+    assert runtime.state_entities_on is True
+    assert runtime.state is ControllerState.BLOCKED
+
+    await hass.fire_state_change("light.b", "off", old_state="on")
+    assert runtime.state_entities_on is False
+    assert runtime.state is ControllerState.IDLE
+
+
+@pytest.mark.asyncio
+async def test_unmapped_override_state_does_not_clear_active_override() -> None:
+    hass = FakeHass({"input_select.mode": "blocked"})
+    manager = EntityControllerManager(hass, FakeEntry())
+    runtime = await manager.async_add_controller(
+        subentry(
+            override_entities=("input_select.mode",),
+            override_on_states=("blocked",),
+            override_off_states=("normal",),
+        )
+    )
+    assert runtime.state is ControllerState.OVERRIDDEN
+
+    await hass.fire_state_change(
+        "input_select.mode", "transitioning", old_state="blocked"
+    )
+
+    assert runtime.override_active is True
+    assert runtime.state is ControllerState.OVERRIDDEN
+    assert runtime.active_overrides == ()
+
+    await hass.fire_state_change(
+        "input_select.mode", "normal", old_state="transitioning"
+    )
+
+    assert runtime.override_active is False
+    assert runtime.state is ControllerState.IDLE
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("neutral", ("unknown", "unavailable", "buffering"))
+async def test_neutral_startup_states_are_not_active(neutral: str) -> None:
+    hass = FakeHass(
+        {
+            "media_player.trigger": neutral,
+            "media_player.controlled": neutral,
+            "input_select.override": neutral,
+        }
+    )
+    manager = EntityControllerManager(hass, FakeEntry())
+    runtime = await manager.async_add_controller(
+        subentry(
+            trigger_entities=("media_player.trigger",),
+            control_entities=("media_player.controlled",),
+            override_entities=("input_select.override",),
+            trigger_on_states=("playing",),
+            trigger_off_states=("idle", "paused"),
+            state_on_states=("playing",),
+            state_off_states=("idle", "paused"),
+            override_on_states=("blocked",),
+            override_off_states=("normal",),
+        )
+    )
+
+    assert runtime.sensor_active is False
+    assert runtime.state_entities_on is False
+    assert runtime.override_active is False
+    assert runtime.state is ControllerState.IDLE
+
+
+@pytest.mark.asyncio
 async def test_ignored_attribute_only_change_does_not_block_controller() -> None:
     hass = FakeHass()
     manager = EntityControllerManager(hass, FakeEntry())

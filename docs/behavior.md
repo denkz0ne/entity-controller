@@ -132,6 +132,10 @@ Override entities use OR semantics.
 
 During startup/reconcile the controller can resolve to `overridden` without a transition event. The runtime records the currently active override entity in `overridden_by` and exposes all active override entities in diagnostics attributes.
 
+## Custom state mappings
+
+Trigger, monitored state/control, and override entities each have configured ON and OFF state lists. A state in the ON list is active; a state in the OFF list is inactive. A value in neither list is neutral: a live event does not change that entity's logical condition. On startup and reconcile, only values in the configured ON list count as active. Multiple entities are combined with OR semantics, so one mapped OFF event cannot clear another entity that is still mapped ON. `unknown`, `unavailable`, and transitional values are neutral unless explicitly listed.
+
 ## Interlock
 
 An interlock is a normal external HA entity. RC.3 considers it active if its state is not `off`, `unavailable`, `unknown`, or empty.
@@ -218,8 +222,6 @@ The State sensor exposes this low-churn runtime context, while config-entry diag
 
 These are source-level gaps, not documentation TODOs:
 
-- `trigger_off_states`, `state_off_states`, and `override_off_states` are stored but not consulted by the manager/runtime.
-- Service-forced blocks use the configured block timeout; interlock blocks remain held until the interlock clears.
 - Leaving `constrained` currently goes straight to `idle` instead of full reconcile.
 - `TransitionBehavior.CUSTOM` exists in the model but current UI/executor only implement ON, OFF, and IGNORE.
 - The Activate action sets `enabled = true` and requests a direct active transition; activation from currently `disabled`/`constrained` states needs dedicated tests because those direct FSM edges are not generally allowed.

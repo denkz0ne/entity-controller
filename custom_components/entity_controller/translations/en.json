@@ -140,7 +140,7 @@
               "override_off_states": "Override inactive states",
               "state_attributes_ignore": "Ignored state attributes"
             },
-            "description": "Use only when an entity does not use normal on/off states, for example playing or home."
+            "description": "Values in neither list are neutral and leave the current condition unchanged. Unknown, unavailable, and transitional states count only when listed."
           }
         }
       }
@@ -268,7 +268,7 @@
                 "override_off_states": "Override inactive states",
                 "state_attributes_ignore": "Ignored state attributes"
               },
-              "description": "Use only when an entity does not use normal on/off states, for example playing or home."
+              "description": "Values in neither list are neutral and leave the current condition unchanged. Unknown, unavailable, and transitional states count only when listed."
             }
           }
         },
@@ -390,7 +390,7 @@
                 "override_off_states": "Override inactive states",
                 "state_attributes_ignore": "Ignored state attributes"
               },
-              "description": "Use only when an entity does not use normal on/off states, for example playing or home."
+              "description": "Values in neither list are neutral and leave the current condition unchanged. Unknown, unavailable, and transitional states count only when listed."
             }
           }
         }

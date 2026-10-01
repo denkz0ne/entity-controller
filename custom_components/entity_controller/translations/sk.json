@@ -140,7 +140,7 @@
               "override_off_states": "Neaktívne stavy override",
               "state_attributes_ignore": "Ignorované atribúty stavu"
             },
-            "description": "Použi iba pri entitách s iným aktívnym stavom než on/off, napríklad playing alebo home."
+            "description": "Stavy, ktoré nie sú v žiadnom zozname, sú neutrálne a nemenia aktuálnu podmienku. Unknown, unavailable a prechodné stavy sa zohľadnia iba vtedy, ak ich uvedieš v zozname."
           }
         }
       }
@@ -268,7 +268,7 @@
                 "override_off_states": "Neaktívne stavy override",
                 "state_attributes_ignore": "Ignorované atribúty stavu"
               },
-              "description": "Použi iba pri entitách s iným aktívnym stavom než on/off, napríklad playing alebo home."
+              "description": "Stavy, ktoré nie sú v žiadnom zozname, sú neutrálne a nemenia aktuálnu podmienku. Unknown, unavailable a prechodné stavy sa zohľadnia iba vtedy, ak ich uvedieš v zozname."
             }
           }
         },
@@ -390,7 +390,7 @@
                 "override_off_states": "Neaktívne stavy override",
                 "state_attributes_ignore": "Ignorované atribúty stavu"
               },
-              "description": "Použi iba pri entitách s iným aktívnym stavom než on/off, napríklad playing alebo home."
+              "description": "Stavy, ktoré nie sú v žiadnom zozname, sú neutrálne a nemenia aktuálnu podmienku. Unknown, unavailable a prechodné stavy sa zohľadnia iba vtedy, ak ich uvedieš v zozname."
             }
           }
         }
