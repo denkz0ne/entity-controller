@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Any
 
@@ -100,36 +101,42 @@ async def async_setup_panel(hass: Any) -> None:
     if not hasattr(hass, "http"):
         return
     data = hass.data.setdefault(_PANEL_DATA_KEY, {})
-    if data.get("registered"):
-        return
-    _register_websocket(hass)
-    static_path = Path(__file__).parent / "www" / "entity-controller-panel.js"
-    if hasattr(hass.http, "async_register_static_paths"):
-        from homeassistant.components.http import StaticPathConfig
+    lock = data.setdefault("lock", asyncio.Lock())
+    async with lock:
+        if data.get("registered"):
+            return
+        _register_websocket(hass)
+        if not data.get("static_registered"):
+            static_path = Path(__file__).parent / "www" / "entity-controller-panel.js"
+            if hasattr(hass.http, "async_register_static_paths"):
+                from homeassistant.components.http import StaticPathConfig
 
-        await hass.http.async_register_static_paths(
-            [StaticPathConfig(PANEL_JS, str(static_path), cache_headers=False)]
+                await hass.http.async_register_static_paths(
+                    [StaticPathConfig(PANEL_JS, str(static_path), cache_headers=False)]
+                )
+            else:  # Compatibility with older HA versions used by the test environment.
+                hass.http.register_static_path(PANEL_JS, str(static_path), cache_headers=False)
+            # HTTP routes live for the HA process lifetime, even if the final
+            # integration entry unloads. Keep this marker across panel reloads.
+            data["static_registered"] = True
+        frontend.async_register_built_in_panel(
+            hass,
+            component_name="custom",
+            sidebar_title="Entity Controller",
+            sidebar_icon="mdi:home-automation",
+            frontend_url_path=PANEL_URL,
+            config={
+                "_panel_custom": {
+                    "name": "entity-controller-panel",
+                    "js_url": PANEL_JS,
+                    "embed_iframe": False,
+                    "trust_external": False,
+                }
+            },
+            require_admin=False,
+            update=True,
         )
-    else:  # Compatibility with older HA versions used by the test environment.
-        hass.http.register_static_path(PANEL_JS, str(static_path), cache_headers=False)
-    frontend.async_register_built_in_panel(
-        hass,
-        component_name="custom",
-        sidebar_title="Entity Controller",
-        sidebar_icon="mdi:home-automation",
-        frontend_url_path=PANEL_URL,
-        config={
-            "_panel_custom": {
-                "name": "entity-controller-panel",
-                "js_url": PANEL_JS,
-                "embed_iframe": False,
-                "trust_external": False,
-            }
-        },
-        require_admin=False,
-        update=True,
-    )
-    data["registered"] = True
+        data["registered"] = True
 
 
 def async_unsetup_panel(hass: Any) -> None:
