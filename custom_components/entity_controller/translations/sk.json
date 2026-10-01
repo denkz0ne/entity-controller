@@ -61,7 +61,7 @@
             "data_description": {
               "state_entities": "Voliteľné doplnkové entity, podľa ktorých EC sleduje skutočný stav. Ovládané entity sa sledujú automaticky.",
               "blocking_enabled": "Ručná zmena mimo EC prejde do stavu Blokovaný namiesto okamžitého prepísania.",
-              "block_timeout_seconds": "0 znamená bez automatického timeoutu."
+              "block_timeout_seconds": "0 vypne timeout. Aktívny interlock zostáva blokovaný až do jeho vypnutia."
             }
           },
           "rules": {
@@ -189,7 +189,7 @@
               "data_description": {
                 "state_entities": "Voliteľné doplnkové entity, podľa ktorých EC sleduje skutočný stav. Ovládané entity sa sledujú automaticky.",
                 "blocking_enabled": "Ručná zmena mimo EC prejde do stavu Blokovaný namiesto okamžitého prepísania.",
-                "block_timeout_seconds": "0 znamená bez automatického timeoutu."
+                "block_timeout_seconds": "0 vypne timeout. Aktívny interlock zostáva blokovaný až do jeho vypnutia."
               }
             },
             "rules": {
@@ -311,7 +311,7 @@
               "data_description": {
                 "state_entities": "Voliteľné doplnkové entity, podľa ktorých EC sleduje skutočný stav. Ovládané entity sa sledujú automaticky.",
                 "blocking_enabled": "Ručná zmena mimo EC prejde do stavu Blokovaný namiesto okamžitého prepísania.",
-                "block_timeout_seconds": "0 znamená bez automatického timeoutu."
+                "block_timeout_seconds": "0 vypne timeout. Aktívny interlock zostáva blokovaný až do jeho vypnutia."
               }
             },
             "rules": {

@@ -58,6 +58,7 @@ class ReconcileReason(StrEnum):
     MIGRATION = "migration"
     RECONFIGURE = "reconfigure"
     ENABLED = "enabled"
+    CLEAR_BLOCK = "clear_block"
 
 
 DEFAULT_TRANSITION_BEHAVIORS: Mapping[str, TransitionBehavior] = MappingProxyType(

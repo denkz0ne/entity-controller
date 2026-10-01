@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 from .controller import ControllerRuntime
-from .model import ControllerState, TransitionCause
+from .model import ControllerState, ReconcileReason, TransitionCause
 from .schedule import ScheduleSource, parse_legacy_schedule_point
 
 
@@ -23,6 +23,9 @@ async def async_clear_block(runtime: ControllerRuntime) -> None:
     """Clear blocked state where applicable."""
 
     if runtime.state is ControllerState.BLOCKED:
+        if runtime.interlock_active:
+            await runtime.async_reconcile(ReconcileReason.CLEAR_BLOCK)
+            return
         await runtime.async_transition(ControllerState.IDLE, TransitionCause.SERVICE)
 
 

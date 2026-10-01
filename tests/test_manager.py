@@ -147,6 +147,41 @@ async def test_reconcile_retains_active_sources_for_runtime_diagnostics() -> Non
 
 
 @pytest.mark.asyncio
+async def test_last_interlock_clear_reconciles_current_trigger_state() -> None:
+    hass = FakeHass(
+        {
+            "input_boolean.block_a": "on",
+            "input_boolean.block_b": "on",
+            "binary_sensor.motion": "on",
+        }
+    )
+    manager = EntityControllerManager(hass, FakeEntry())
+
+    runtime = await manager.async_add_controller(
+        subentry(
+            interlock_entities=("input_boolean.block_a", "input_boolean.block_b"),
+            trigger_entities=("binary_sensor.motion",),
+            block_timeout_seconds=60,
+        )
+    )
+
+    assert runtime.state is ControllerState.BLOCKED
+    assert runtime.active_interlocks == (
+        "input_boolean.block_a",
+        "input_boolean.block_b",
+    )
+    assert runtime.block_expires_at is None
+
+    await hass.fire_state_change("input_boolean.block_a", "off", old_state="on")
+    assert runtime.state is ControllerState.BLOCKED
+    assert runtime.active_interlocks == ("input_boolean.block_b",)
+
+    await hass.fire_state_change("input_boolean.block_b", "off", old_state="on")
+    assert runtime.state is ControllerState.ACTIVE_TIMER
+    assert runtime.active_interlocks == ()
+
+
+@pytest.mark.asyncio
 async def test_manager_routes_multiple_trigger_entities_to_one_controller() -> None:
     hass = FakeHass()
     manager = EntityControllerManager(hass, FakeEntry())

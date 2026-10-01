@@ -231,6 +231,8 @@ class ControllerRuntime:
 
     def _schedule_block_timer(self) -> None:
         self._cancel_block_timer()
+        if self.interlock_active:
+            return
         timeout = self.config.block_timeout_seconds
         if timeout is None:
             return
@@ -358,6 +360,11 @@ class ControllerRuntime:
     ) -> bool:
         """Transition through the FSM and execute configured enter/exit behavior."""
 
+        if self.interlock_active:
+            previous = self.state
+            await self.async_reconcile(ReconcileReason.RESTORE)
+            return self.state is not previous
+
         if target is self.state:
             return False
         if target not in _ALLOWED_TRANSITIONS[self.state]:
@@ -385,8 +392,12 @@ class ControllerRuntime:
         self.last_transition_source = source_entity_id
 
         if target is ControllerState.BLOCKED:
-            self.blocked_by = source_entity_id
-            self.block_reason = cause.value
+            if self.interlock_active:
+                self.blocked_by = self.active_interlocks[0] if self.active_interlocks else None
+                self.block_reason = "interlock"
+            else:
+                self.blocked_by = source_entity_id
+                self.block_reason = cause.value
             if source is not ControllerState.BLOCKED:
                 self.blocked_at = self._clock()
                 self._schedule_block_timer()
@@ -467,7 +478,10 @@ class ControllerRuntime:
             else:
                 self.blocked_by = None
                 self.block_reason = None
-            if self.block_expires_at is None:
+            if self.interlock_active:
+                self._cancel_block_timer()
+                self.blocked_at = None
+            elif self.block_expires_at is None:
                 self.blocked_at = self.blocked_at or self._clock()
                 self._schedule_block_timer()
         if target is not ControllerState.OVERRIDDEN:
@@ -559,6 +573,10 @@ class ControllerRuntime:
 
         if self.state is not ControllerState.BLOCKED:
             return False
+        if self.interlock_active:
+            previous = self.state
+            await self.async_reconcile(ReconcileReason.RESTORE)
+            return self.state is not previous
         if self.state_entities_on and (
             self.config.sensor_type is SensorType.EVENT or self.sensor_active
         ):

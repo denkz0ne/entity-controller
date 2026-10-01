@@ -109,14 +109,14 @@ For a genuine external/manual state change:
 
 ## Block timeout
 
-When the controller enters `blocked` through a normal transition, it records `blocked_at` and optionally schedules `block_expires_at`.
+When the controller enters `blocked` through manual-control protection or the block service, it records `blocked_at` and optionally schedules `block_expires_at`. This timeout does not apply while an interlock is active.
 
 On block timeout:
 
 - if a monitored state entity is still on and the controller uses event semantics (or a duration trigger is still active), it activates;
 - otherwise it returns to `idle`.
 
-A persistent external interlock and the automatic block timeout currently share the same `blocked` state, which is one reason RC polish needs explicit block-source tracking and additional tests.
+A persistent external interlock holds the controller in `blocked` until every active interlock clears. A timeout cannot release it. When the last interlock clears, reconciliation evaluates the current trigger, constraint, override, and monitored-state conditions. Constraints and overrides retain their higher priority than interlocks.
 
 ## Override
 
@@ -136,7 +136,7 @@ During startup/reconcile the controller can resolve to `overridden` without a tr
 
 An interlock is a normal external HA entity. RC.3 considers it active if its state is not `off`, `unavailable`, `unknown`, or empty.
 
-Interlock state changes request a full reconcile rather than a transition. An active interlock resolves the controller to `blocked`; the state and Blocked sensor expose the active interlock list, and `blocked_by` names the first active configured interlock. Reconcile does not run normal `on_enter_blocked` transition behavior. Block-timeout behavior while an interlock remains held is tracked separately in Issue #5.
+Interlock state changes request a full reconcile rather than a transition. An active interlock resolves the controller to `blocked`; the state and Blocked sensor expose the active interlock list, and `blocked_by` names the first active configured interlock. Reconcile does not run normal `on_enter_blocked` transition behavior. Clear Block and block timeout cannot release a held interlock. When the final interlock clears, reconciliation evaluates current controller conditions.
 
 This keeps diagnostics accurate without fabricating an FSM transition or changing reconcile side effects.
 
@@ -219,7 +219,7 @@ The State sensor exposes this low-churn runtime context, while config-entry diag
 These are source-level gaps, not documentation TODOs:
 
 - `trigger_off_states`, `state_off_states`, and `override_off_states` are stored but not consulted by the manager/runtime.
-- A held interlock combined with an automatic block timeout needs an explicit regression test; timeout should not silently defeat a still-active gate.
+- Service-forced blocks use the configured block timeout; interlock blocks remain held until the interlock clears.
 - Leaving `constrained` currently goes straight to `idle` instead of full reconcile.
 - `TransitionBehavior.CUSTOM` exists in the model but current UI/executor only implement ON, OFF, and IGNORE.
 - The Activate action sets `enabled = true` and requests a direct active transition; activation from currently `disabled`/`constrained` states needs dedicated tests because those direct FSM edges are not generally allowed.

@@ -47,14 +47,43 @@ async def test_clear_block_action_returns_blocked_controller_to_idle() -> None:
 
 
 @pytest.mark.asyncio
-async def test_enable_block_action_blocks_active_timer() -> None:
+async def test_clear_block_reconciles_instead_of_bypassing_active_interlock() -> None:
     runtime = make_runtime()
+    runtime.state = ControllerState.BLOCKED
+    runtime.interlock_active = True
+    runtime.active_interlocks = ("input_boolean.maintenance",)
+    runtime.block_reason = "service"
+
+    await async_clear_block(runtime)
+
+    assert runtime.state is ControllerState.BLOCKED
+    assert runtime.block_reason == "interlock"
+    assert runtime.blocked_by == "input_boolean.maintenance"
+    assert runtime.last_reconcile_reason is not None
+
+    await async_activate(runtime)
+
+    assert runtime.state is ControllerState.BLOCKED
+    assert runtime.block_reason == "interlock"
+
+
+@pytest.mark.asyncio
+async def test_enable_block_action_blocks_active_timer() -> None:
+    runtime = ControllerRuntime(
+        ControllerConfig(
+            subentry_id="controller-a",
+            name="Hall",
+            block_timeout_seconds=30,
+        )
+    )
     await runtime.async_handle_sensor_on("binary_sensor.motion")
 
     await async_enable_block(runtime)
 
     assert runtime.state is ControllerState.BLOCKED
     assert runtime.last_transition_cause is TransitionCause.SERVICE
+    assert runtime.block_reason == "service"
+    assert runtime.block_expires_at is not None
 
 
 @pytest.mark.asyncio

@@ -5,11 +5,16 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from custom_components.entity_controller.controller import ControllerRuntime
+from custom_components.entity_controller.controller import (
+    ControllerRuntime,
+    ReconcileSnapshot,
+)
 from custom_components.entity_controller.model import (
     ControllerConfig,
     ControllerState,
+    ReconcileReason,
     SensorType,
+    TransitionCause,
 )
 
 
@@ -133,3 +138,78 @@ async def test_block_timeout_is_scheduled_and_reactivates_event_controller() -> 
     block_call = scheduler.calls[-1]
     await block_call.callback()
     assert runtime.state is ControllerState.ACTIVE_TIMER
+
+
+@pytest.mark.asyncio
+async def test_interlock_cancels_block_timeout_and_stays_blocked_after_stale_callback() -> None:
+    scheduler = FakeScheduler()
+    runtime = ControllerRuntime(
+        ControllerConfig(
+            subentry_id="hall",
+            name="Hall",
+            block_timeout_seconds=1,
+        ),
+        schedule_at=scheduler,
+    )
+    await runtime.async_transition(ControllerState.BLOCKED, TransitionCause.SERVICE)
+    stale_block_timer = scheduler.calls[-1]
+
+    await runtime.async_reconcile(
+        ReconcileReason.RESTORE,
+        ReconcileSnapshot(
+            enabled=True,
+            constrained=False,
+            override_active=False,
+            interlock_active=True,
+            sensor_active=False,
+            state_entities_on=False,
+            active_interlocks=("input_boolean.maintenance",),
+        ),
+    )
+
+    assert stale_block_timer.cancelled is True
+    assert runtime.state is ControllerState.BLOCKED
+    assert runtime.blocked_by == "input_boolean.maintenance"
+    assert runtime.block_reason == "interlock"
+    assert runtime.block_expires_at is None
+
+    await stale_block_timer.callback()
+    expired = await runtime.async_handle_block_timer_expired()
+
+    assert expired is False
+    assert runtime.state is ControllerState.BLOCKED
+
+
+@pytest.mark.asyncio
+async def test_reconcile_honors_constraint_and_override_priority_over_interlock() -> None:
+    runtime = ControllerRuntime(ControllerConfig(subentry_id="hall", name="Hall"))
+
+    state = await runtime.async_reconcile(
+        ReconcileReason.RESTORE,
+        ReconcileSnapshot(
+            enabled=True,
+            constrained=True,
+            override_active=True,
+            interlock_active=True,
+            sensor_active=False,
+            state_entities_on=False,
+            active_overrides=("input_boolean.guest",),
+            active_interlocks=("input_boolean.maintenance",),
+        ),
+    )
+    assert state is ControllerState.CONSTRAINED
+
+    state = await runtime.async_reconcile(
+        ReconcileReason.RESTORE,
+        ReconcileSnapshot(
+            enabled=True,
+            constrained=False,
+            override_active=True,
+            interlock_active=True,
+            sensor_active=False,
+            state_entities_on=False,
+            active_overrides=("input_boolean.guest",),
+            active_interlocks=("input_boolean.maintenance",),
+        ),
+    )
+    assert state is ControllerState.OVERRIDDEN

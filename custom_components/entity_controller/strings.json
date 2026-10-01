@@ -61,7 +61,7 @@
             "data_description": {
               "state_entities": "Optional extra entities used to observe the real state. Controlled entities are observed automatically.",
               "blocking_enabled": "Manual changes outside EC put the controller into Blocked instead of immediately overwriting them.",
-              "block_timeout_seconds": "Zero means no automatic timeout."
+              "block_timeout_seconds": "Zero disables the timeout. Active interlocks stay blocked until cleared."
             }
           },
           "rules": {
@@ -189,7 +189,7 @@
               "data_description": {
                 "state_entities": "Optional extra entities used to observe the real state. Controlled entities are observed automatically.",
                 "blocking_enabled": "Manual changes outside EC put the controller into Blocked instead of immediately overwriting them.",
-                "block_timeout_seconds": "Zero means no automatic timeout."
+                "block_timeout_seconds": "Zero disables the timeout. Active interlocks stay blocked until cleared."
               }
             },
             "rules": {
@@ -311,7 +311,7 @@
               "data_description": {
                 "state_entities": "Optional extra entities used to observe the real state. Controlled entities are observed automatically.",
                 "blocking_enabled": "Manual changes outside EC put the controller into Blocked instead of immediately overwriting them.",
-                "block_timeout_seconds": "Zero means no automatic timeout."
+                "block_timeout_seconds": "Zero disables the timeout. Active interlocks stay blocked until cleared."
               }
             },
             "rules": {

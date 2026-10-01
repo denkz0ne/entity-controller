@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file. See [standa
 <a name="10.0.0-rc.7"></a>
 ## 10.0.0-rc.7 (2026-10-01)
 
+### Fixes
+
+* keep active interlocks blocked until cleared, regardless of block timeout or Clear Block requests
+* reconcile current conditions after the final interlock clears and retain constraint/override priority
+
 ### Features
 
 * expose transition provenance, current runtime sources, blocking context, and timer/backoff details on native entities
