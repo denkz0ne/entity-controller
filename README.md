@@ -18,13 +18,15 @@ The `v10-modernization` branch is active prerelease work. It targets Home Assist
 
 ## Documentation
 
-- [Configuration](docs/configuration.md)
+- [Configuration reference](docs/configuration.md)
+- [Runtime behavior and state machine](docs/behavior.md)
+- [Native entities, naming and attributes](docs/entities.md)
 - [Actions](docs/actions.md)
-- [Behavior](docs/behavior.md)
 - [Migration from v9 YAML](docs/migration-v9-to-v10.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Development notes](docs/development.md)
 - [Release checklist](docs/release-checklist.md)
+- [RC polish roadmap for Work/Codex agents](docs/work-agents/README.md)
 
 ## Migration model
 
