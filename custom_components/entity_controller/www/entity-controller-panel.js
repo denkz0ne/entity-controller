@@ -23,6 +23,7 @@ class EntityControllerPanel extends HTMLElement {
     this._refreshing = false;
     this._removeEvents = [];
     this._timer = null;
+    this._clockTimer = null;
   }
 
   set hass(hass) {
@@ -43,13 +44,16 @@ class EntityControllerPanel extends HTMLElement {
     this._removeEvents.forEach((remove) => remove());
     this._removeEvents = [];
     clearInterval(this._timer);
+    clearInterval(this._clockTimer);
     this._timer = null;
+    this._clockTimer = null;
   }
 
   async _start() {
     await this._refresh();
     this._watchStates();
     if (!this._timer) this._timer = setInterval(() => this._loadHistory(), REFRESH_MS);
+    if (!this._clockTimer) this._clockTimer = setInterval(() => this._updateClock(), 30000);
   }
 
   async _watchStates() {
@@ -219,7 +223,7 @@ class EntityControllerPanel extends HTMLElement {
     const status = this._status(controller);
     const title = controller.name;
     const inputs = controller.inputs || controller.triggers || [];
-    return '<article class="row ' + status.color + '">' +
+    return '<article class="row ' + status.color + '" data-controller-id="' + esc(controller.id) + '">' +
       '<div class="identity">' +
         '<button class="toggle ' + (controller.enabled ? "on" : "") + '" data-toggle="' +
           esc(controller.enabled_entity_id || "") + '" aria-label="' +
@@ -286,6 +290,16 @@ class EntityControllerPanel extends HTMLElement {
     const list = this.shadowRoot.querySelector(".list");
     list.addEventListener("scroll", () => this._updateVisibleCount(), { passive: true });
     requestAnimationFrame(() => this._updateVisibleCount());
+  }
+
+  _updateClock() {
+    this.controllers.forEach((controller) => {
+      if (!["active_timer", "active_stay_on"].includes(controller.state)) return;
+      const row = [...(this.shadowRoot?.querySelectorAll(".row") || [])]
+        .find((item) => item.dataset.controllerId === controller.id);
+      const label = row?.querySelector(".status-label b");
+      if (label) label.textContent = this._status(controller).label;
+    });
   }
 
   _updateVisibleCount() {
