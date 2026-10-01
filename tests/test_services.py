@@ -35,6 +35,73 @@ async def test_activate_action_uses_service_transition() -> None:
 
 
 @pytest.mark.asyncio
+async def test_activate_persists_enabled_when_enabling_disabled_controller() -> None:
+    persisted: list[bool] = []
+
+    async def persist(runtime: ControllerRuntime) -> None:
+        persisted.append(runtime.enabled)
+
+    runtime = ControllerRuntime(
+        ControllerConfig(
+            subentry_id="controller-a",
+            name="Hall",
+            enabled_default=False,
+        ),
+        state_persistor=persist,
+    )
+    runtime.state = ControllerState.DISABLED
+
+    await async_activate(runtime)
+
+    assert runtime.enabled is True
+    assert persisted == [True]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    (
+        "state",
+        "enabled",
+        "constrained",
+        "override_active",
+        "interlock_active",
+        "expected",
+    ),
+    (
+        (ControllerState.IDLE, True, False, False, False, ControllerState.ACTIVE_TIMER),
+        (ControllerState.ACTIVE_TIMER, True, False, False, False, ControllerState.ACTIVE_TIMER),
+        (ControllerState.ACTIVE_STAY_ON, True, False, False, False, ControllerState.ACTIVE_STAY_ON),
+        (ControllerState.BLOCKED, True, False, False, False, ControllerState.BLOCKED),
+        (ControllerState.OVERRIDDEN, True, False, True, False, ControllerState.OVERRIDDEN),
+        (ControllerState.CONSTRAINED, True, True, False, False, ControllerState.CONSTRAINED),
+        (ControllerState.DISABLED, False, False, False, False, ControllerState.ACTIVE_TIMER),
+        (ControllerState.IDLE, True, False, False, True, ControllerState.BLOCKED),
+    ),
+)
+async def test_activate_has_deterministic_result_from_every_fsm_state(
+    state: ControllerState,
+    enabled: bool,
+    constrained: bool,
+    override_active: bool,
+    interlock_active: bool,
+    expected: ControllerState,
+) -> None:
+    runtime = make_runtime()
+    runtime.state = state
+    runtime.enabled = enabled
+    runtime.constrained = constrained
+    runtime.override_active = override_active
+    runtime.interlock_active = interlock_active
+    if state is ControllerState.ACTIVE_STAY_ON:
+        runtime.stay_mode = True
+
+    await async_activate(runtime)
+
+    assert runtime.enabled is True
+    assert runtime.state is expected
+
+
+@pytest.mark.asyncio
 async def test_clear_block_action_returns_blocked_controller_to_idle() -> None:
     runtime = make_runtime()
     runtime.state = ControllerState.BLOCKED

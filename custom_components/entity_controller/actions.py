@@ -10,12 +10,34 @@ from .schedule import ScheduleSource, parse_legacy_schedule_point
 
 
 async def async_activate(runtime: ControllerRuntime) -> None:
-    """Activate a controller through service/button semantics."""
+    """Enable and activate only when current controller conditions allow it."""
 
-    runtime.enabled = True
+    if not runtime.enabled:
+        await runtime.async_set_enabled(True, reconcile=False)
+    if runtime.constrained or runtime.override_active or runtime.interlock_active:
+        await runtime.async_reconcile(ReconcileReason.ENABLED)
+        return
+    if runtime.state in (
+        ControllerState.BLOCKED,
+        ControllerState.ACTIVE_TIMER,
+        ControllerState.ACTIVE_STAY_ON,
+    ):
+        return
+    if runtime.state_entities_on and runtime.config.blocking_enabled:
+        await runtime.async_transition(
+            ControllerState.BLOCKED,
+            TransitionCause.SERVICE,
+            source_entity_id=(
+                runtime.active_state_entities[0]
+                if runtime.active_state_entities
+                else None
+            ),
+        )
+        return
     await runtime.async_transition(
         runtime._active_target,
         TransitionCause.SERVICE,
+        activation_request=True,
     )
 
 

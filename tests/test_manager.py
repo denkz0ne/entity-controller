@@ -417,6 +417,53 @@ async def test_time_window_refresh_updates_controller_without_entity_event() -> 
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("condition", "expected"),
+    (
+        ("override", ControllerState.OVERRIDDEN),
+        ("interlock", ControllerState.BLOCKED),
+        ("duration_trigger", ControllerState.ACTIVE_TIMER),
+        ("none", ControllerState.IDLE),
+    ),
+)
+async def test_constraint_exit_reconciles_current_conditions(
+    condition: str,
+    expected: ControllerState,
+) -> None:
+    now = [datetime(2026, 10, 1, 12, 0, tzinfo=UTC)]
+    values = {
+        "input_boolean.override": "on" if condition == "override" else "off",
+        "input_boolean.interlock": "on" if condition == "interlock" else "off",
+        "binary_sensor.motion": "on" if condition == "duration_trigger" else "off",
+        "light.hall": "off",
+    }
+    hass = FakeHass(values)
+    manager = EntityControllerManager(hass, FakeEntry(), now=lambda: now[0])
+    runtime = await manager.async_add_controller(
+        subentry(
+            trigger_entities=("binary_sensor.motion",),
+            control_entities=("light.hall",),
+            override_entities=("input_boolean.override",),
+            interlock_entities=("input_boolean.interlock",),
+            sensor_type="duration",
+            constraint_window={
+                "start": {"source": "fixed", "time": "20:00:00", "offset_seconds": 0},
+                "end": {"source": "fixed", "time": "06:00:00", "offset_seconds": 0},
+            },
+        )
+    )
+    assert runtime.state is ControllerState.CONSTRAINED
+
+    now[0] = datetime(2026, 10, 1, 21, 0, tzinfo=UTC)
+    await manager.async_refresh_time_windows()
+
+    assert runtime.state is expected
+    if condition == "duration_trigger":
+        assert hass.service_calls[-1][1] == "turn_on"
+        assert hass.service_calls[-1][2]["entity_id"] == ["light.hall"]
+
+
+@pytest.mark.asyncio
 async def test_custom_trigger_and_override_states_are_honored() -> None:
     hass = FakeHass()
     manager = EntityControllerManager(hass, FakeEntry())

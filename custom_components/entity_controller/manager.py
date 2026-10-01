@@ -147,12 +147,31 @@ class EntityControllerManager:
         if runtime is None:
             return await self.async_add_controller(subentry)
 
+        was_active_timer = runtime.state is ControllerState.ACTIVE_TIMER
+        was_constrained = runtime.state is ControllerState.CONSTRAINED
         for remove in self._remove_callbacks.pop(subentry.subentry_id, ()):
             remove()
         await runtime.async_apply_config(self._config_from_subentry(subentry))
         self._subentry_fingerprints[subentry.subentry_id] = self._fingerprint(subentry)
         self._register_controller_listeners(runtime)
-        if runtime.state is not ControllerState.ACTIVE_TIMER:
+        if was_constrained:
+            snapshot = self._snapshot(runtime.config, enabled=runtime.enabled)
+            if snapshot.constrained:
+                await runtime.async_reconcile(ReconcileReason.RECONFIGURE, snapshot)
+            else:
+                await runtime.async_resume_after_constraint(snapshot)
+        elif runtime.state is ControllerState.ACTIVE_TIMER or (
+            was_active_timer and runtime.state is ControllerState.IDLE
+        ):
+            snapshot = self._snapshot(runtime.config, enabled=runtime.enabled)
+            if (
+                not snapshot.enabled
+                or snapshot.constrained
+                or snapshot.override_active
+                or snapshot.interlock_active
+            ):
+                await runtime.async_reconcile(ReconcileReason.RECONFIGURE, snapshot)
+        else:
             await self._safe_reconcile(runtime, ReconcileReason.RECONFIGURE)
         self._notify_controller_listeners("updated", subentry.subentry_id, runtime)
         return runtime
@@ -372,16 +391,24 @@ class EntityControllerManager:
                 sunset=sunset,
             )
         )
+        was_constrained = runtime.constrained
         runtime.constrained = constrained
-        if constrained and runtime.state is not ControllerState.CONSTRAINED:
-            await runtime.async_transition(
-                ControllerState.CONSTRAINED,
-                TransitionCause.CONSTRAINT,
-            )
+        if constrained and (
+            not was_constrained or runtime.state is not ControllerState.CONSTRAINED
+        ):
+            if runtime.enabled:
+                await runtime.async_transition(
+                    ControllerState.CONSTRAINED,
+                    TransitionCause.CONSTRAINT,
+                )
+            else:
+                await runtime.async_reconcile(
+                    ReconcileReason.RESTORE,
+                    self._snapshot(runtime.config, enabled=runtime.enabled),
+                )
         elif not constrained and runtime.state is ControllerState.CONSTRAINED:
-            await runtime.async_transition(
-                ControllerState.IDLE,
-                TransitionCause.CONSTRAINT,
+            await runtime.async_resume_after_constraint(
+                self._snapshot(runtime.config, enabled=runtime.enabled)
             )
 
     async def async_refresh_time_windows(self) -> None:

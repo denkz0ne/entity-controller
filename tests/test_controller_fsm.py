@@ -164,6 +164,40 @@ async def test_toggling_stay_mode_reconciles_an_active_controller() -> None:
 
 
 @pytest.mark.asyncio
+async def test_stay_mode_entry_does_not_replay_active_behaviors() -> None:
+    recorder = BehaviorRecorder()
+    runtime = make_runtime(recorder=recorder)
+    await runtime.async_handle_sensor_on("binary_sensor.motion")
+    recorder.calls.clear()
+    updates: list[ControllerState] = []
+    runtime.add_update_listener(lambda: updates.append(runtime.state))
+
+    await runtime.async_set_stay_mode(True)
+
+    assert runtime.state is ControllerState.ACTIVE_STAY_ON
+    assert runtime.expires_at is None
+    assert recorder.calls == []
+    assert updates[-1] is ControllerState.ACTIVE_STAY_ON
+
+
+@pytest.mark.asyncio
+async def test_stay_mode_exit_does_not_replay_active_behaviors() -> None:
+    recorder = BehaviorRecorder()
+    runtime = make_runtime(stay=True, recorder=recorder)
+    await runtime.async_handle_sensor_on("binary_sensor.motion")
+    recorder.calls.clear()
+    updates: list[ControllerState] = []
+    runtime.add_update_listener(lambda: updates.append(runtime.state))
+
+    await runtime.async_set_stay_mode(False)
+
+    assert runtime.state is ControllerState.ACTIVE_TIMER
+    assert runtime.expires_at is not None
+    assert recorder.calls == []
+    assert updates[-1] is ControllerState.ACTIVE_TIMER
+
+
+@pytest.mark.asyncio
 async def test_invalid_transition_is_rejected_without_side_effect() -> None:
     recorder = BehaviorRecorder()
     runtime = make_runtime(recorder=recorder)

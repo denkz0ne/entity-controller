@@ -64,6 +64,8 @@ class FakeHass:
     def __init__(self, values: dict[str, str] | None = None) -> None:
         self.states = FakeStates(values)
         self.listeners: dict[str, list[Any]] = {}
+        self.service_calls: list[tuple[str, str, dict[str, Any]]] = []
+        self.services = self
 
     def track_state(self, entity_id: str, callback: Any) -> Any:
         self.listeners.setdefault(entity_id, []).append(callback)
@@ -75,6 +77,33 @@ class FakeHass:
 
     def listener_count(self, entity_id: str) -> int:
         return len(self.listeners.get(entity_id, ()))
+
+    async def fire_state_change(
+        self,
+        entity_id: str,
+        new_state: str,
+    ) -> None:
+        old_state = self.states.get(entity_id)
+        self.states._values[entity_id] = new_state
+        event = {
+            "entity_id": entity_id,
+            "old_state": old_state,
+            "new_state": FakeState(new_state),
+            "context": None,
+        }
+        for callback in list(self.listeners.get(entity_id, ())):
+            await callback(event)
+
+    async def async_call(
+        self,
+        domain: str,
+        service: str,
+        data: dict[str, Any],
+        *,
+        blocking: bool,
+        context: Any,
+    ) -> None:
+        self.service_calls.append((domain, service, data))
 
 
 class FakeEntry:
@@ -158,6 +187,115 @@ async def test_helper_newly_selected_while_on_reconciles_to_overridden() -> None
 
     assert updated is runtime
     assert runtime.state is ControllerState.OVERRIDDEN
+
+
+@pytest.mark.asyncio
+async def test_adding_active_interlock_while_active_reconciles_to_blocked() -> None:
+    hass = FakeHass(
+        {"binary_sensor.motion": "on", "input_boolean.maintenance": "on"}
+    )
+    manager = EntityControllerManager(hass, FakeEntry())
+    runtime = await manager.async_add_controller(
+        subentry(trigger_entities=("binary_sensor.motion",), delay_seconds=300)
+    )
+    assert runtime.state is ControllerState.ACTIVE_TIMER
+
+    await manager.async_update_controller(
+        subentry(
+            trigger_entities=("binary_sensor.motion",),
+            interlock_entities=("input_boolean.maintenance",),
+            delay_seconds=300,
+        )
+    )
+
+    assert runtime.state is ControllerState.BLOCKED
+    assert runtime.active_interlocks == ("input_boolean.maintenance",)
+    assert runtime.expires_at is None
+
+
+@pytest.mark.asyncio
+async def test_adding_closed_constraint_while_active_reconciles_safely() -> None:
+    now = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
+    hass = FakeHass({"binary_sensor.motion": "on"})
+    manager = EntityControllerManager(hass, FakeEntry(), now=lambda: now)
+    runtime = await manager.async_add_controller(
+        subentry(trigger_entities=("binary_sensor.motion",), delay_seconds=300)
+    )
+    assert runtime.state is ControllerState.ACTIVE_TIMER
+
+    await manager.async_update_controller(
+        subentry(
+            trigger_entities=("binary_sensor.motion",),
+            delay_seconds=300,
+            constraint_window={
+                "start": {"source": "fixed", "time": "20:00:00", "offset_seconds": 0},
+                "end": {"source": "fixed", "time": "06:00:00", "offset_seconds": 0},
+            },
+        )
+    )
+
+    assert runtime.state is ControllerState.CONSTRAINED
+    assert runtime.expires_at is None
+
+
+@pytest.mark.asyncio
+async def test_removing_constraint_activates_current_trigger_with_normal_behavior() -> None:
+    now = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
+    hass = FakeHass({"binary_sensor.motion": "on"})
+    manager = EntityControllerManager(hass, FakeEntry(), now=lambda: now)
+    closed_constraint = {
+        "start": {"source": "fixed", "time": "20:00:00", "offset_seconds": 0},
+        "end": {"source": "fixed", "time": "06:00:00", "offset_seconds": 0},
+    }
+    runtime = await manager.async_add_controller(
+        subentry(
+            trigger_entities=("binary_sensor.motion",),
+            control_entities=("light.hall",),
+            constraint_window=closed_constraint,
+        )
+    )
+    assert runtime.state is ControllerState.CONSTRAINED
+
+    await manager.async_update_controller(
+        subentry(
+            trigger_entities=("binary_sensor.motion",),
+            control_entities=("light.hall",),
+        )
+    )
+
+    assert runtime.state is ControllerState.ACTIVE_TIMER
+    assert hass.service_calls[-1][1] == "turn_on"
+    assert hass.service_calls[-1][2]["entity_id"] == ["light.hall"]
+
+
+@pytest.mark.asyncio
+async def test_reconfigure_preserves_event_timer_after_trigger_releases() -> None:
+    hass = FakeHass(
+        {"binary_sensor.motion": "on", "light.hall": "off"}
+    )
+    manager = EntityControllerManager(hass, FakeEntry())
+    runtime = await manager.async_add_controller(
+        subentry(
+            trigger_entities=("binary_sensor.motion",),
+            control_entities=("light.hall",),
+            delay_seconds=120,
+        )
+    )
+
+    await hass.fire_state_change("binary_sensor.motion", "off")
+    assert runtime.state is ControllerState.ACTIVE_TIMER
+    assert runtime.sensor_active is False
+
+    await manager.async_update_controller(
+        subentry(
+            trigger_entities=("binary_sensor.motion",),
+            control_entities=("light.hall",),
+            delay_seconds=90,
+        )
+    )
+
+    assert runtime.state is ControllerState.ACTIVE_TIMER
+    assert runtime.expires_at is not None
 
 
 @pytest.mark.asyncio

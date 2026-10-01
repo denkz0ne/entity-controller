@@ -146,7 +146,7 @@ This keeps diagnostics accurate without fabricating an FSM transition or changin
 
 ## Constraint
 
-Constraint defines an **allowed** operating window. Outside the window the manager sets `constrained = true` and transitions to `constrained`.
+Constraint defines an **allowed** operating window. Outside the window the manager sets `constrained = true` and reconciles according to normal priority. When the window opens, the manager reconciles current inputs instead of blindly returning to `idle`. If an ON-mapped trigger is already active, it enters the active target through a normal transition so the configured activation behavior runs. Active overrides, interlocks, and disabled state retain their priority.
 
 Schedule points support:
 
@@ -177,7 +177,7 @@ Stay Mode is controller-owned persistent runtime state.
 - Disabling it while `active_stay_on` transitions back to `active_timer`, which starts a fresh main timer.
 - Activating while Stay Mode is already enabled enters `active_stay_on` directly.
 
-Because both active substates share the `active` behavior key, changing between them can run active exit/enter behavior. With current defaults, entering the new active substate executes the ON behavior again.
+Moving between the two active substates does not replay generic active enter/exit behavior. The timer is cancelled when entering Stay Mode and starts fresh when leaving it; native state entities are updated immediately.
 
 ## Enabled
 
@@ -187,9 +187,13 @@ Turning it OFF does **not** call `turn_off` on controlled loads. It sets the con
 
 The value is persisted into the controller subentry.
 
+## Activate
+
+Activate enables the controller, persists Enabled when it changes, and requests activation only when current rules allow it. It preserves active constraints, overrides, interlocks, and an existing blocked state. If a monitored entity is already ON while manual blocking is enabled, Activate resolves to `blocked`. Calling Activate on an already active controller leaves its active substate and timer unchanged.
+
 ## Hot reconfiguration
 
-Updating one controller applies a config diff to its existing runtime. Listeners are rebuilt and timer/block deadlines are recalculated without rebuilding unrelated controllers.
+Updating one controller applies a config diff to its existing runtime. Listeners are rebuilt and timer/block deadlines are recalculated without rebuilding unrelated controllers. Newly active constraints, overrides, and interlocks are reconciled even when the controller has an active timer; this does not replay load actions. A timer that expires while applying a shorter delay stays expired unless a higher-priority condition must be resolved.
 
 For an active main timer, the new expiry is based on `last_triggered_at + new_effective_delay`; shortening the delay past the current time invokes expiry logic immediately.
 
@@ -222,6 +226,4 @@ The State sensor exposes this low-churn runtime context, while config-entry diag
 
 These are source-level gaps, not documentation TODOs:
 
-- Leaving `constrained` currently goes straight to `idle` instead of full reconcile.
 - `TransitionBehavior.CUSTOM` exists in the model but current UI/executor only implement ON, OFF, and IGNORE.
-- The Activate action sets `enabled = true` and requests a direct active transition; activation from currently `disabled`/`constrained` states needs dedicated tests because those direct FSM edges are not generally allowed.

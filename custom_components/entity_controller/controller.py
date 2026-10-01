@@ -92,6 +92,8 @@ _ALLOWED_TRANSITIONS: dict[ControllerState, frozenset[ControllerState]] = {
     ControllerState.CONSTRAINED: frozenset(
         {
             ControllerState.IDLE,
+            ControllerState.ACTIVE_TIMER,
+            ControllerState.ACTIVE_STAY_ON,
             ControllerState.OVERRIDDEN,
             ControllerState.BLOCKED,
             ControllerState.DISABLED,
@@ -170,11 +172,12 @@ class ControllerRuntime:
         self._block_timer_generation = 0
         self._update_callbacks: set[Callable[[], None]] = set()
 
-    async def async_set_enabled(self, enabled: bool) -> None:
+    async def async_set_enabled(self, enabled: bool, *, reconcile: bool = True) -> None:
         """Set and persist controller decision-making state."""
 
         self.enabled = enabled
-        await self.async_reconcile(ReconcileReason.ENABLED)
+        if reconcile:
+            await self.async_reconcile(ReconcileReason.ENABLED)
         if self._state_persistor is not None:
             await self._state_persistor(self)
         self._notify_updated()
@@ -357,6 +360,7 @@ class ControllerRuntime:
         cause: TransitionCause,
         *,
         source_entity_id: str | None = None,
+        activation_request: bool = False,
     ) -> bool:
         """Transition through the FSM and execute configured enter/exit behavior."""
 
@@ -367,12 +371,17 @@ class ControllerRuntime:
 
         if target is self.state:
             return False
-        if target not in _ALLOWED_TRANSITIONS[self.state]:
+        if target not in _ALLOWED_TRANSITIONS[self.state] and not (
+            activation_request
+            and self.state is ControllerState.DISABLED
+            and self._is_active_state(target)
+        ):
             return False
 
         source = self.state
         source_behavior = _behavior_state_name(source)
         target_behavior = _behavior_state_name(target)
+        stays_active = self._is_active_state(source) and self._is_active_state(target)
 
         if (
             source is ControllerState.ACTIVE_TIMER
@@ -383,7 +392,7 @@ class ControllerRuntime:
             self._cancel_block_timer()
             self.blocked_at = None
 
-        if source_behavior is not None:
+        if source_behavior is not None and not stays_active:
             await self._execute_behavior(f"on_exit_{source_behavior}")
 
         self.state = target
@@ -407,7 +416,7 @@ class ControllerRuntime:
         if target is not ControllerState.OVERRIDDEN:
             self.overridden_by = None
 
-        if target_behavior is not None:
+        if target_behavior is not None and not stays_active:
             await self._execute_behavior(f"on_enter_{target_behavior}")
 
         if (
@@ -430,32 +439,9 @@ class ControllerRuntime:
         """Recompute logical state without transition enter/exit side effects."""
 
         if snapshot is not None:
-            self.enabled = snapshot.enabled
-            self.constrained = snapshot.constrained
-            self.override_active = snapshot.override_active
-            self.interlock_active = snapshot.interlock_active
-            self.sensor_active = snapshot.sensor_active
-            self.state_entities_on = snapshot.state_entities_on
-            self.night_active = snapshot.night_active
-            self.active_overrides = snapshot.active_overrides
-            self.active_interlocks = snapshot.active_interlocks
-            self.active_triggers = snapshot.active_triggers
-            self.active_state_entities = snapshot.active_state_entities
+            self._apply_snapshot(snapshot)
 
-        if not self.enabled:
-            target = ControllerState.DISABLED
-        elif self.constrained:
-            target = ControllerState.CONSTRAINED
-        elif self.override_active:
-            target = ControllerState.OVERRIDDEN
-        elif self.interlock_active:
-            target = ControllerState.BLOCKED
-        elif self.sensor_active:
-            target = self._active_target
-        elif self.state_entities_on and self.config.blocking_enabled:
-            target = ControllerState.BLOCKED
-        else:
-            target = ControllerState.IDLE
+        target = self._reconcile_target()
 
         self.state = target
         self.last_reconcile_reason = reason
@@ -490,6 +476,51 @@ class ControllerRuntime:
             self.overridden_by = next(iter(self.active_overrides), None)
         self._notify_updated()
         return target
+
+    def _apply_snapshot(self, snapshot: ReconcileSnapshot) -> None:
+        self.enabled = snapshot.enabled
+        self.constrained = snapshot.constrained
+        self.override_active = snapshot.override_active
+        self.interlock_active = snapshot.interlock_active
+        self.sensor_active = snapshot.sensor_active
+        self.state_entities_on = snapshot.state_entities_on
+        self.night_active = snapshot.night_active
+        self.active_overrides = snapshot.active_overrides
+        self.active_interlocks = snapshot.active_interlocks
+        self.active_triggers = snapshot.active_triggers
+        self.active_state_entities = snapshot.active_state_entities
+
+    def _reconcile_target(self) -> ControllerState:
+        if not self.enabled:
+            return ControllerState.DISABLED
+        if self.constrained:
+            return ControllerState.CONSTRAINED
+        if self.override_active:
+            return ControllerState.OVERRIDDEN
+        if self.interlock_active:
+            return ControllerState.BLOCKED
+        if self.sensor_active:
+            return self._active_target
+        if self.state_entities_on and self.config.blocking_enabled:
+            return ControllerState.BLOCKED
+        return ControllerState.IDLE
+
+    async def async_resume_after_constraint(
+        self,
+        snapshot: ReconcileSnapshot,
+    ) -> ControllerState:
+        """Resume after a constraint and run activation behavior for a live trigger."""
+
+        self._apply_snapshot(snapshot)
+        target = self._reconcile_target()
+        if snapshot.sensor_active and self._is_active_state(target):
+            await self.async_transition(
+                target,
+                TransitionCause.CONSTRAINT,
+                source_entity_id=(snapshot.active_triggers[0] if snapshot.active_triggers else None),
+            )
+            return target
+        return await self.async_reconcile(ReconcileReason.RESTORE)
 
     async def async_handle_sensor_on(self, entity_id: str) -> bool:
         """Handle an ON event from a configured trigger sensor."""
