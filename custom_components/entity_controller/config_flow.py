@@ -496,12 +496,6 @@ class EntityControllerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 data_schema=ROOT_SCHEMA,
                 errors={},
             )
-        if (
-            self.hass is not None
-            and hasattr(self, "_async_current_entries")
-            and self._async_current_entries()
-        ):
-            return self.async_abort(reason="single_instance_allowed")
         title = str(user_input.get("name") or "Entity Controller")
         return self.async_create_entry(title=title, data={"name": title})
 
@@ -521,28 +515,6 @@ class EntityControllerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             flow_type = "config_subentries_flow"
         result["next_flow"] = (flow_type, subentry_result["flow_id"])
         return result
-
-    async def async_step_reconfigure(
-        self,
-        user_input: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """Rename the root entry without breaking the settings action."""
-
-        entry = self._get_reconfigure_entry()
-        if user_input is None:
-            schema = self.add_suggested_values_to_schema(
-                ROOT_SCHEMA, {"name": entry.title}
-            )
-            return self.async_show_form(
-                step_id="reconfigure", data_schema=schema, errors={}
-            )
-        title = str(user_input.get("name") or "Entity Controller")
-        return self.async_update_and_abort(
-            entry,
-            title=title,
-            data={"name": title},
-        )
-
 
 class ControllerSubentryFlowHandler(ConfigSubentryFlow):
     """Handle add/reconfigure flow for one controller subentry."""

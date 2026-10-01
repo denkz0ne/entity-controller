@@ -6,8 +6,9 @@
   "integration_type": "hub",
   "iot_class": "calculated",
   "config_flow": true,
+  "single_config_entry": true,
   "issue_tracker": "https://github.com/denkz0ne/entity-controller/issues",
   "requirements": [],
   "after_dependencies": ["light", "script"],
-  "version": "10.0.0-rc.3"
+  "version": "10.0.0-rc.4"
 }

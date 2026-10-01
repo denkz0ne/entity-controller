@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+<a name="10.0.0-rc.4"></a>
+## 10.0.0-rc.4 (2026-10-01)
+
+### Bug Fixes
+
+* prevent duplicate Entity Controller root entries with Home Assistant's native single-entry support
+* keep root settings focused on adding controllers and document the stock Home Assistant UI limitation
+
 <a name="10.0.0-rc.3"></a>
 ## 10.0.0-rc.3 (2026-09-30)
 

@@ -2,7 +2,7 @@
 
 Entity Controller v10 is a Home Assistant hub integration for reusable "when this happens, keep that active for a while" automations. The v10 line is being rebuilt around Config Entries, Config Subentries, native controller entities, hot reconfiguration, diagnostics, and controlled migration from legacy v9 YAML.
 
-Current prerelease: `10.0.0-rc.3`
+Current prerelease: `10.0.0-rc.4`
 
 The setup flow immediately opens the first controller form. Entity Controller
 appears once on the Integrations page; each configured controller appears below
@@ -12,21 +12,24 @@ The controller form includes allowed operating windows, sunrise/sunset offsets,
 day and night delays/service data, timer backoff, manual-control blocking,
 override/interlock inputs, transition behavior, and custom state mappings.
 
+Entity Controller intentionally uses Home Assistant's stock integration UI:
+one permanent root entry groups multiple controller devices, and controllers
+are added from its settings. The `hub` type is retained for this model; no
+custom frontend patch is used merely to rename Home Assistant controls.
+
 ## Status
 
 The `v10-modernization` branch is active prerelease work. It targets Home Assistant `2026.9.0` and newer. Do not treat beta builds as a finished production migration until the release candidate smoke gate is complete.
 
 ## Documentation
 
-- [Configuration reference](docs/configuration.md)
-- [Runtime behavior and state machine](docs/behavior.md)
-- [Native entities, naming and attributes](docs/entities.md)
+- [Configuration](docs/configuration.md)
 - [Actions](docs/actions.md)
+- [Behavior](docs/behavior.md)
 - [Migration from v9 YAML](docs/migration-v9-to-v10.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Development notes](docs/development.md)
 - [Release checklist](docs/release-checklist.md)
-- [RC polish roadmap for Work/Codex agents](docs/work-agents/README.md)
 
 ## Migration model
 

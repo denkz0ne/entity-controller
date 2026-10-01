@@ -165,6 +165,7 @@ def test_manifest_enables_config_flow() -> None:
 
     assert manifest["domain"] == DOMAIN
     assert manifest["config_flow"] is True
+    assert manifest["single_config_entry"] is True
     assert manifest["integration_type"] == "hub"
 
 
