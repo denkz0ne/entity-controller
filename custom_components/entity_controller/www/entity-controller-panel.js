@@ -20,6 +20,7 @@ class EntityControllerPanel extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this.controllers = [];
     this.history = new Map();
+    this.historyErrors = new Map();
     this._refreshing = false;
     this._removeEvents = [];
     this._timer = null;
@@ -118,8 +119,10 @@ class EntityControllerPanel extends HTMLElement {
           no_attributes: true,
         });
         this.history.set(controller.id, result?.[0] || []);
-      } catch (_error) {
+        this.historyErrors.delete(controller.id);
+      } catch (error) {
         this.history.set(controller.id, null);
+        this.historyErrors.set(controller.id, error?.message || "História nie je dostupná.");
       }
     }));
     this._render();
@@ -138,10 +141,19 @@ class EntityControllerPanel extends HTMLElement {
     const { start, end } = this._dayRange();
     const now = Date.now();
     const chartEnd = Math.min(now, end.getTime());
-    const entries = [...(history || [])].sort((a, b) =>
-      new Date(a.last_changed) - new Date(b.last_changed));
+    const entries = [...(history || [])]
+      .filter((entry) => entry?.last_changed && Number.isFinite(new Date(entry.last_changed).getTime()))
+      .map((entry) => ({ state: String(entry.state), last_changed: entry.last_changed }));
+    // Recorder can be disabled or return no rows. The live HA state still gives
+    // us a trustworthy segment from the entity's latest state change onward.
+    const live = this._hass?.states?.[controller.state_entity_id];
+    if (live?.last_changed && Number.isFinite(new Date(live.last_changed).getTime()) &&
+        !entries.some((entry) => entry.last_changed === live.last_changed)) {
+      entries.push({ state: live.state, last_changed: live.last_changed });
+    }
+    entries.sort((a, b) => new Date(a.last_changed) - new Date(b.last_changed));
     const segments = [];
-    if (!history?.length) {
+    if (!entries.length) {
       segments.push({ start: start.getTime(), end: end.getTime(), state: "unknown" });
     } else {
       const firstAt = new Date(entries[0].last_changed).getTime();
@@ -177,7 +189,10 @@ class EntityControllerPanel extends HTMLElement {
     }).join("");
     return '<div class="timeline-wrap"><div class="timeline" role="img" aria-label="Stavový priebeh počas dňa" ' +
       'style="background:linear-gradient(90deg,' + (gradient || colors.inactive + ' 0% 100%') + ')">' +
-      ticks + '</div><div class="timeline-axis">' + labels + '</div></div>';
+      ticks + '</div><div class="timeline-axis">' + labels + '</div>' +
+      (this.historyErrors.has(controller.id)
+        ? '<div class="timeline-error" title="' + esc(this.historyErrors.get(controller.id)) + '">História nie je dostupná</div>'
+        : '') + '</div>';
   }
 
   _status(controller) {
@@ -216,25 +231,35 @@ class EntityControllerPanel extends HTMLElement {
       label = "Vypnutý";
       detail = "Manuálne vypnutý";
     }
-    return { label, detail, color: stateColor(state) };
+    const changedAt = controller.last_transition_at
+      ? new Date(controller.last_transition_at).toLocaleString("sk-SK", {
+        dateStyle: "short", timeStyle: "medium",
+      })
+      : "Zatiaľ bez zaznamenanej zmeny";
+    return { label, detail, changedAt, color: stateColor(state) };
   }
 
   _row(controller) {
     const status = this._status(controller);
     const title = controller.name;
-    const inputs = controller.inputs || controller.triggers || [];
+    const triggers = controller.triggers || [];
+    const outputs = controller.outputs || [];
+    const toggle = '<button class="toggle ' + (controller.enabled ? "on" : "") +
+      '" data-toggle="' + esc(controller.enabled_entity_id || "") + '" aria-label="' +
+      (controller.enabled ? "Vypnúť " : "Zapnúť ") + esc(title) + '"><span></span></button>';
     return '<article class="row ' + status.color + '" data-controller-id="' + esc(controller.id) + '">' +
       '<div class="identity">' +
-        '<button class="toggle ' + (controller.enabled ? "on" : "") + '" data-toggle="' +
-          esc(controller.enabled_entity_id || "") + '" aria-label="' +
-          (controller.enabled ? "Vypnúť " : "Zapnúť ") + esc(title) + '"><span></span></button>' +
-        '<ha-icon class="controller-icon" icon="' + esc(controller.icon || "mdi:home-automation") + '"></ha-icon>' +
+        '<div class="controller-control"><ha-icon class="controller-icon" icon="' +
+          esc(controller.icon || "mdi:home-automation") + '"></ha-icon>' + toggle + '</div>' +
         '<strong class="controller-name">' + esc(title) + '</strong>' +
         '<div class="status"><div class="status-label"><i></i><b>' + esc(status.label) +
-          '</b></div><span>' + esc(status.detail) + '</span></div>' +
+          '</b></div><span>' + esc(status.detail) + '</span><small>' +
+          esc(status.changedAt) + '</small></div>' +
       '</div>' +
-      '<div class="chips inputs">' + inputs.map((id) => this._entityChip(id)).join("") + '</div>' +
-      '<div class="chips outputs">' + controller.outputs.map((id) => this._entityChip(id)).join("") + '</div>' +
+      '<div class="chips entities">' +
+        triggers.map((id) => this._entityChip(id)).join("") +
+        outputs.map((id) => this._entityChip(id)).join("") +
+      '</div>' +
       '<div class="timeline-line">' + this._timeline(controller) + '</div>' +
       '</article>';
   }
@@ -246,20 +271,20 @@ class EntityControllerPanel extends HTMLElement {
       '.wrap{box-sizing:border-box;height:100%;min-height:calc(100vh - 64px);display:flex;flex-direction:column;padding:12px 16px 8px;gap:8px}',
       '.heading{flex:none;padding:0 4px 2px}.heading h1{font-size:30px;line-height:1.05;font-weight:700;margin:0}.heading p{font-size:16px;color:var(--secondary-text-color);margin:2px 0 0}',
       '.list{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8px;scrollbar-width:thin}',
-      '.row{position:relative;flex:none;box-sizing:border-box;display:grid;grid-template-columns:minmax(400px,34%) minmax(0,1fr);grid-template-rows:auto auto auto;align-items:center;gap:5px 10px;padding:7px 18px 5px 20px;background:var(--card-background-color);border:1px solid var(--divider-color);border-radius:15px;min-height:88px}',
+      '.row{position:relative;flex:none;box-sizing:border-box;display:grid;grid-template-columns:minmax(400px,34%) minmax(0,1fr);grid-template-rows:auto auto;align-items:center;gap:6px 10px;padding:9px 18px 6px 20px;background:var(--ha-card-background,var(--card-background-color));box-shadow:var(--ha-card-box-shadow,0 2px 6px rgba(0,0,0,.08));border:1px solid var(--divider-color);border-radius:16px;min-height:88px}',
       '.row:before{content:"";position:absolute;left:-1px;top:-1px;bottom:-1px;width:4px;background:var(--ec-row-color);border-radius:15px 0 0 15px}.row.active{--ec-row-color:var(--ec-active)}.row.constrained{--ec-row-color:var(--ec-constrained)}.row.blocked{--ec-row-color:var(--ec-blocked)}.row.inactive{--ec-row-color:#8b949e}',
-      '.identity{grid-column:1;grid-row:1/3;min-width:0;display:grid;grid-template-columns:48px 42px minmax(78px,1fr) minmax(145px,1.25fr);gap:11px;align-items:center}',
+      '.identity{grid-column:1;grid-row:1;min-width:0;display:grid;grid-template-columns:52px minmax(94px,1.2fr) minmax(145px,1.25fr);gap:12px;align-items:center}',
       '.toggle{box-sizing:border-box;border:0;border-radius:14px;width:46px;height:24px;padding:3px;background:#b9bec4;cursor:pointer}.toggle span{display:block;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .15s}.toggle.on{background:#1686f5}.toggle.on span{transform:translateX(22px)}',
-      '.controller-icon{color:var(--secondary-text-color);--mdc-icon-size:38px}.controller-name{font-size:19px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-      '.status{min-width:0;display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--secondary-text-color)}.status-label{display:flex;align-items:center;gap:9px;color:var(--primary-text-color);white-space:nowrap}.status-label b{font-size:14px}.status-label i{flex:none;width:12px;height:12px;border-radius:50%;background:var(--ec-row-color)}.status>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:21px}',
-      '.chips{grid-column:2;min-width:0;display:flex;flex-wrap:nowrap;align-items:center;gap:7px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding:1px 0}.chips::-webkit-scrollbar{display:none}.inputs{grid-row:1}.outputs{grid-row:2}',
-      '.chip{height:32px;box-sizing:border-box;flex:0 1 auto;min-width:95px;max-width:190px;display:flex;align-items:center;justify-content:flex-start;gap:9px;padding:0 13px;border:0;border-radius:18px;background:#f0f2f4;color:var(--primary-text-color);cursor:pointer;white-space:nowrap;font:inherit;font-size:13px}.chip span{min-width:0;overflow:hidden;text-overflow:ellipsis}.chip-icon{--mdc-icon-size:18px;flex:none;color:var(--secondary-text-color)}',
-      '.timeline-line{grid-column:1/-1;grid-row:3;padding-top:1px;min-width:0}.timeline-wrap{width:100%}.timeline{height:14px;position:relative;overflow:hidden;border-radius:4px;background:#d6dbe0}.tick{position:absolute;top:0;bottom:0;width:1px;background:#fff;opacity:.72}.timeline-axis{height:16px;display:flex;justify-content:space-between;align-items:flex-start;color:#66717d;font-size:11px;line-height:14px;padding-top:3px}.timeline-axis span{white-space:nowrap}.timeline-axis span:first-child{transform:none}.timeline-axis span:last-child{transform:translateX(0)}',
+      '.controller-control{grid-column:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}.controller-icon{color:var(--secondary-text-color);--mdc-icon-size:34px}.controller-name{font-size:19px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.status{min-width:0;display:flex;flex-direction:column;gap:3px;font-size:13px;color:var(--secondary-text-color)}.status-label{display:flex;align-items:center;gap:9px;color:var(--primary-text-color);white-space:nowrap}.status-label b{font-size:14px}.status-label i{flex:none;width:12px;height:12px;border-radius:50%;background:var(--ec-row-color)}.status>span,.status>small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:21px}.status>small{font-size:11px;color:var(--secondary-text-color)}',
+      '.chips{grid-column:2;grid-row:1;min-width:0;display:flex;flex-wrap:wrap;align-items:center;align-content:center;gap:6px;overflow:visible;padding:1px 0}',
+      '.chip{height:29px;box-sizing:border-box;flex:0 1 auto;min-width:78px;max-width:175px;display:flex;align-items:center;justify-content:flex-start;gap:7px;padding:0 10px;border:1px solid var(--divider-color);border-radius:16px;background:var(--secondary-background-color,var(--card-background-color));color:var(--primary-text-color);cursor:pointer;white-space:nowrap;font:inherit;font-size:12px}.chip span{min-width:0;overflow:hidden;text-overflow:ellipsis}.chip-icon{--mdc-icon-size:16px;flex:none;color:var(--secondary-text-color)}',
+      '.timeline-line{grid-column:1/-1;grid-row:2;padding-top:2px;min-width:0}.timeline-wrap{width:100%}.timeline{height:16px;position:relative;overflow:hidden;border-radius:5px;background:#d6dbe0}.tick{position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,.9);opacity:.8;pointer-events:none}.timeline-axis{height:16px;display:flex;justify-content:space-between;align-items:flex-start;color:var(--secondary-text-color);font-size:10px;line-height:14px;padding-top:3px}.timeline-axis span{white-space:nowrap}.timeline-error{font-size:11px;color:var(--error-color);padding-top:3px}',
       '.legend{flex:none;box-sizing:border-box;min-height:48px;padding:8px 18px;display:flex;align-items:center;justify-content:space-between;gap:15px;border:1px solid #cce8f4;border-radius:12px;background:#eaf7fc;color:var(--primary-text-color);font-size:13px}.legend-items{display:flex;align-items:center;gap:28px;flex-wrap:wrap}.legend-title{font-weight:700}.legend-items span{display:flex;align-items:center;gap:9px;white-space:nowrap}.swatch{width:29px;height:13px;border-radius:3px;background:var(--ec-inactive)}.swatch.active{background:var(--ec-active)}.swatch.constrained{background:var(--ec-constrained)}.swatch.blocked{background:var(--ec-blocked)}.count{color:var(--secondary-text-color);white-space:nowrap}',
       '.empty{color:var(--secondary-text-color);text-align:center;padding:48px 16px}.error{color:var(--error-color);padding:10px 14px}',
-      '@media(max-width:1100px){.row{grid-template-columns:minmax(310px,38%) minmax(0,1fr)}.identity{grid-template-columns:44px 36px minmax(72px,1fr) minmax(115px,1.15fr);gap:7px}.controller-icon{--mdc-icon-size:32px}.chip{min-width:82px;padding:0 9px}.legend-items{gap:14px}}',
-      '@media(max-width:760px){.wrap{padding:10px}.row{grid-template-columns:1fr;grid-template-rows:auto auto auto auto;gap:5px}.identity{grid-column:1;grid-row:1;grid-template-columns:44px 38px minmax(80px,1fr) minmax(120px,1.2fr)}.chips{grid-column:1}.inputs{grid-row:2}.outputs{grid-row:3}.timeline-line{grid-column:1;grid-row:4}.legend{align-items:flex-start;flex-direction:column}.legend-items{gap:10px 16px}}',
-      '@media(max-width:480px){.heading h1{font-size:25px}.row{padding:8px 10px 5px 15px}.identity{grid-template-columns:38px 30px minmax(60px,.8fr) minmax(105px,1.2fr);gap:5px}.toggle{width:36px}.toggle.on span{transform:translateX(12px)}.controller-icon{--mdc-icon-size:27px}.controller-name{font-size:16px}.status-label b{font-size:12px}.status{font-size:11px}.status-label i{width:9px;height:9px}.chip{font-size:12px;height:29px}.legend-items{font-size:11px;gap:9px 12px}.swatch{width:22px;height:11px}}',
+      '@media(max-width:1100px){.row{grid-template-columns:minmax(330px,38%) minmax(0,1fr)}.identity{grid-template-columns:48px minmax(90px,1.2fr) minmax(120px,1.25fr);gap:8px}.controller-icon{--mdc-icon-size:30px}.chip{min-width:72px;padding:0 8px}.legend-items{gap:14px}}',
+      '@media(max-width:760px){.wrap{padding:10px}.row{grid-template-columns:1fr;grid-template-rows:auto auto;gap:7px}.identity{grid-column:1;grid-row:1;grid-template-columns:48px minmax(95px,1.2fr) minmax(120px,1.25fr)}.chips{grid-column:1;grid-row:2}.timeline-line{grid-column:1;grid-row:3}.legend{align-items:flex-start;flex-direction:column}.legend-items{gap:10px 16px}}',
+      '@media(max-width:480px){.heading h1{font-size:25px}.row{padding:8px 10px 5px 15px}.identity{grid-template-columns:38px minmax(78px,1.2fr) minmax(105px,1.25fr);gap:6px}.toggle{width:36px}.toggle.on span{transform:translateX(12px)}.controller-icon{--mdc-icon-size:27px}.controller-name{font-size:16px}.status-label b{font-size:12px}.status{font-size:11px}.status-label i{width:9px;height:9px}.chip{font-size:11px;height:27px;min-width:60px;padding:0 7px}.legend-items{font-size:11px;gap:9px 12px}.swatch{width:22px;height:11px}}',
     ].join("");
     const rows = this.controllers.map((controller) => this._row(controller)).join("");
     const error = this.error ? '<div class="error">' + esc(this.error) + '</div>' : "";
