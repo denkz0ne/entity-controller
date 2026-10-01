@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+<a name="10.0.0-rc.5"></a>
+## 10.0.0-rc.5 (2026-10-01)
+
+### Features
+
+* reorganize controller setup around a concise basic section and collapsed advanced sections
+* add Slovak explanations, localized selector choices, and native duration inputs for common controller times
+
 <a name="10.0.0-rc.4"></a>
 ## 10.0.0-rc.4 (2026-10-01)
 

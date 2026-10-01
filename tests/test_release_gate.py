@@ -11,7 +11,7 @@ def test_rc_manifest_version_is_published() -> None:
         )
     )
 
-    assert manifest["version"] == "10.0.0-rc.4"
+    assert manifest["version"] == "10.0.0-rc.5"
 
 
 def test_release_checklist_covers_migration_smoke_and_validation_gates() -> None:

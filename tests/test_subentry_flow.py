@@ -108,24 +108,25 @@ def test_en_and_sk_translations_define_config_subentry_flow() -> None:
         assert "controller" in data["config_subentries"]
         assert data["config_subentries"]["controller"]["title"]
         steps = (
-            data["config_subentries"]["controller"]["step"]["user"],
-            data["config_subentries"]["controller"]["step"]["reconfigure"],
-            data["options"]["step"]["init"],
+            (data["config_subentries"]["controller"]["step"]["user"], True),
+            (
+                data["config_subentries"]["controller"]["step"]["reconfigure"],
+                False,
+            ),
+            (data["options"]["step"]["init"], True),
         )
-        for step in steps:
-            for section in (
-                "identity",
-                "triggers",
-                "targets",
+        for step, has_initial_state in steps:
+            sections = (
+                "basic",
                 "timer",
-                "blocking",
+                "monitoring",
                 "rules",
                 "constraints",
                 "night",
-                "stay",
                 "actions",
                 "advanced",
-            ):
+            ) + (("initial_state",) if has_initial_state else ())
+            for section in sections:
                 assert step["sections"][section]["name"]
             for field in (
                 "sensor_resets_timer",
@@ -135,4 +136,11 @@ def test_en_and_sk_translations_define_config_subentry_flow() -> None:
                 "on_enter_active",
                 "state_attributes_ignore",
             ):
-                assert step["data"][field]
+                assert any(
+                    section.get("data", {}).get(field)
+                    for section in step["sections"].values()
+                )
+        if path.name == "sk.json":
+            assert "Udalosť spustí časovač" in steps[0][0]["sections"]["timer"][
+                "data_description"
+            ]["sensor_type"]

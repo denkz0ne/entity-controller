@@ -7,6 +7,8 @@ import pytest
 from homeassistant import config_entries
 
 from custom_components.entity_controller.config_flow import (
+    CONTROLLER_RECONFIGURE_SCHEMA,
+    CONTROLLER_SCHEMA,
     ControllerOptionsFlow,
     ControllerSubentryFlowHandler,
     EntityControllerConfigFlow,
@@ -45,6 +47,13 @@ def _all_schema_keys(schema: object) -> set[str]:
         if nested is not None:
             keys.update(_schema_keys(nested))
     return keys
+
+
+def _section_schema(schema: object, name: str) -> object:
+    for key, value in getattr(schema, "schema", {}).items():
+        if getattr(key, "schema", key) == name:
+            return getattr(value, "schema", value)
+    raise AssertionError(f"Missing section {name}")
 
 
 @pytest.mark.asyncio
@@ -97,6 +106,31 @@ async def test_root_flow_form_has_visible_fields() -> None:
     assert result["flow_id"] == "root-flow"
     assert result["handler"] == DOMAIN
     assert "name" in _schema_keys(result["data_schema"])
+
+
+def test_controller_form_keeps_common_setup_in_one_expanded_section() -> None:
+    assert _schema_keys(CONTROLLER_SCHEMA) == {
+        "basic",
+        "timer",
+        "monitoring",
+        "rules",
+        "constraints",
+        "night",
+        "initial_state",
+        "actions",
+        "advanced",
+    }
+    assert _schema_keys(_section_schema(CONTROLLER_SCHEMA, "basic")) == {
+        "name",
+        "icon",
+        "trigger_entities",
+        "control_entities",
+        "delay_seconds",
+    }
+
+
+def test_reconfigure_form_omits_creation_only_defaults() -> None:
+    assert "initial_state" not in _schema_keys(CONTROLLER_RECONFIGURE_SCHEMA)
 
 
 def test_root_flow_advertises_controller_subentry_type() -> None:
@@ -294,6 +328,23 @@ def test_advanced_controller_sections_are_normalized() -> None:
     assert data["state_attributes_ignore"] == ("brightness", "color_mode")
 
 
+def test_duration_selector_values_are_stored_as_seconds() -> None:
+    data = normalize_controller_user_input(
+        {
+            "basic": {
+                "name": "Hall",
+                "trigger_entities": ["binary_sensor.hall"],
+                "control_entities": ["light.hall"],
+                "delay_seconds": {"minutes": 2, "seconds": 30},
+            },
+            "monitoring": {"block_timeout_seconds": {"minutes": 15}},
+        }
+    )
+
+    assert data["delay_seconds"] == 150.0
+    assert data["block_timeout_seconds"] == 900.0
+
+
 def test_stored_controller_data_is_expanded_back_into_form_sections() -> None:
     values = controller_form_values(
         {
@@ -313,10 +364,14 @@ def test_stored_controller_data_is_expanded_back_into_form_sections() -> None:
         }
     )
 
-    assert values["identity"]["name"] == "Hall"
+    assert values["basic"]["name"] == "Hall"
     assert values["constraints"]["constraint_enabled"] is True
     assert values["constraints"]["constraint_start_source"] == "sunset"
-    assert values["night"]["night_delay_seconds"] == 45
+    assert values["night"]["night_delay_seconds"] == {
+        "hours": 0,
+        "minutes": 0,
+        "seconds": 45,
+    }
     assert values["advanced"]["trigger_on_states"] == "on, playing"
 
 

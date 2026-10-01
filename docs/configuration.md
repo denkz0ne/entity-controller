@@ -22,6 +22,13 @@ The UI supports:
 - configurable actions for each controller state transition;
 - custom active/inactive state mappings and ignored state attributes.
 
+The first visible section contains only name, icon, trigger entities,
+controlled entities, and activity time. The remaining settings are grouped
+into collapsed sections for timer behavior, manual intervention, override and
+interlock, allowed time, night profile, transition actions, and advanced state
+mapping. The initial Enabled and Stay Mode defaults are shown only while a
+controller is created; live values are managed by their native switches.
+
 Controller changes apply live. A trigger turns on the selected controlled
 entities, retriggers reset the timer, and timer expiry turns them off. Enabled
 and Stay Mode state is stored in the controller subentry. The allowed window

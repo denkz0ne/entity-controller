@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from types import MappingProxyType
 from typing import Any
 
@@ -35,14 +36,17 @@ def _flatten_sections(user_input: dict[str, Any]) -> dict[str, Any]:
     flattened: dict[str, Any] = {}
     for key, value in user_input.items():
         if isinstance(value, dict) and key in {
+            "basic",
             "identity",
             "triggers",
             "targets",
             "timer",
+            "monitoring",
             "blocking",
             "rules",
             "constraints",
             "night",
+            "initial_state",
             "stay",
             "actions",
             "advanced",
@@ -66,6 +70,28 @@ def _schedule_point(data: dict[str, Any], prefix: str) -> dict[str, Any]:
     }
 
 
+def _seconds(value: Any) -> float:
+    """Accept native duration-selector data while storing seconds."""
+
+    if isinstance(value, dict):
+        return timedelta(
+            days=int(value.get("days", 0)),
+            hours=int(value.get("hours", 0)),
+            minutes=int(value.get("minutes", 0)),
+            seconds=int(value.get("seconds", 0)),
+        ).total_seconds()
+    return float(value)
+
+
+def _duration(seconds: float) -> dict[str, int]:
+    """Convert persisted seconds to native duration-selector data."""
+
+    whole_seconds = max(0, round(seconds))
+    hours, remainder = divmod(whole_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return {"hours": hours, "minutes": minutes, "seconds": seconds}
+
+
 def _number_selector(
     default: float,
     *,
@@ -80,10 +106,23 @@ def _number_selector(
 
 
 SCHEDULE_SOURCE_SELECTOR = selector.SelectSelector(
-    selector.SelectSelectorConfig(options=["fixed", "sunrise", "sunset"])
+    selector.SelectSelectorConfig(
+        options=["fixed", "sunrise", "sunset"],
+        translation_key="schedule_source",
+    )
 )
 BEHAVIOR_SELECTOR = selector.SelectSelector(
-    selector.SelectSelectorConfig(options=["on", "off", "ignore"])
+    selector.SelectSelectorConfig(
+        options=["on", "off", "ignore"], translation_key="transition_behavior"
+    )
+)
+SENSOR_TYPE_SELECTOR = selector.SelectSelector(
+    selector.SelectSelectorConfig(
+        options=["event", "duration"], translation_key="sensor_type"
+    )
+)
+DURATION_SELECTOR = selector.DurationSelector(
+    selector.DurationSelectorConfig(enable_day=True)
 )
 
 
@@ -96,65 +135,53 @@ ROOT_SCHEMA = vol.Schema(
 
 CONTROLLER_SCHEMA = vol.Schema(
     {
-        vol.Required("identity"): data_entry_flow.section(
+        vol.Required("basic"): data_entry_flow.section(
             vol.Schema(
                 {
                     vol.Required("name"): selector.TextSelector(),
                     vol.Optional("icon"): selector.IconSelector(),
-                }
-            )
-        ),
-        vol.Required("triggers"): data_entry_flow.section(
-            vol.Schema(
-                {
                     vol.Required("trigger_entities"): selector.EntitySelector(
                         selector.EntitySelectorConfig(multiple=True)
                     ),
-                    vol.Optional("sensor_type", default="event"): selector.SelectSelector(
-                        selector.SelectSelectorConfig(options=["event", "duration"])
-                    ),
-                    vol.Optional(
-                        "sensor_resets_timer", default=False
-                    ): selector.BooleanSelector(),
-                }
-            )
-        ),
-        vol.Required("targets"): data_entry_flow.section(
-            vol.Schema(
-                {
                     vol.Required("control_entities"): selector.EntitySelector(
                         selector.EntitySelectorConfig(multiple=True)
                     ),
-                    vol.Optional("state_entities", default=[]): selector.EntitySelector(
-                        selector.EntitySelectorConfig(multiple=True)
-                    ),
+                    vol.Optional(
+                        "delay_seconds", default=_duration(DEFAULT_DELAY_SECONDS)
+                    ): DURATION_SELECTOR,
                 }
             )
         ),
         vol.Required("timer"): data_entry_flow.section(
             vol.Schema(
                 {
+                    vol.Optional("sensor_type", default="event"): SENSOR_TYPE_SELECTOR,
                     vol.Optional(
-                        "delay_seconds", default=DEFAULT_DELAY_SECONDS
-                    ): _number_selector(DEFAULT_DELAY_SECONDS),
+                        "sensor_resets_timer", default=False
+                    ): selector.BooleanSelector(),
                     vol.Optional("backoff_enabled", default=False): selector.BooleanSelector(),
                     vol.Optional("backoff_factor", default=1.1): _number_selector(
                         1.1, minimum=1
                     ),
                     vol.Optional(
-                        "backoff_max_seconds", default=300
-                    ): _number_selector(300),
+                        "backoff_max_seconds", default=_duration(300)
+                    ): DURATION_SELECTOR,
                 }
             ),
             {"collapsed": True},
         ),
-        vol.Required("blocking"): data_entry_flow.section(
+        vol.Required("monitoring"): data_entry_flow.section(
             vol.Schema(
                 {
+                    vol.Optional("state_entities", default=[]): selector.EntitySelector(
+                        selector.EntitySelectorConfig(multiple=True)
+                    ),
                     vol.Optional(
                         "blocking_enabled", default=True
                     ): selector.BooleanSelector(),
-                    vol.Optional("block_timeout_seconds", default=0): _number_selector(0),
+                    vol.Optional(
+                        "block_timeout_seconds", default=_duration(0)
+                    ): DURATION_SELECTOR,
                 }
             ),
             {"collapsed": True},
@@ -224,7 +251,9 @@ CONTROLLER_SCHEMA = vol.Schema(
                     vol.Optional(
                         "night_end_offset_seconds", default=0
                     ): _number_selector(0, minimum=-86400),
-                    vol.Optional("night_delay_seconds", default=0): _number_selector(0),
+                    vol.Optional(
+                        "night_delay_seconds", default=_duration(0)
+                    ): DURATION_SELECTOR,
                     vol.Optional(
                         "night_service_data_on", default={}
                     ): selector.ObjectSelector(),
@@ -235,7 +264,7 @@ CONTROLLER_SCHEMA = vol.Schema(
             ),
             {"collapsed": True},
         ),
-        vol.Required("stay"): data_entry_flow.section(
+        vol.Required("initial_state"): data_entry_flow.section(
             vol.Schema(
                 {
                     vol.Optional(
@@ -285,16 +314,25 @@ CONTROLLER_SCHEMA = vol.Schema(
 )
 
 _SECTION_FIELDS: dict[str, tuple[str, ...]] = {
-    "identity": ("name", "icon"),
-    "triggers": ("trigger_entities", "sensor_type", "sensor_resets_timer"),
-    "targets": ("control_entities", "state_entities"),
-    "timer": (
+    "basic": (
+        "name",
+        "icon",
+        "trigger_entities",
+        "control_entities",
         "delay_seconds",
+    ),
+    "timer": (
+        "sensor_type",
+        "sensor_resets_timer",
         "backoff_enabled",
         "backoff_factor",
         "backoff_max_seconds",
     ),
-    "blocking": ("blocking_enabled", "block_timeout_seconds"),
+    "monitoring": (
+        "state_entities",
+        "blocking_enabled",
+        "block_timeout_seconds",
+    ),
     "rules": ("override_entities", "interlock_entities"),
     "constraints": (
         "constraint_enabled",
@@ -317,7 +355,7 @@ _SECTION_FIELDS: dict[str, tuple[str, ...]] = {
         "night_service_data_on",
         "night_service_data_off",
     ),
-    "stay": ("enabled_default", "stay_mode_default"),
+    "initial_state": ("enabled_default", "stay_mode_default"),
     "actions": (
         "service_data_on",
         "service_data_off",
@@ -342,6 +380,12 @@ _SECTION_FIELDS: dict[str, tuple[str, ...]] = {
         "state_attributes_ignore",
     ),
 }
+
+_RECONFIGURE_SCHEMA_DATA = dict(CONTROLLER_SCHEMA.schema)
+for _key in tuple(_RECONFIGURE_SCHEMA_DATA):
+    if getattr(_key, "schema", _key) == "initial_state":
+        del _RECONFIGURE_SCHEMA_DATA[_key]
+CONTROLLER_RECONFIGURE_SCHEMA = vol.Schema(_RECONFIGURE_SCHEMA_DATA)
 
 
 def controller_form_values(stored_data: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -373,6 +417,14 @@ def controller_form_values(stored_data: dict[str, Any]) -> dict[str, dict[str, A
         )
 
     flat.update(dict(flat.pop("transition_behaviors", {}) or {}))
+    for key in (
+        "delay_seconds",
+        "backoff_max_seconds",
+        "block_timeout_seconds",
+        "night_delay_seconds",
+    ):
+        if key in flat and flat[key] is not None:
+            flat[key] = _duration(float(flat[key]))
     for key in _SECTION_FIELDS["advanced"]:
         if key in flat and not isinstance(flat[key], str):
             flat[key] = ", ".join(str(value) for value in flat[key])
@@ -398,8 +450,8 @@ def normalize_controller_user_input(user_input: dict[str, Any]) -> dict[str, Any
             "start": _schedule_point(data, "night_start"),
             "end": _schedule_point(data, "night_end"),
             "delay_seconds": (
-                float(data["night_delay_seconds"])
-                if float(data.get("night_delay_seconds", 0)) > 0
+                _seconds(data["night_delay_seconds"])
+                if _seconds(data.get("night_delay_seconds", 0)) > 0
                 else None
             ),
             "service_data_on": dict(data.get("night_service_data_on") or {}),
@@ -424,7 +476,7 @@ def normalize_controller_user_input(user_input: dict[str, Any]) -> dict[str, Any
         )
         if key in data
     })
-    timeout = float(data.get("block_timeout_seconds", 0) or 0)
+    timeout = _seconds(data.get("block_timeout_seconds", 0) or 0)
     return {
         "name": str(data["name"]),
         "icon": data.get("icon") or None,
@@ -435,14 +487,14 @@ def normalize_controller_user_input(user_input: dict[str, Any]) -> dict[str, Any
         "interlock_entities": _as_tuple(data.get("interlock_entities")),
         "sensor_type": data.get("sensor_type", "event"),
         "sensor_resets_timer": bool(data.get("sensor_resets_timer", False)),
-        "delay_seconds": float(data.get("delay_seconds", DEFAULT_DELAY_SECONDS)),
+        "delay_seconds": _seconds(data.get("delay_seconds", DEFAULT_DELAY_SECONDS)),
         "blocking_enabled": bool(data.get("blocking_enabled", True)),
         "block_timeout_seconds": timeout or None,
         "enabled_default": bool(data.get("enabled_default", True)),
         "stay_mode_default": bool(data.get("stay_mode_default", False)),
         "backoff_enabled": bool(data.get("backoff_enabled", False)),
         "backoff_factor": float(data.get("backoff_factor", 1.1)),
-        "backoff_max_seconds": float(data.get("backoff_max_seconds", 300)),
+        "backoff_max_seconds": _seconds(data.get("backoff_max_seconds", 300)),
         "constraint_window": constraint_window,
         "night_mode": night_mode,
         "service_data_on": dict(data.get("service_data_on") or {}),
@@ -541,7 +593,7 @@ class ControllerSubentryFlowHandler(ConfigSubentryFlow):
         """Reconfigure one controller without reloading the root entry."""
 
         if user_input is None:
-            schema = CONTROLLER_SCHEMA
+            schema = CONTROLLER_RECONFIGURE_SCHEMA
             if self.source == "reconfigure":
                 subentry = self._get_reconfigure_subentry()
                 schema = self.add_suggested_values_to_schema(
