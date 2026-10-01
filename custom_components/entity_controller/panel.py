@@ -31,18 +31,20 @@ def _next_schedule_change(hass: Any, runtime: Any) -> tuple[datetime, str] | Non
     now = dt_util.now()
     candidates: list[tuple[datetime, str]] = []
 
-    for key, active, start_label, end_label in (
+    for key, active, start_label, end_label, ends_when_active in (
         (
             "constraint_window",
             runtime.constrained,
             "Otvorenie časového okna",
             "Zatvorenie časového okna",
+            False,
         ),
         (
             "night_mode",
             runtime.night_active,
             "Začiatok nočného profilu",
             "Koniec nočného profilu",
+            True,
         ),
     ):
         window = getattr(runtime.config, key, None)
@@ -77,10 +79,11 @@ def _next_schedule_change(hass: Any, runtime: Any) -> tuple[datetime, str] | Non
                 continue
             if end_at <= start_at:
                 end_at += timedelta(days=1)
-            boundary = end_at if active else start_at
+            use_end = active == ends_when_active
+            boundary = end_at if use_end else start_at
             if boundary > now:
                 candidates.append(
-                    (boundary, end_label if active else start_label)
+                    (boundary, end_label if use_end else start_label)
                 )
 
     return min(candidates, default=None, key=lambda item: item[0])
