@@ -1,9 +1,13 @@
 # Change Log
 
-All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
+All notable changes to this project are documented in this file. Entries for earlier releases are retained as project history.
 
 <a name="10.0.0-rc.9"></a>
 ## 10.0.0-rc.9 (2026-10-01)
+
+### Features
+
+* add a native responsive sidebar panel with live controller rows, entity chips, and a 24-hour state timeline
 
 ### Fixes
 
