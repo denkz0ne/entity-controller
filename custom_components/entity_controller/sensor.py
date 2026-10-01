@@ -52,7 +52,9 @@ class EntityControllerStateSensor(EntityControllerEntity, SensorEntity):
             "last_triggered_by": self.runtime.last_triggered_by,
             "last_triggered_at": self.runtime.last_triggered_at,
             "effective_delay": self.runtime.effective_delay_seconds,
+            "profile": "night" if self.runtime.night_active else "day",
             "expires_at": self.runtime.expires_at,
+            "block_expires_at": self.runtime.block_expires_at,
             "blocked_by": self.runtime.blocked_by,
             "overridden_by": self.runtime.overridden_by,
         }

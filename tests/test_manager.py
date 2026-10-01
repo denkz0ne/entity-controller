@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -16,8 +17,9 @@ class FakeSubentry:
 
 
 class FakeState:
-    def __init__(self, state: str) -> None:
+    def __init__(self, state: str, attributes: dict[str, Any] | None = None) -> None:
         self.state = state
+        self.attributes = attributes or {}
         self.context = None
 
 
@@ -53,13 +55,15 @@ class FakeHass:
         *,
         old_state: str = "off",
         context: Any = None,
+        old_attributes: dict[str, Any] | None = None,
+        new_attributes: dict[str, Any] | None = None,
     ) -> None:
         self.states._values[entity_id] = new_state
         callbacks = list(self.listeners.get(entity_id, ()))
         event = {
             "entity_id": entity_id,
-            "old_state": FakeState(old_state),
-            "new_state": FakeState(new_state),
+            "old_state": FakeState(old_state, old_attributes),
+            "new_state": FakeState(new_state, new_attributes),
             "context": context,
         }
         for callback in callbacks:
@@ -215,6 +219,177 @@ async def test_controller_transition_calls_home_assistant_control_service() -> N
         ("light", "turn_on", {"entity_id": ["light.hall"]}),
         ("switch", "turn_on", {"entity_id": ["switch.fan"]}),
     ]
+
+
+@pytest.mark.asyncio
+async def test_night_profile_uses_its_delay_and_service_data() -> None:
+    hass = FakeHass()
+    manager = EntityControllerManager(
+        hass,
+        FakeEntry(),
+        now=lambda: datetime(2026, 10, 1, 1, 0, tzinfo=UTC),
+    )
+    runtime = await manager.async_add_controller(
+        subentry(
+            trigger_entities=("binary_sensor.motion",),
+            control_entities=("light.hall",),
+            delay_seconds=180,
+            service_data_on={"brightness_pct": 80},
+            night_mode={
+                "start": {
+                    "source": "fixed",
+                    "time": "20:00:00",
+                    "offset_seconds": 0,
+                },
+                "end": {
+                    "source": "fixed",
+                    "time": "06:00:00",
+                    "offset_seconds": 0,
+                },
+                "delay_seconds": 30,
+                "service_data_on": {"brightness_pct": 15},
+                "service_data_off": {},
+            },
+        )
+    )
+
+    await runtime.async_handle_sensor_on("binary_sensor.motion")
+
+    assert runtime.night_active is True
+    assert runtime.effective_delay_seconds == 30
+    assert hass.service_calls[-1][2] == {
+        "entity_id": ["light.hall"],
+        "brightness_pct": 15,
+    }
+
+
+@pytest.mark.asyncio
+async def test_constraint_window_blocks_controller_outside_allowed_time() -> None:
+    hass = FakeHass()
+    manager = EntityControllerManager(
+        hass,
+        FakeEntry(),
+        now=lambda: datetime(2026, 10, 1, 12, 0, tzinfo=UTC),
+    )
+    runtime = await manager.async_add_controller(
+        subentry(
+            constraint_window={
+                "start": {
+                    "source": "fixed",
+                    "time": "20:00:00",
+                    "offset_seconds": 0,
+                },
+                "end": {
+                    "source": "fixed",
+                    "time": "06:00:00",
+                    "offset_seconds": 0,
+                },
+            }
+        )
+    )
+
+    assert runtime.state is ControllerState.CONSTRAINED
+
+
+@pytest.mark.asyncio
+async def test_trigger_rechecks_constraint_and_profile_at_event_time() -> None:
+    now = [datetime(2026, 10, 1, 12, 0, tzinfo=UTC)]
+    hass = FakeHass()
+    manager = EntityControllerManager(hass, FakeEntry(), now=lambda: now[0])
+    runtime = await manager.async_add_controller(
+        subentry(
+            trigger_entities=("binary_sensor.motion",),
+            constraint_window={
+                "start": {"source": "fixed", "time": "20:00:00", "offset_seconds": 0},
+                "end": {"source": "fixed", "time": "06:00:00", "offset_seconds": 0},
+            },
+            night_mode={
+                "start": {"source": "fixed", "time": "20:00:00", "offset_seconds": 0},
+                "end": {"source": "fixed", "time": "06:00:00", "offset_seconds": 0},
+                "delay_seconds": 20,
+            },
+        )
+    )
+    assert runtime.state is ControllerState.CONSTRAINED
+
+    now[0] = datetime(2026, 10, 1, 21, 0, tzinfo=UTC)
+    await hass.fire_state_change("binary_sensor.motion", "on")
+
+    assert runtime.state is ControllerState.ACTIVE_TIMER
+    assert runtime.night_active is True
+    assert runtime.effective_delay_seconds == 20
+
+
+@pytest.mark.asyncio
+async def test_time_window_refresh_updates_controller_without_entity_event() -> None:
+    now = [datetime(2026, 10, 1, 12, 0, tzinfo=UTC)]
+    manager = EntityControllerManager(FakeHass(), FakeEntry(), now=lambda: now[0])
+    runtime = await manager.async_add_controller(
+        subentry(
+            constraint_window={
+                "start": {"source": "fixed", "time": "20:00:00", "offset_seconds": 0},
+                "end": {"source": "fixed", "time": "06:00:00", "offset_seconds": 0},
+            },
+            night_mode={
+                "start": {"source": "fixed", "time": "20:00:00", "offset_seconds": 0},
+                "end": {"source": "fixed", "time": "06:00:00", "offset_seconds": 0},
+            },
+        )
+    )
+    assert runtime.state is ControllerState.CONSTRAINED
+
+    now[0] = datetime(2026, 10, 1, 21, 0, tzinfo=UTC)
+    await manager.async_refresh_time_windows()
+
+    assert runtime.state is ControllerState.IDLE
+    assert runtime.night_active is True
+
+
+@pytest.mark.asyncio
+async def test_custom_trigger_and_override_states_are_honored() -> None:
+    hass = FakeHass()
+    manager = EntityControllerManager(hass, FakeEntry())
+    runtime = await manager.async_add_controller(
+        subentry(
+            trigger_entities=("media_player.room",),
+            override_entities=("input_select.mode",),
+            trigger_on_states=("playing",),
+            trigger_off_states=("idle", "paused"),
+            override_on_states=("blocked",),
+            override_off_states=("normal",),
+        )
+    )
+
+    await hass.fire_state_change("media_player.room", "playing", old_state="idle")
+    assert runtime.state is ControllerState.ACTIVE_TIMER
+
+    await hass.fire_state_change("input_select.mode", "blocked", old_state="normal")
+    assert runtime.state is ControllerState.OVERRIDDEN
+
+
+@pytest.mark.asyncio
+async def test_ignored_attribute_only_change_does_not_block_controller() -> None:
+    hass = FakeHass()
+    manager = EntityControllerManager(hass, FakeEntry())
+    runtime = await manager.async_add_controller(
+        subentry(
+            trigger_entities=("binary_sensor.motion",),
+            control_entities=("light.hall",),
+            state_attributes_ignore=("brightness",),
+        )
+    )
+    await hass.fire_state_change("binary_sensor.motion", "on")
+    assert runtime.state is ControllerState.ACTIVE_TIMER
+
+    await hass.fire_state_change(
+        "light.hall",
+        "on",
+        old_state="on",
+        old_attributes={"brightness": 100},
+        new_attributes={"brightness": 150},
+    )
+
+    assert runtime.state is ControllerState.ACTIVE_TIMER
 
 
 @pytest.mark.asyncio

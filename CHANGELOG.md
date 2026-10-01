@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+<a name="10.0.0-rc.3"></a>
+## 10.0.0-rc.3 (2026-09-30)
+
+### Bug Fixes
+
+* expose Entity Controller as one hub on the Integrations page instead of as a Helper
+* group every controller and its native entities into a controller device
+* restore the complete controller form, including allowed time windows, sunrise/sunset offsets, night profiles, backoff, blocking timeout, transition actions, and custom state mappings
+* apply day/night schedules, service data, block timeout, and advanced state rules in the live runtime
+
 <a name="10.0.0-rc.2"></a>
 ## 10.0.0-rc.2 (2026-09-30)
 

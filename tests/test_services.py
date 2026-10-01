@@ -69,15 +69,36 @@ async def test_stay_mode_actions_toggle_runtime_flag() -> None:
 
 
 @pytest.mark.asyncio
-async def test_set_night_mode_is_compatibility_noop_until_constraints_exist() -> None:
-    runtime = make_runtime()
-
-    result = await async_set_night_mode(
-        runtime, start_time="now", end_time="constraint"
+async def test_set_night_mode_updates_live_profile() -> None:
+    runtime = ControllerRuntime(
+        ControllerConfig(
+            subentry_id="controller-a",
+            name="Hall",
+            constraint_window={
+                "start": {"source": "fixed", "time": "06:00:00"},
+                "end": {"source": "fixed", "time": "22:00:00"},
+            },
+            night_mode={
+                "start": {"source": "fixed", "time": "20:00:00"},
+                "end": {"source": "fixed", "time": "06:00:00"},
+            },
+        )
     )
 
-    assert result is None
-    assert runtime.state is ControllerState.IDLE
+    await async_set_night_mode(
+        runtime, start_time="18:30:00", end_time="constraint"
+    )
+
+    assert runtime.config.night_mode is not None
+    assert runtime.config.night_mode["start"] == {
+        "source": "fixed",
+        "time": "18:30:00",
+        "offset_seconds": 0.0,
+    }
+    assert runtime.config.night_mode["end"] == {
+        "source": "fixed",
+        "time": "22:00:00",
+    }
 
 
 @pytest.mark.asyncio

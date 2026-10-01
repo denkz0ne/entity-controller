@@ -98,6 +98,17 @@ class ControllerConfig:
     backoff_enabled: bool = False
     backoff_factor: float = 1.1
     backoff_max_seconds: float = 300.0
+    constraint_window: Mapping[str, object] | None = None
+    night_mode: Mapping[str, object] | None = None
+    service_data_on: Mapping[str, object] = field(default_factory=dict)
+    service_data_off: Mapping[str, object] = field(default_factory=dict)
+    trigger_on_states: tuple[str, ...] = ("on",)
+    trigger_off_states: tuple[str, ...] = ("off",)
+    state_on_states: tuple[str, ...] = ("on",)
+    state_off_states: tuple[str, ...] = ("off",)
+    override_on_states: tuple[str, ...] = ("on",)
+    override_off_states: tuple[str, ...] = ("off",)
+    state_attributes_ignore: tuple[str, ...] = ()
     transition_behaviors: Mapping[str, TransitionBehavior] = field(
         default_factory=lambda: MappingProxyType(dict(DEFAULT_TRANSITION_BEHAVIORS))
     )

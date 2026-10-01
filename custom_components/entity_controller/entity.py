@@ -47,6 +47,12 @@ class EntityControllerEntity(Entity):
         return f"{self.runtime.config.name} {self.key.replace('_', ' ').title()}"
 
     @property
+    def icon(self) -> str | None:
+        """Use the controller icon on all of its native entities."""
+
+        return self.runtime.config.icon
+
+    @property
     def device_info(self) -> dict[str, object]:
         """Return current ConfigEntry/ConfigSubentry device ownership metadata."""
 

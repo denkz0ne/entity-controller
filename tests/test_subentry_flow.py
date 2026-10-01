@@ -107,3 +107,32 @@ def test_en_and_sk_translations_define_config_subentry_flow() -> None:
         assert "config_subentries" in data
         assert "controller" in data["config_subentries"]
         assert data["config_subentries"]["controller"]["title"]
+        steps = (
+            data["config_subentries"]["controller"]["step"]["user"],
+            data["config_subentries"]["controller"]["step"]["reconfigure"],
+            data["options"]["step"]["init"],
+        )
+        for step in steps:
+            for section in (
+                "identity",
+                "triggers",
+                "targets",
+                "timer",
+                "blocking",
+                "rules",
+                "constraints",
+                "night",
+                "stay",
+                "actions",
+                "advanced",
+            ):
+                assert step["sections"][section]["name"]
+            for field in (
+                "sensor_resets_timer",
+                "block_timeout_seconds",
+                "constraint_start_source",
+                "night_delay_seconds",
+                "on_enter_active",
+                "state_attributes_ignore",
+            ):
+                assert step["data"][field]

@@ -147,6 +147,23 @@ async def test_stay_mode_activates_active_stay_on() -> None:
 
 
 @pytest.mark.asyncio
+async def test_toggling_stay_mode_reconciles_an_active_controller() -> None:
+    runtime = ControllerRuntime(
+        ControllerConfig(subentry_id="test", name="Test", delay_seconds=60),
+    )
+    await runtime.async_handle_sensor_on("binary_sensor.motion")
+    assert runtime.state is ControllerState.ACTIVE_TIMER
+
+    await runtime.async_set_stay_mode(True)
+    assert runtime.state is ControllerState.ACTIVE_STAY_ON
+    assert runtime.expires_at is None
+
+    await runtime.async_set_stay_mode(False)
+    assert runtime.state is ControllerState.ACTIVE_TIMER
+    assert runtime.expires_at is not None
+
+
+@pytest.mark.asyncio
 async def test_invalid_transition_is_rejected_without_side_effect() -> None:
     recorder = BehaviorRecorder()
     runtime = make_runtime(recorder=recorder)

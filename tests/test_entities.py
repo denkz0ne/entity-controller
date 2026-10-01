@@ -28,6 +28,7 @@ def make_runtime() -> ControllerRuntime:
         ControllerConfig(
             subentry_id="controller-a",
             name="Hall Motion",
+            icon="mdi:motion-sensor",
             trigger_entities=("binary_sensor.motion",),
         )
     )
@@ -56,6 +57,7 @@ def test_native_entities_have_stable_unique_ids_and_subentry_device_info() -> No
             ("entity_controller", "controller-a")
         }
         assert entity.device_info["name"] == "Hall Motion"
+        assert entity.icon == "mdi:motion-sensor"
         assert "config_entry_id" not in entity.device_info
         assert "config_subentry_id" not in entity.device_info
 
@@ -76,6 +78,10 @@ def test_state_sensor_exposes_exact_fsm_state_and_runtime_attributes() -> None:
     assert sensor.native_value == "active_timer"
     assert sensor.extra_state_attributes["last_triggered_by"] == "binary_sensor.motion"
     assert sensor.extra_state_attributes["effective_delay"] == 42
+    runtime.night_active = True
+    runtime.block_expires_at = "soon"
+    assert sensor.extra_state_attributes["profile"] == "night"
+    assert sensor.extra_state_attributes["block_expires_at"] == "soon"
 
 
 @pytest.mark.asyncio

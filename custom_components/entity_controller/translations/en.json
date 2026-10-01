@@ -27,15 +27,93 @@
         "description": "Configure a new Entity Controller rule.",
         "data": {
           "name": "Name",
+          "icon": "Icon",
           "trigger_entities": "Trigger entities",
           "control_entities": "Control entities",
           "state_entities": "State entities",
           "override_entities": "Override entities",
           "interlock_entities": "Interlock entities",
           "sensor_type": "Sensor type",
-          "delay_seconds": "Delay seconds",
-          "blocking_enabled": "Blocking enabled",
-          "stay_mode_default": "Stay mode by default"
+          "sensor_resets_timer": "Duration sensor resets timer when released",
+          "delay_seconds": "Day delay in seconds",
+          "backoff_enabled": "Increase delay after retriggers",
+          "backoff_factor": "Backoff multiplier",
+          "backoff_max_seconds": "Maximum backoff delay",
+          "blocking_enabled": "Block on manual control",
+          "block_timeout_seconds": "Block timeout (0 = no timeout)",
+          "enabled_default": "Enabled after creation",
+          "stay_mode_default": "Stay mode by default",
+          "constraint_enabled": "Limit operation to a time window",
+          "constraint_start_source": "Allowed window start source",
+          "constraint_start_time": "Allowed window start time",
+          "constraint_start_offset_seconds": "Start offset in seconds",
+          "constraint_end_source": "Allowed window end source",
+          "constraint_end_time": "Allowed window end time",
+          "constraint_end_offset_seconds": "End offset in seconds",
+          "night_mode_enabled": "Enable night profile",
+          "night_start_source": "Night start source",
+          "night_start_time": "Night start time",
+          "night_start_offset_seconds": "Night start offset in seconds",
+          "night_end_source": "Night end source",
+          "night_end_time": "Night end time",
+          "night_end_offset_seconds": "Night end offset in seconds",
+          "night_delay_seconds": "Night delay (0 = day delay)",
+          "night_service_data_on": "Night turn-on service data",
+          "night_service_data_off": "Night turn-off service data",
+          "service_data_on": "Day turn-on service data",
+          "service_data_off": "Day turn-off service data",
+          "on_enter_idle": "When entering idle",
+          "on_exit_idle": "When leaving idle",
+          "on_enter_active": "When entering active",
+          "on_exit_active": "When leaving active",
+          "on_enter_overridden": "When entering override",
+          "on_exit_overridden": "When leaving override",
+          "on_enter_constrained": "When entering constrained",
+          "on_exit_constrained": "When leaving constrained",
+          "on_enter_blocked": "When entering blocked",
+          "on_exit_blocked": "When leaving blocked",
+          "trigger_on_states": "Trigger active states (comma separated)",
+          "trigger_off_states": "Trigger inactive states",
+          "state_on_states": "Controlled entity ON states",
+          "state_off_states": "Controlled entity OFF states",
+          "override_on_states": "Override active states",
+          "override_off_states": "Override inactive states",
+          "state_attributes_ignore": "Ignored state attributes"
+        },
+        "sections": {
+          "identity": {
+            "name": "Identity"
+          },
+          "triggers": {
+            "name": "Triggers"
+          },
+          "targets": {
+            "name": "Controlled entities"
+          },
+          "timer": {
+            "name": "Timer and backoff"
+          },
+          "blocking": {
+            "name": "Manual control and blocking"
+          },
+          "rules": {
+            "name": "Override and interlock"
+          },
+          "constraints": {
+            "name": "Allowed time window"
+          },
+          "night": {
+            "name": "Night profile"
+          },
+          "stay": {
+            "name": "Initial state"
+          },
+          "actions": {
+            "name": "Transition actions"
+          },
+          "advanced": {
+            "name": "Advanced state mapping"
+          }
         }
       }
     }
@@ -49,15 +127,93 @@
           "description": "Configure one Entity Controller rule.",
           "data": {
             "name": "Name",
+            "icon": "Icon",
             "trigger_entities": "Trigger entities",
             "control_entities": "Control entities",
             "state_entities": "State entities",
             "override_entities": "Override entities",
             "interlock_entities": "Interlock entities",
             "sensor_type": "Sensor type",
-            "delay_seconds": "Delay seconds",
-            "blocking_enabled": "Blocking enabled",
-            "stay_mode_default": "Stay mode by default"
+            "sensor_resets_timer": "Duration sensor resets timer when released",
+            "delay_seconds": "Day delay in seconds",
+            "backoff_enabled": "Increase delay after retriggers",
+            "backoff_factor": "Backoff multiplier",
+            "backoff_max_seconds": "Maximum backoff delay",
+            "blocking_enabled": "Block on manual control",
+            "block_timeout_seconds": "Block timeout (0 = no timeout)",
+            "enabled_default": "Enabled after creation",
+            "stay_mode_default": "Stay mode by default",
+            "constraint_enabled": "Limit operation to a time window",
+            "constraint_start_source": "Allowed window start source",
+            "constraint_start_time": "Allowed window start time",
+            "constraint_start_offset_seconds": "Start offset in seconds",
+            "constraint_end_source": "Allowed window end source",
+            "constraint_end_time": "Allowed window end time",
+            "constraint_end_offset_seconds": "End offset in seconds",
+            "night_mode_enabled": "Enable night profile",
+            "night_start_source": "Night start source",
+            "night_start_time": "Night start time",
+            "night_start_offset_seconds": "Night start offset in seconds",
+            "night_end_source": "Night end source",
+            "night_end_time": "Night end time",
+            "night_end_offset_seconds": "Night end offset in seconds",
+            "night_delay_seconds": "Night delay (0 = day delay)",
+            "night_service_data_on": "Night turn-on service data",
+            "night_service_data_off": "Night turn-off service data",
+            "service_data_on": "Day turn-on service data",
+            "service_data_off": "Day turn-off service data",
+            "on_enter_idle": "When entering idle",
+            "on_exit_idle": "When leaving idle",
+            "on_enter_active": "When entering active",
+            "on_exit_active": "When leaving active",
+            "on_enter_overridden": "When entering override",
+            "on_exit_overridden": "When leaving override",
+            "on_enter_constrained": "When entering constrained",
+            "on_exit_constrained": "When leaving constrained",
+            "on_enter_blocked": "When entering blocked",
+            "on_exit_blocked": "When leaving blocked",
+            "trigger_on_states": "Trigger active states (comma separated)",
+            "trigger_off_states": "Trigger inactive states",
+            "state_on_states": "Controlled entity ON states",
+            "state_off_states": "Controlled entity OFF states",
+            "override_on_states": "Override active states",
+            "override_off_states": "Override inactive states",
+            "state_attributes_ignore": "Ignored state attributes"
+          },
+          "sections": {
+            "identity": {
+              "name": "Identity"
+            },
+            "triggers": {
+              "name": "Triggers"
+            },
+            "targets": {
+              "name": "Controlled entities"
+            },
+            "timer": {
+              "name": "Timer and backoff"
+            },
+            "blocking": {
+              "name": "Manual control and blocking"
+            },
+            "rules": {
+              "name": "Override and interlock"
+            },
+            "constraints": {
+              "name": "Allowed time window"
+            },
+            "night": {
+              "name": "Night profile"
+            },
+            "stay": {
+              "name": "Initial state"
+            },
+            "actions": {
+              "name": "Transition actions"
+            },
+            "advanced": {
+              "name": "Advanced state mapping"
+            }
           }
         },
         "reconfigure": {
@@ -65,15 +221,93 @@
           "description": "Update this controller without reloading unrelated controllers.",
           "data": {
             "name": "Name",
+            "icon": "Icon",
             "trigger_entities": "Trigger entities",
             "control_entities": "Control entities",
             "state_entities": "State entities",
             "override_entities": "Override entities",
             "interlock_entities": "Interlock entities",
             "sensor_type": "Sensor type",
-            "delay_seconds": "Delay seconds",
-            "blocking_enabled": "Blocking enabled",
-            "stay_mode_default": "Stay mode by default"
+            "sensor_resets_timer": "Duration sensor resets timer when released",
+            "delay_seconds": "Day delay in seconds",
+            "backoff_enabled": "Increase delay after retriggers",
+            "backoff_factor": "Backoff multiplier",
+            "backoff_max_seconds": "Maximum backoff delay",
+            "blocking_enabled": "Block on manual control",
+            "block_timeout_seconds": "Block timeout (0 = no timeout)",
+            "enabled_default": "Enabled after creation",
+            "stay_mode_default": "Stay mode by default",
+            "constraint_enabled": "Limit operation to a time window",
+            "constraint_start_source": "Allowed window start source",
+            "constraint_start_time": "Allowed window start time",
+            "constraint_start_offset_seconds": "Start offset in seconds",
+            "constraint_end_source": "Allowed window end source",
+            "constraint_end_time": "Allowed window end time",
+            "constraint_end_offset_seconds": "End offset in seconds",
+            "night_mode_enabled": "Enable night profile",
+            "night_start_source": "Night start source",
+            "night_start_time": "Night start time",
+            "night_start_offset_seconds": "Night start offset in seconds",
+            "night_end_source": "Night end source",
+            "night_end_time": "Night end time",
+            "night_end_offset_seconds": "Night end offset in seconds",
+            "night_delay_seconds": "Night delay (0 = day delay)",
+            "night_service_data_on": "Night turn-on service data",
+            "night_service_data_off": "Night turn-off service data",
+            "service_data_on": "Day turn-on service data",
+            "service_data_off": "Day turn-off service data",
+            "on_enter_idle": "When entering idle",
+            "on_exit_idle": "When leaving idle",
+            "on_enter_active": "When entering active",
+            "on_exit_active": "When leaving active",
+            "on_enter_overridden": "When entering override",
+            "on_exit_overridden": "When leaving override",
+            "on_enter_constrained": "When entering constrained",
+            "on_exit_constrained": "When leaving constrained",
+            "on_enter_blocked": "When entering blocked",
+            "on_exit_blocked": "When leaving blocked",
+            "trigger_on_states": "Trigger active states (comma separated)",
+            "trigger_off_states": "Trigger inactive states",
+            "state_on_states": "Controlled entity ON states",
+            "state_off_states": "Controlled entity OFF states",
+            "override_on_states": "Override active states",
+            "override_off_states": "Override inactive states",
+            "state_attributes_ignore": "Ignored state attributes"
+          },
+          "sections": {
+            "identity": {
+              "name": "Identity"
+            },
+            "triggers": {
+              "name": "Triggers"
+            },
+            "targets": {
+              "name": "Controlled entities"
+            },
+            "timer": {
+              "name": "Timer and backoff"
+            },
+            "blocking": {
+              "name": "Manual control and blocking"
+            },
+            "rules": {
+              "name": "Override and interlock"
+            },
+            "constraints": {
+              "name": "Allowed time window"
+            },
+            "night": {
+              "name": "Night profile"
+            },
+            "stay": {
+              "name": "Initial state"
+            },
+            "actions": {
+              "name": "Transition actions"
+            },
+            "advanced": {
+              "name": "Advanced state mapping"
+            }
           }
         }
       }

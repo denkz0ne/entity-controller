@@ -4,13 +4,22 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Callable
+from datetime import datetime
 from functools import partial
 from typing import TYPE_CHECKING, Any
 
 from .context import ContextTracker
 from .controller import ControllerRuntime, ReconcileSnapshot
-from .model import ControllerConfig, ControllerState, ReconcileReason, SensorType
-from .schedule import schedule_at_home_assistant
+from .model import (
+    DEFAULT_TRANSITION_BEHAVIORS,
+    ControllerConfig,
+    ControllerState,
+    ReconcileReason,
+    SensorType,
+    TransitionBehavior,
+    TransitionCause,
+)
+from .schedule import schedule_at_home_assistant, window_is_active_from_data
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -23,13 +32,28 @@ _ENTITY_FIELDS = {
     "override_entities",
     "interlock_entities",
 }
+_STATE_LIST_FIELDS = {
+    "trigger_on_states",
+    "trigger_off_states",
+    "state_on_states",
+    "state_off_states",
+    "override_on_states",
+    "override_off_states",
+    "state_attributes_ignore",
+}
 _OFF_STATES = {"off", "unavailable", "unknown", ""}
 
 
 class EntityControllerManager:
     """Own controller runtimes for one Entity Controller config entry."""
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry[Any]) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry[Any],
+        *,
+        now: Callable[[], datetime] | None = None,
+    ) -> None:
         self.hass = hass
         self.entry = entry
         self.controllers: dict[str, ControllerRuntime] = {}
@@ -40,6 +64,12 @@ class EntityControllerManager:
             Callable[[str, str, ControllerRuntime | None], None]
         ] = set()
         self.contexts = ContextTracker()
+        self._remove_time_listener: Callable[[], None] | None = None
+        if now is None:
+            from homeassistant.util import dt as dt_util
+
+            now = dt_util.now
+        self._now = now
         self._loaded = False
 
     @property
@@ -53,12 +83,26 @@ class EntityControllerManager:
 
         self._loaded = True
         await self.async_sync_subentries()
+        if hasattr(self.hass, "bus"):
+            from homeassistant.helpers.event import async_track_time_change
+
+            async def _refresh(_: datetime) -> None:
+                await self.async_refresh_time_windows()
+
+            self._remove_time_listener = async_track_time_change(
+                self.hass,
+                _refresh,
+                second=0,
+            )
 
     async def async_unload(self) -> None:
         """Release manager-owned runtime resources."""
 
         for subentry_id in tuple(self.controllers):
             await self.async_remove_controller(subentry_id)
+        if self._remove_time_listener is not None:
+            self._remove_time_listener()
+            self._remove_time_listener = None
         self._loaded = False
 
     async def async_add_controller(self, subentry: Any) -> ControllerRuntime:
@@ -166,6 +210,15 @@ class EntityControllerManager:
         config = runtime.config
         if behavior.value not in {"on", "off"} or not config.control_entities:
             return
+        service_data: dict[str, Any] = dict(
+            config.service_data_on if behavior.value == "on" else config.service_data_off
+        )
+        if runtime.night_active and config.night_mode is not None:
+            night_key = (
+                "service_data_on" if behavior.value == "on" else "service_data_off"
+            )
+            if night_data := config.night_mode.get(night_key):
+                service_data = dict(night_data)
         by_domain: dict[str, list[str]] = defaultdict(list)
         for entity_id in config.control_entities:
             domain, _, _ = entity_id.partition(".")
@@ -176,7 +229,7 @@ class EntityControllerManager:
             await self.hass.services.async_call(
                 domain,
                 f"turn_{behavior.value}",
-                {"entity_id": entity_ids},
+                {"entity_id": entity_ids, **service_data},
                 blocking=True,
                 context=context,
             )
@@ -221,8 +274,18 @@ class EntityControllerManager:
         for field in _ENTITY_FIELDS:
             if field in data:
                 kwargs[field] = tuple(data.pop(field) or ())
+        for field in _STATE_LIST_FIELDS:
+            if field in data:
+                kwargs[field] = tuple(data.pop(field) or ())
         if "sensor_type" in data:
             data["sensor_type"] = SensorType(data["sensor_type"])
+        if "transition_behaviors" in data:
+            transition_behaviors = dict(DEFAULT_TRANSITION_BEHAVIORS)
+            transition_behaviors.update({
+                key: TransitionBehavior(value)
+                for key, value in dict(data["transition_behaviors"]).items()
+            })
+            data["transition_behaviors"] = transition_behaviors
         if "enabled" in data:
             data["enabled_default"] = bool(data.pop("enabled"))
         if "stay_mode" in data:
@@ -261,12 +324,13 @@ class EntityControllerManager:
 
     def _trigger_listener(self, runtime: ControllerRuntime) -> Callable[[Any], Any]:
         async def _handle(event: Any) -> None:
+            await self._async_refresh_time_windows(runtime)
             entity_id = self._event_entity_id(event)
-            if self._event_new_is_on(event):
+            if self._event_matches(event, runtime.config.trigger_on_states):
                 await runtime.async_handle_sensor_on(entity_id)
             else:
                 other_active = any(
-                    self._entity_is_on(candidate)
+                    self._entity_matches(candidate, runtime.config.trigger_on_states)
                     for candidate in runtime.config.trigger_entities
                     if candidate != entity_id
                 )
@@ -276,13 +340,63 @@ class EntityControllerManager:
 
         return _handle
 
+    async def _async_refresh_time_windows(self, runtime: ControllerRuntime) -> None:
+        """Refresh constraint and day/night profile before processing an event."""
+
+        now = self._now()
+        sunrise, sunset = self._sun_events(
+            now,
+            runtime.config.constraint_window,
+            runtime.config.night_mode,
+        )
+        constrained = bool(
+            runtime.config.constraint_window
+            and not window_is_active_from_data(
+                dict(runtime.config.constraint_window),
+                now,
+                sunrise=sunrise,
+                sunset=sunset,
+            )
+        )
+        runtime.night_active = bool(
+            runtime.config.night_mode
+            and window_is_active_from_data(
+                dict(runtime.config.night_mode),
+                now,
+                sunrise=sunrise,
+                sunset=sunset,
+            )
+        )
+        runtime.constrained = constrained
+        if constrained and runtime.state is not ControllerState.CONSTRAINED:
+            await runtime.async_transition(
+                ControllerState.CONSTRAINED,
+                TransitionCause.CONSTRAINT,
+            )
+        elif not constrained and runtime.state is ControllerState.CONSTRAINED:
+            await runtime.async_transition(
+                ControllerState.IDLE,
+                TransitionCause.CONSTRAINT,
+            )
+
+    async def async_refresh_time_windows(self) -> None:
+        """Refresh every configured schedule on a shared minute boundary."""
+
+        for runtime in tuple(self.controllers.values()):
+            if runtime.config.constraint_window or runtime.config.night_mode:
+                await self._async_refresh_time_windows(runtime)
+
     def _state_listener(self, runtime: ControllerRuntime) -> Callable[[Any], Any]:
         async def _handle(event: Any) -> None:
+            if self._only_ignored_attributes_changed(
+                event, runtime.config.state_attributes_ignore
+            ):
+                return
             context = self._event_context(event)
             entity_id = self._event_entity_id(event)
-            is_on = self._event_new_is_on(event)
+            is_on = self._event_matches(event, runtime.config.state_on_states)
             other_is_on = any(
-                self._entity_is_on(candidate)
+                self._entity_matches(candidate, runtime.config.state_on_states)
                 for candidate in (
                     *runtime.config.control_entities,
                     *runtime.config.state_entities,
@@ -297,13 +411,38 @@ class EntityControllerManager:
 
         return _handle
 
+    @staticmethod
+    def _only_ignored_attributes_changed(
+        event: Any,
+        ignored_attributes: tuple[str, ...],
+    ) -> bool:
+        if not ignored_attributes:
+            return False
+        data = event if isinstance(event, dict) else event.data
+        old_state = data.get("old_state")
+        new_state = data.get("new_state")
+        if old_state is None or new_state is None or old_state.state != new_state.state:
+            return False
+        old_attributes = dict(getattr(old_state, "attributes", {}) or {})
+        new_attributes = dict(getattr(new_state, "attributes", {}) or {})
+        changed = {
+            key
+            for key in old_attributes.keys() | new_attributes.keys()
+            if old_attributes.get(key) != new_attributes.get(key)
+        }
+        return bool(changed) and changed <= set(ignored_attributes)
+
     def _override_listener(self, runtime: ControllerRuntime) -> Callable[[Any], Any]:
         async def _handle(event: Any) -> None:
             entity_id = self._event_entity_id(event)
-            is_active = self._event_new_is_on(event)
+            is_active = self._event_matches(
+                event, runtime.config.override_on_states
+            )
             if not is_active:
                 is_active = any(
-                    self._entity_is_on(candidate)
+                    self._entity_matches(
+                        candidate, runtime.config.override_on_states
+                    )
                     for candidate in runtime.config.override_entities
                     if candidate != entity_id
                 )
@@ -349,29 +488,92 @@ class EntityControllerManager:
     def _snapshot(
         self, config: ControllerConfig, *, enabled: bool = True
     ) -> ReconcileSnapshot:
+        now = self._now()
+        sunrise, sunset = self._sun_events(
+            now,
+            config.constraint_window,
+            config.night_mode,
+        )
+        constrained = bool(
+            config.constraint_window
+            and not window_is_active_from_data(
+                dict(config.constraint_window),
+                now,
+                sunrise=sunrise,
+                sunset=sunset,
+            )
+        )
+        night_active = bool(
+            config.night_mode
+            and window_is_active_from_data(
+                dict(config.night_mode),
+                now,
+                sunrise=sunrise,
+                sunset=sunset,
+            )
+        )
         return ReconcileSnapshot(
             enabled=enabled,
-            constrained=False,
+            constrained=constrained,
             override_active=any(
-                self._entity_is_on(entity_id) for entity_id in config.override_entities
+                self._entity_matches(entity_id, config.override_on_states)
+                for entity_id in config.override_entities
             ),
             interlock_active=any(
                 self._entity_is_on(entity_id) for entity_id in config.interlock_entities
             ),
             sensor_active=any(
-                self._entity_is_on(entity_id) for entity_id in config.trigger_entities
+                self._entity_matches(entity_id, config.trigger_on_states)
+                for entity_id in config.trigger_entities
             ),
             state_entities_on=any(
-                self._entity_is_on(entity_id)
+                self._entity_matches(entity_id, config.state_on_states)
                 for entity_id in (*config.state_entities, *config.control_entities)
             ),
+            night_active=night_active,
         )
+
+    def _sun_events(
+        self,
+        now: datetime,
+        *windows: Any,
+    ) -> tuple[datetime | None, datetime | None]:
+        sources = {
+            point.get("source")
+            for window in windows
+            if window
+            for point in (window.get("start", {}), window.get("end", {}))
+        }
+        if not sources.intersection({"sunrise", "sunset"}):
+            return None, None
+        from homeassistant.const import SUN_EVENT_SUNRISE, SUN_EVENT_SUNSET
+        from homeassistant.helpers.sun import get_astral_event_date
+
+        sunrise = (
+            get_astral_event_date(self.hass, SUN_EVENT_SUNRISE, now.date())
+            if "sunrise" in sources
+            else None
+        )
+        sunset = (
+            get_astral_event_date(self.hass, SUN_EVENT_SUNSET, now.date())
+            if "sunset" in sources
+            else None
+        )
+        return sunrise, sunset
 
     def _entity_is_on(self, entity_id: str) -> bool:
         state = self.hass.states.get(entity_id)
         if state is None:
             return False
         return str(state.state).lower() not in _OFF_STATES
+
+    def _entity_matches(self, entity_id: str, active_states: tuple[str, ...]) -> bool:
+        state = self.hass.states.get(entity_id)
+        if state is None:
+            return False
+        return str(state.state).lower() in {
+            candidate.lower() for candidate in active_states
+        }
 
     @staticmethod
     def _event_entity_id(event: Any) -> str:
@@ -386,6 +588,16 @@ class EntityControllerManager:
         else:
             new_state = event.data["new_state"]
         return new_state is not None and str(new_state.state).lower() not in _OFF_STATES
+
+    @staticmethod
+    def _event_matches(event: Any, active_states: tuple[str, ...]) -> bool:
+        if isinstance(event, dict):
+            new_state = event["new_state"]
+        else:
+            new_state = event.data["new_state"]
+        return new_state is not None and str(new_state.state).lower() in {
+            candidate.lower() for candidate in active_states
+        }
 
     @staticmethod
     def _event_context(event: Any) -> Any:

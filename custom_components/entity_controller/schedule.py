@@ -7,7 +7,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -72,6 +72,35 @@ def parse_legacy_schedule_point(value: str) -> SchedulePoint:
     except ValueError as err:
         raise ValueError(f"Unsupported legacy schedule point: {value!r}") from err
     return SchedulePoint.fixed(fixed)
+
+
+def schedule_point_from_data(data: dict[str, Any]) -> SchedulePoint:
+    """Build a schedule point from Config Entry-safe structured data."""
+
+    source = ScheduleSource(str(data.get("source", "fixed")))
+    offset = timedelta(seconds=float(data.get("offset_seconds", 0)))
+    if source is ScheduleSource.FIXED:
+        raw_time = str(data.get("time", "00:00:00"))
+        return SchedulePoint.fixed(time.fromisoformat(raw_time), offset=offset)
+    return SchedulePoint(source=source, offset=offset)
+
+
+def window_is_active_from_data(
+    window: dict[str, Any],
+    now: datetime,
+    *,
+    sunrise: datetime | None = None,
+    sunset: datetime | None = None,
+) -> bool:
+    """Evaluate a structured Config Entry schedule window."""
+
+    return is_window_active(
+        schedule_point_from_data(dict(window["start"])),
+        schedule_point_from_data(dict(window["end"])),
+        now,
+        sunrise=sunrise,
+        sunset=sunset,
+    )
 
 
 def resolve_schedule_point(

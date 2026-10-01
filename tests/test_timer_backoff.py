@@ -111,3 +111,25 @@ async def test_duration_sensor_on_ignores_timer_expiry_until_sensor_off() -> Non
     assert runtime.state is ControllerState.ACTIVE_TIMER
     assert runtime.timer_expired_pending_sensor is True
     assert runtime.expires_at is None
+
+
+@pytest.mark.asyncio
+async def test_block_timeout_is_scheduled_and_reactivates_event_controller() -> None:
+    scheduler = FakeScheduler()
+    runtime = ControllerRuntime(
+        ControllerConfig(
+            subentry_id="hall",
+            name="Hall",
+            block_timeout_seconds=60,
+        ),
+        schedule_at=scheduler,
+    )
+    runtime.state_entities_on = True
+
+    await runtime.async_handle_sensor_on("binary_sensor.motion")
+
+    assert runtime.state is ControllerState.BLOCKED
+    assert runtime.block_expires_at is not None
+    block_call = scheduler.calls[-1]
+    await block_call.callback()
+    assert runtime.state is ControllerState.ACTIVE_TIMER

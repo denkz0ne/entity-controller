@@ -27,15 +27,93 @@
         "description": "Nastav nové pravidlo Entity Controller.",
         "data": {
           "name": "Názov",
+          "icon": "Ikona",
           "trigger_entities": "Spúšťacie entity",
           "control_entities": "Ovládané entity",
           "state_entities": "Stavové entity",
           "override_entities": "Entity pre override",
           "interlock_entities": "Blokovacie entity",
           "sensor_type": "Typ senzora",
-          "delay_seconds": "Oneskorenie v sekundách",
-          "blocking_enabled": "Zapnúť blokovanie",
-          "stay_mode_default": "Predvolene zapnúť trvalý režim"
+          "sensor_resets_timer": "Uvoľnenie senzora trvania reštartuje časovač",
+          "delay_seconds": "Denné oneskorenie v sekundách",
+          "backoff_enabled": "Predlžovať čas po opakovanom spustení",
+          "backoff_factor": "Násobiteľ predĺženia",
+          "backoff_max_seconds": "Maximálne predĺžené oneskorenie",
+          "blocking_enabled": "Blokovať pri ručnom ovládaní",
+          "block_timeout_seconds": "Čas blokovania (0 = bez limitu)",
+          "enabled_default": "Po vytvorení zapnutý",
+          "stay_mode_default": "Predvolene zapnúť trvalý režim",
+          "constraint_enabled": "Obmedziť činnosť na časové okno",
+          "constraint_start_source": "Začiatok povoleného okna",
+          "constraint_start_time": "Čas začiatku povoleného okna",
+          "constraint_start_offset_seconds": "Posun začiatku v sekundách",
+          "constraint_end_source": "Koniec povoleného okna",
+          "constraint_end_time": "Čas konca povoleného okna",
+          "constraint_end_offset_seconds": "Posun konca v sekundách",
+          "night_mode_enabled": "Zapnúť nočný profil",
+          "night_start_source": "Začiatok nočného profilu",
+          "night_start_time": "Čas začiatku noci",
+          "night_start_offset_seconds": "Posun začiatku noci v sekundách",
+          "night_end_source": "Koniec nočného profilu",
+          "night_end_time": "Čas konca noci",
+          "night_end_offset_seconds": "Posun konca noci v sekundách",
+          "night_delay_seconds": "Nočné oneskorenie (0 = denné)",
+          "night_service_data_on": "Nočné dáta služby pre zapnutie",
+          "night_service_data_off": "Nočné dáta služby pre vypnutie",
+          "service_data_on": "Denné dáta služby pre zapnutie",
+          "service_data_off": "Denné dáta služby pre vypnutie",
+          "on_enter_idle": "Pri vstupe do nečinnosti",
+          "on_exit_idle": "Pri odchode z nečinnosti",
+          "on_enter_active": "Pri aktivácii",
+          "on_exit_active": "Pri ukončení aktivity",
+          "on_enter_overridden": "Pri zapnutí override",
+          "on_exit_overridden": "Pri vypnutí override",
+          "on_enter_constrained": "Pri zablokovaní časovým oknom",
+          "on_exit_constrained": "Pri uvoľnení časového okna",
+          "on_enter_blocked": "Pri zablokovaní",
+          "on_exit_blocked": "Pri odblokovaní",
+          "trigger_on_states": "Aktívne stavy spúšťača (oddelené čiarkou)",
+          "trigger_off_states": "Neaktívne stavy spúšťača",
+          "state_on_states": "Zapnuté stavy ovládanej entity",
+          "state_off_states": "Vypnuté stavy ovládanej entity",
+          "override_on_states": "Aktívne stavy override",
+          "override_off_states": "Neaktívne stavy override",
+          "state_attributes_ignore": "Ignorované atribúty stavu"
+        },
+        "sections": {
+          "identity": {
+            "name": "Identita"
+          },
+          "triggers": {
+            "name": "Spúšťače"
+          },
+          "targets": {
+            "name": "Ovládané entity"
+          },
+          "timer": {
+            "name": "Časovač a predlžovanie"
+          },
+          "blocking": {
+            "name": "Ručné ovládanie a blokovanie"
+          },
+          "rules": {
+            "name": "Override a blokovacie vstupy"
+          },
+          "constraints": {
+            "name": "Povolené časové okno"
+          },
+          "night": {
+            "name": "Nočný profil"
+          },
+          "stay": {
+            "name": "Počiatočný stav"
+          },
+          "actions": {
+            "name": "Akcie pri zmene stavu"
+          },
+          "advanced": {
+            "name": "Pokročilé mapovanie stavov"
+          }
         }
       }
     }
@@ -48,32 +126,188 @@
           "title": "Pridat controller",
           "description": "Nastav jedno pravidlo Entity Controller. Viac entit zadaj oddelene ciarkou.",
           "data": {
-            "name": "Nazov",
-            "trigger_entities": "Spustacie entity",
-            "control_entities": "Ovladane entity",
-            "state_entities": "Stavove entity",
-            "override_entities": "Override entity",
-            "interlock_entities": "Interlock entity",
+            "name": "Názov",
+            "icon": "Ikona",
+            "trigger_entities": "Spúšťacie entity",
+            "control_entities": "Ovládané entity",
+            "state_entities": "Stavové entity",
+            "override_entities": "Entity pre override",
+            "interlock_entities": "Blokovacie entity",
             "sensor_type": "Typ senzora",
-            "delay_seconds": "Oneskorenie v sekundach",
-            "blocking_enabled": "Blokovanie zapnute",
-            "stay_mode_default": "Stay mod predvolene"
+            "sensor_resets_timer": "Uvoľnenie senzora trvania reštartuje časovač",
+            "delay_seconds": "Denné oneskorenie v sekundách",
+            "backoff_enabled": "Predlžovať čas po opakovanom spustení",
+            "backoff_factor": "Násobiteľ predĺženia",
+            "backoff_max_seconds": "Maximálne predĺžené oneskorenie",
+            "blocking_enabled": "Blokovať pri ručnom ovládaní",
+            "block_timeout_seconds": "Čas blokovania (0 = bez limitu)",
+            "enabled_default": "Po vytvorení zapnutý",
+            "stay_mode_default": "Predvolene zapnúť trvalý režim",
+            "constraint_enabled": "Obmedziť činnosť na časové okno",
+            "constraint_start_source": "Začiatok povoleného okna",
+            "constraint_start_time": "Čas začiatku povoleného okna",
+            "constraint_start_offset_seconds": "Posun začiatku v sekundách",
+            "constraint_end_source": "Koniec povoleného okna",
+            "constraint_end_time": "Čas konca povoleného okna",
+            "constraint_end_offset_seconds": "Posun konca v sekundách",
+            "night_mode_enabled": "Zapnúť nočný profil",
+            "night_start_source": "Začiatok nočného profilu",
+            "night_start_time": "Čas začiatku noci",
+            "night_start_offset_seconds": "Posun začiatku noci v sekundách",
+            "night_end_source": "Koniec nočného profilu",
+            "night_end_time": "Čas konca noci",
+            "night_end_offset_seconds": "Posun konca noci v sekundách",
+            "night_delay_seconds": "Nočné oneskorenie (0 = denné)",
+            "night_service_data_on": "Nočné dáta služby pre zapnutie",
+            "night_service_data_off": "Nočné dáta služby pre vypnutie",
+            "service_data_on": "Denné dáta služby pre zapnutie",
+            "service_data_off": "Denné dáta služby pre vypnutie",
+            "on_enter_idle": "Pri vstupe do nečinnosti",
+            "on_exit_idle": "Pri odchode z nečinnosti",
+            "on_enter_active": "Pri aktivácii",
+            "on_exit_active": "Pri ukončení aktivity",
+            "on_enter_overridden": "Pri zapnutí override",
+            "on_exit_overridden": "Pri vypnutí override",
+            "on_enter_constrained": "Pri zablokovaní časovým oknom",
+            "on_exit_constrained": "Pri uvoľnení časového okna",
+            "on_enter_blocked": "Pri zablokovaní",
+            "on_exit_blocked": "Pri odblokovaní",
+            "trigger_on_states": "Aktívne stavy spúšťača (oddelené čiarkou)",
+            "trigger_off_states": "Neaktívne stavy spúšťača",
+            "state_on_states": "Zapnuté stavy ovládanej entity",
+            "state_off_states": "Vypnuté stavy ovládanej entity",
+            "override_on_states": "Aktívne stavy override",
+            "override_off_states": "Neaktívne stavy override",
+            "state_attributes_ignore": "Ignorované atribúty stavu"
+          },
+          "sections": {
+            "identity": {
+              "name": "Identita"
+            },
+            "triggers": {
+              "name": "Spúšťače"
+            },
+            "targets": {
+              "name": "Ovládané entity"
+            },
+            "timer": {
+              "name": "Časovač a predlžovanie"
+            },
+            "blocking": {
+              "name": "Ručné ovládanie a blokovanie"
+            },
+            "rules": {
+              "name": "Override a blokovacie vstupy"
+            },
+            "constraints": {
+              "name": "Povolené časové okno"
+            },
+            "night": {
+              "name": "Nočný profil"
+            },
+            "stay": {
+              "name": "Počiatočný stav"
+            },
+            "actions": {
+              "name": "Akcie pri zmene stavu"
+            },
+            "advanced": {
+              "name": "Pokročilé mapovanie stavov"
+            }
           }
         },
         "reconfigure": {
           "title": "Upravit controller",
           "description": "Uprav tento controller bez reloadu nesuvisiacich controllerov. Viac entit zadaj oddelene ciarkou.",
           "data": {
-            "name": "Nazov",
-            "trigger_entities": "Spustacie entity",
-            "control_entities": "Ovladane entity",
-            "state_entities": "Stavove entity",
-            "override_entities": "Override entity",
-            "interlock_entities": "Interlock entity",
+            "name": "Názov",
+            "icon": "Ikona",
+            "trigger_entities": "Spúšťacie entity",
+            "control_entities": "Ovládané entity",
+            "state_entities": "Stavové entity",
+            "override_entities": "Entity pre override",
+            "interlock_entities": "Blokovacie entity",
             "sensor_type": "Typ senzora",
-            "delay_seconds": "Oneskorenie v sekundach",
-            "blocking_enabled": "Blokovanie zapnute",
-            "stay_mode_default": "Stay mod predvolene"
+            "sensor_resets_timer": "Uvoľnenie senzora trvania reštartuje časovač",
+            "delay_seconds": "Denné oneskorenie v sekundách",
+            "backoff_enabled": "Predlžovať čas po opakovanom spustení",
+            "backoff_factor": "Násobiteľ predĺženia",
+            "backoff_max_seconds": "Maximálne predĺžené oneskorenie",
+            "blocking_enabled": "Blokovať pri ručnom ovládaní",
+            "block_timeout_seconds": "Čas blokovania (0 = bez limitu)",
+            "enabled_default": "Po vytvorení zapnutý",
+            "stay_mode_default": "Predvolene zapnúť trvalý režim",
+            "constraint_enabled": "Obmedziť činnosť na časové okno",
+            "constraint_start_source": "Začiatok povoleného okna",
+            "constraint_start_time": "Čas začiatku povoleného okna",
+            "constraint_start_offset_seconds": "Posun začiatku v sekundách",
+            "constraint_end_source": "Koniec povoleného okna",
+            "constraint_end_time": "Čas konca povoleného okna",
+            "constraint_end_offset_seconds": "Posun konca v sekundách",
+            "night_mode_enabled": "Zapnúť nočný profil",
+            "night_start_source": "Začiatok nočného profilu",
+            "night_start_time": "Čas začiatku noci",
+            "night_start_offset_seconds": "Posun začiatku noci v sekundách",
+            "night_end_source": "Koniec nočného profilu",
+            "night_end_time": "Čas konca noci",
+            "night_end_offset_seconds": "Posun konca noci v sekundách",
+            "night_delay_seconds": "Nočné oneskorenie (0 = denné)",
+            "night_service_data_on": "Nočné dáta služby pre zapnutie",
+            "night_service_data_off": "Nočné dáta služby pre vypnutie",
+            "service_data_on": "Denné dáta služby pre zapnutie",
+            "service_data_off": "Denné dáta služby pre vypnutie",
+            "on_enter_idle": "Pri vstupe do nečinnosti",
+            "on_exit_idle": "Pri odchode z nečinnosti",
+            "on_enter_active": "Pri aktivácii",
+            "on_exit_active": "Pri ukončení aktivity",
+            "on_enter_overridden": "Pri zapnutí override",
+            "on_exit_overridden": "Pri vypnutí override",
+            "on_enter_constrained": "Pri zablokovaní časovým oknom",
+            "on_exit_constrained": "Pri uvoľnení časového okna",
+            "on_enter_blocked": "Pri zablokovaní",
+            "on_exit_blocked": "Pri odblokovaní",
+            "trigger_on_states": "Aktívne stavy spúšťača (oddelené čiarkou)",
+            "trigger_off_states": "Neaktívne stavy spúšťača",
+            "state_on_states": "Zapnuté stavy ovládanej entity",
+            "state_off_states": "Vypnuté stavy ovládanej entity",
+            "override_on_states": "Aktívne stavy override",
+            "override_off_states": "Neaktívne stavy override",
+            "state_attributes_ignore": "Ignorované atribúty stavu"
+          },
+          "sections": {
+            "identity": {
+              "name": "Identita"
+            },
+            "triggers": {
+              "name": "Spúšťače"
+            },
+            "targets": {
+              "name": "Ovládané entity"
+            },
+            "timer": {
+              "name": "Časovač a predlžovanie"
+            },
+            "blocking": {
+              "name": "Ručné ovládanie a blokovanie"
+            },
+            "rules": {
+              "name": "Override a blokovacie vstupy"
+            },
+            "constraints": {
+              "name": "Povolené časové okno"
+            },
+            "night": {
+              "name": "Nočný profil"
+            },
+            "stay": {
+              "name": "Počiatočný stav"
+            },
+            "actions": {
+              "name": "Akcie pri zmene stavu"
+            },
+            "advanced": {
+              "name": "Pokročilé mapovanie stavov"
+            }
           }
         }
       }

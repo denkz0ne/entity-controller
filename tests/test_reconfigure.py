@@ -174,3 +174,34 @@ async def test_reconfigure_does_not_execute_idle_off_behavior() -> None:
 
     assert runtime.state is ControllerState.IDLE
     assert calls == []
+
+
+@pytest.mark.asyncio
+async def test_reconfiguring_block_timeout_reschedules_block_timer() -> None:
+    now = [datetime(2026, 9, 30, 12, 0, tzinfo=UTC)]
+    scheduler = FakeScheduler()
+    runtime = ControllerRuntime(
+        ControllerConfig(
+            subentry_id="test",
+            name="Test",
+            block_timeout_seconds=120,
+        ),
+        clock=lambda: now[0],
+        schedule_at=scheduler,
+    )
+    runtime.state = ControllerState.BLOCKED
+    runtime.blocked_at = now[0]
+    runtime._schedule_block_timer()
+    original = scheduler.calls[-1]
+
+    await runtime.async_apply_config(
+        ControllerConfig(
+            subentry_id="test",
+            name="Test",
+            block_timeout_seconds=30,
+        )
+    )
+
+    assert original.cancelled is True
+    assert runtime.block_expires_at == now[0] + timedelta(seconds=30)
+    assert scheduler.calls[-1].when == runtime.block_expires_at

@@ -2,14 +2,14 @@ import json
 from pathlib import Path
 
 
-def test_manifest_is_v10_helper_without_transitions_dependency() -> None:
+def test_manifest_is_v10_hub_without_transitions_dependency() -> None:
     manifest = json.loads(
         Path("custom_components/entity_controller/manifest.json").read_text()
     )
 
     assert manifest["domain"] == "entity_controller"
-    assert manifest["version"] == "10.0.0-rc.2"
-    assert manifest["integration_type"] == "helper"
+    assert manifest["version"] == "10.0.0-rc.3"
+    assert manifest["integration_type"] == "hub"
     assert manifest["iot_class"] == "calculated"
     assert manifest["requirements"] == []
     assert manifest["documentation"].startswith(

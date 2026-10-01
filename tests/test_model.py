@@ -29,6 +29,12 @@ def test_controller_config_defaults_match_v10_baseline() -> None:
     assert config.name == "Hall"
     assert config.sensor_type is SensorType.EVENT
     assert config.delay_seconds == 180.0
+    assert config.constraint_window is None
+    assert config.night_mode is None
+    assert config.service_data_on == {}
+    assert config.service_data_off == {}
+    assert config.trigger_on_states == ("on",)
+    assert config.state_attributes_ignore == ()
     assert config.blocking_enabled is True
     assert config.transition_behaviors["on_enter_idle"] is TransitionBehavior.OFF
     assert config.transition_behaviors["on_enter_active"] is TransitionBehavior.ON

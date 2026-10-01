@@ -31,7 +31,7 @@ class EntityControllerBlockedBinarySensor(EntityControllerEntity, BinarySensorEn
             if self.runtime.last_transition_cause is None
             else self.runtime.last_transition_cause.value,
             "blocked_by": self.runtime.blocked_by,
-            "block_expires_at": None,
+            "block_expires_at": self.runtime.block_expires_at,
         }
 
 

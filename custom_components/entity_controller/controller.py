@@ -31,6 +31,7 @@ class ReconcileSnapshot:
     interlock_active: bool
     sensor_active: bool
     state_entities_on: bool
+    night_active: bool = False
 
 
 _ALLOWED_TRANSITIONS: dict[ControllerState, frozenset[ControllerState]] = {
@@ -136,6 +137,7 @@ class ControllerRuntime:
         self.interlock_active = False
         self.sensor_active = False
         self.state_entities_on = False
+        self.night_active = False
         self.stay_mode = config.stay_mode_default
 
         self.last_triggered_by: str | None = None
@@ -144,6 +146,8 @@ class ControllerRuntime:
         self.last_transition_cause: TransitionCause | None = None
         self.last_reconcile_reason: ReconcileReason | None = None
         self.blocked_by: str | None = None
+        self.blocked_at: datetime | None = None
+        self.block_expires_at: datetime | None = None
         self.overridden_by: str | None = None
         self.trigger_generation = 0
         self.timer_expired_pending_sensor = False
@@ -152,6 +156,8 @@ class ControllerRuntime:
         self.expires_at: datetime | None = None
         self._timer_cancel: Callable[[], None] | None = None
         self._timer_generation = 0
+        self._block_timer_cancel: Callable[[], None] | None = None
+        self._block_timer_generation = 0
         self._update_callbacks: set[Callable[[], None]] = set()
 
     async def async_set_enabled(self, enabled: bool) -> None:
@@ -167,6 +173,16 @@ class ControllerRuntime:
         """Set and persist stay mode."""
 
         self.stay_mode = enabled
+        if enabled and self.state is ControllerState.ACTIVE_TIMER:
+            await self.async_transition(
+                ControllerState.ACTIVE_STAY_ON,
+                TransitionCause.STAY_MODE,
+            )
+        elif not enabled and self.state is ControllerState.ACTIVE_STAY_ON:
+            await self.async_transition(
+                ControllerState.ACTIVE_TIMER,
+                TransitionCause.STAY_MODE,
+            )
         if self._state_persistor is not None:
             await self._state_persistor(self)
         self._notify_updated()
@@ -196,10 +212,46 @@ class ControllerRuntime:
         self._timer_generation += 1
         self.expires_at = None
 
+    def _cancel_block_timer(self) -> None:
+        if self._block_timer_cancel is not None:
+            self._block_timer_cancel()
+            self._block_timer_cancel = None
+        self._block_timer_generation += 1
+        self.block_expires_at = None
+
+    def _schedule_block_timer(self) -> None:
+        self._cancel_block_timer()
+        timeout = self.config.block_timeout_seconds
+        if timeout is None:
+            return
+        self.blocked_at = self.blocked_at or self._clock()
+        self.block_expires_at = self.blocked_at + timedelta(seconds=timeout)
+        self._block_timer_generation += 1
+        generation = self._block_timer_generation
+
+        async def _expire() -> None:
+            if generation != self._block_timer_generation:
+                return
+            if self.state is not ControllerState.BLOCKED:
+                return
+            self._block_timer_cancel = None
+            self.block_expires_at = None
+            await self.async_handle_block_timer_expired()
+
+        if self._schedule_at is not None:
+            self._block_timer_cancel = self._schedule_at(
+                self.block_expires_at, _expire
+            )
+
     def _calculate_effective_delay(self) -> float:
+        base_delay = self.config.delay_seconds
+        if self.night_active and self.config.night_mode is not None:
+            night_delay = self.config.night_mode.get("delay_seconds")
+            if night_delay is not None:
+                base_delay = float(night_delay)
         if not self.config.backoff_enabled or self.backoff_count == 0:
-            return self.config.delay_seconds
-        delay = self.config.delay_seconds * (
+            return base_delay
+        delay = base_delay * (
             self.config.backoff_factor**self.backoff_count
         )
         return min(delay, self.config.backoff_max_seconds)
@@ -246,14 +298,19 @@ class ControllerRuntime:
         """Stop runtime-owned resources and cancel pending callbacks."""
 
         self._cancel_timer()
+        self._cancel_block_timer()
 
     async def async_apply_config(self, new_config: ControllerConfig) -> None:
         """Apply changed configuration without rebuilding runtime state."""
 
         was_active_timer = self.state is ControllerState.ACTIVE_TIMER
+        was_blocked = self.state is ControllerState.BLOCKED
         trigger_base = self.last_triggered_at
         self.config = new_config
         self.effective_delay_seconds = self._calculate_effective_delay()
+
+        if was_blocked:
+            self._schedule_block_timer()
 
         if not was_active_timer:
             self._notify_updated()
@@ -305,6 +362,9 @@ class ControllerRuntime:
             and target is not ControllerState.ACTIVE_TIMER
         ):
             self._cancel_timer()
+        if source is ControllerState.BLOCKED and target is not ControllerState.BLOCKED:
+            self._cancel_block_timer()
+            self.blocked_at = None
 
         if source_behavior is not None:
             await self._execute_behavior(f"on_exit_{source_behavior}")
@@ -315,6 +375,9 @@ class ControllerRuntime:
 
         if target is not ControllerState.BLOCKED:
             self.blocked_by = None
+        elif source is not ControllerState.BLOCKED:
+            self.blocked_at = self._clock()
+            self._schedule_block_timer()
         if target is not ControllerState.OVERRIDDEN:
             self.overridden_by = None
 
@@ -328,7 +391,7 @@ class ControllerRuntime:
             self._schedule_main_timer(reset=False)
         elif not self._is_active_state(target):
             self.backoff_count = 0
-            self.effective_delay_seconds = self.config.delay_seconds
+            self.effective_delay_seconds = self._calculate_effective_delay()
 
         self._notify_updated()
         return True
@@ -347,6 +410,7 @@ class ControllerRuntime:
             self.interlock_active = snapshot.interlock_active
             self.sensor_active = snapshot.sensor_active
             self.state_entities_on = snapshot.state_entities_on
+            self.night_active = snapshot.night_active
 
         if not self.enabled:
             target = ControllerState.DISABLED
@@ -371,6 +435,11 @@ class ControllerRuntime:
             self._cancel_timer()
         if target is not ControllerState.BLOCKED:
             self.blocked_by = None
+            self.blocked_at = None
+            self._cancel_block_timer()
+        elif self.block_expires_at is None:
+            self.blocked_at = self.blocked_at or self._clock()
+            self._schedule_block_timer()
         if target is not ControllerState.OVERRIDDEN:
             self.overridden_by = None
         self._notify_updated()
@@ -452,6 +521,19 @@ class ControllerRuntime:
             ControllerState.IDLE,
             TransitionCause.TIMER_EXPIRED,
         )
+
+    async def async_handle_block_timer_expired(self) -> bool:
+        """Release an automatic block after its configured timeout."""
+
+        if self.state is not ControllerState.BLOCKED:
+            return False
+        if self.state_entities_on and (
+            self.config.sensor_type is SensorType.EVENT or self.sensor_active
+        ):
+            target = self._active_target
+        else:
+            target = ControllerState.IDLE
+        return await self.async_transition(target, TransitionCause.TIMER_EXPIRED)
 
     async def async_handle_state_entity_change(
         self,
