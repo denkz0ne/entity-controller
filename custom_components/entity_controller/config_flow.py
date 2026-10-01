@@ -556,11 +556,10 @@ class ControllerOptionsFlow(config_entries.OptionsFlow):
         """Show this controller's editable settings."""
 
         if user_input is None:
-            schema = CONTROLLER_RECONFIGURE_SCHEMA
-            if self.source == "init":
-                schema = self.add_suggested_values_to_schema(
-                    schema, controller_form_values(dict(self.config_entry.data))
-                )
+            schema = self.add_suggested_values_to_schema(
+                CONTROLLER_RECONFIGURE_SCHEMA,
+                controller_form_values(dict(self.config_entry.data)),
+            )
             return self.async_show_form(
                 step_id="init",
                 data_schema=schema,
