@@ -116,11 +116,18 @@ def test_panel_lifecycle_registers_once_and_removes_sidebar(monkeypatch):
 
     import asyncio
 
-    asyncio.run(panel.async_setup_panel(hass))
-    asyncio.run(panel.async_setup_panel(hass))
-    panel.async_unsetup_panel(hass)
+    async def setup_lifecycle():
+        await asyncio.gather(
+            panel.async_setup_panel(hass),
+            panel.async_setup_panel(hass),
+            panel.async_setup_panel(hass),
+        )
+        panel.async_unsetup_panel(hass)
+        await panel.async_setup_panel(hass)
+
+    asyncio.run(setup_lifecycle())
 
     assert len([item for item in registrations if item[0] == panel.PANEL_JS]) == 1
-    assert len([item for item in registrations if isinstance(item[0], tuple)]) == 1
+    assert len([item for item in registrations if isinstance(item[0], tuple)]) == 2
     assert len(websocket_registrations) == 1
     assert len(removals) == 1
