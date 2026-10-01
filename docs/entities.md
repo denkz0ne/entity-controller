@@ -1,6 +1,6 @@
 # Entity Controller v10 native entities
 
-> Current behavior: `v10-modernization`, `10.0.0-rc.8`. Each controller config entry owns one device with five native entities. Each native entity has a stable unique ID, a translated function name, a function-specific icon, and a canonical entity ID.
+> Current behavior: `v10-modernization`, `10.0.0-rc.9`. Each controller config entry owns one device with five native entities. Each native entity has a stable unique ID, a translated function name, a function-specific icon, and a canonical entity ID.
 
 Each controller config entry owns one virtual Home Assistant device and currently exposes five native entities.
 

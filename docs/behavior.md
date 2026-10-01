@@ -1,6 +1,6 @@
 # Entity Controller v10 behavior
 
-> Source baseline: `v10-modernization`, `10.0.0-rc.8`. This is a source-derived runtime reference, not a description of planned behavior.
+> Source baseline: `v10-modernization`, `10.0.0-rc.9`. This is a source-derived runtime reference, not a description of planned behavior.
 
 Entity Controller v10 implements an explicit async finite-state machine. The controller has seven user-visible runtime states and two different ways to change state:
 

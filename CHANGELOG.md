@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+<a name="10.0.0-rc.9"></a>
+## 10.0.0-rc.9 (2026-10-01)
+
+### Fixes
+
+* import the one-time legacy migration from `/config/entitycontroller.yaml` when the YAML is not loaded by Home Assistant
+* merge additive singular/plural v9 entity keys without losing trigger or control entities
+* avoid the config-entry setup deadlock in the legacy YAML import flow
+
 <a name="10.0.0-rc.8"></a>
 ## 10.0.0-rc.8 (2026-10-01)
 
