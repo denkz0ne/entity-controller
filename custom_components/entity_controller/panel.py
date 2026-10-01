@@ -137,6 +137,8 @@ def serialize_controllers(hass: Any) -> list[dict[str, Any]]:
                     ))),
                     "triggers": list(config.trigger_entities),
                     "outputs": list(config.control_entities),
+                    "overrides": list(config.override_entities),
+                    "interlocks": list(config.interlock_entities),
                     "constraints": list(
                         (*config.state_entities, *config.override_entities, *config.interlock_entities)
                     ),
