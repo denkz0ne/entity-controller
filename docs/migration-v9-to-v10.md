@@ -6,7 +6,7 @@ On the first startup after installing v10, Entity Controller imports the legacy 
 entity_controller: !include entitycontroller.yaml
 ```
 
-The integration does not open `/config/entitycontroller.yaml` itself or search the filesystem. If Home Assistant is not loading the old file under `entity_controller`, the automatic import cannot see it.
+If the file is sitting at the standard HAOS path `/config/entitycontroller.yaml` but is no longer included by `configuration.yaml`, the integration reads that exact file as a fallback. It does not scan other paths or change the source file. A differently named file must be included under `entity_controller` in `configuration.yaml` for the importer to see it.
 
 Each valid legacy controller becomes its own flat Home Assistant config entry and device. The migration preserves the legacy controller ID for its controller and entity identity, converts supported trigger/control/state/override/interlock entities, day and night service data, sensor/state/override state mappings, ignored state attributes, timing/blocking/backoff/night/transition settings, and keeps existing Helpers as references. Legacy global state strings are applied to supported state mappings; v10 has no separate control-state mapping, so that limitation is logged. The import does not create, rename, duplicate, or delete Helpers.
 

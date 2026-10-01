@@ -45,4 +45,4 @@ Reuse the current converter for entity lists, delays, blocking, backoff, night m
 
 ## Operational limitation
 
-The importer can only migrate YAML that Home Assistant has already loaded for the integration. If the old configuration is not included under the integration domain in the active HA configuration, the integration cannot safely discover the separate file by path. In that case the YAML include must be restored for one startup, then removed manually after the migrated entries are checked. The old file should remain in place until the EC01–EC10 HAOS checks pass.
+The importer first uses YAML that Home Assistant has already loaded for the integration. If no configuration was loaded, it may read only the conventional HAOS path `/config/entitycontroller.yaml`; it does not scan other paths or write to the source. Differently named files must be included under the integration domain. Stable controller IDs make setup retries idempotent. The old file should remain in place until the EC01–EC10 HAOS checks pass.

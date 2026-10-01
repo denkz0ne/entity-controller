@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -297,12 +298,20 @@ class _FakeImportConfigEntries:
         return self.entries
 
 
-def _import_hass(failed_controller_ids=()):
+def _import_hass(failed_controller_ids=(), legacy_yaml_path=None):
     config_entries = _FakeImportConfigEntries(failed_controller_ids)
     tasks = []
+    if legacy_yaml_path is None:
+        legacy_yaml_path = Path(__file__).parent / "fixtures" / "missing_entitycontroller.yaml"
+
+    async def async_add_executor_job(function):
+        return function()
+
     hass = SimpleNamespace(
         config_entries=config_entries,
         async_create_task=lambda task: tasks.append(asyncio.create_task(task)),
+        async_add_executor_job=async_add_executor_job,
+        config=SimpleNamespace(path=lambda filename: str(legacy_yaml_path)),
     )
     return hass, config_entries, tasks
 
@@ -371,6 +380,26 @@ async def test_yaml_import_creates_one_entry_per_controller_and_is_idempotent() 
     assert await integration.async_setup(hass, legacy_config) is True
     await _await_import_tasks(tasks[1:])
     assert len(config_entries.flow.calls) == calls_before_retry
+
+
+@pytest.mark.asyncio
+async def test_yaml_import_reads_standalone_legacy_file_when_not_loaded_by_ha(
+    tmp_path,
+) -> None:
+    legacy_file = tmp_path / "entitycontroller.yaml"
+    legacy_file.write_text(
+        "hall:\n  sensor: binary_sensor.hall_motion\n  entity: light.hall\n",
+        encoding="utf-8",
+    )
+    hass, config_entries, tasks = _import_hass(legacy_yaml_path=legacy_file)
+
+    assert await integration.async_setup(hass, {}) is True
+    await _await_import_tasks(tasks)
+
+    assert [call[2]["controller_id"] for call in config_entries.flow.calls] == [
+        "hall"
+    ]
+    assert config_entries.flow.calls[0][2]["control_entities"] == ("light.hall",)
 
 
 @pytest.mark.asyncio

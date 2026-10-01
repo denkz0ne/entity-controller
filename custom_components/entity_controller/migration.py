@@ -90,7 +90,10 @@ _SUN_PATTERN = re.compile(
 def parse_legacy_yaml(content: str) -> dict[str, Any]:
     """Parse legacy EC YAML into a mapping."""
 
-    parsed = yaml.safe_load(content) or {}
+    try:
+        parsed = yaml.safe_load(content) or {}
+    except yaml.YAMLError as err:
+        raise ValueError(f"Invalid YAML syntax: {err}") from err
     if not isinstance(parsed, dict):
         raise ValueError("Legacy Entity Controller YAML must be a mapping")
     return parsed

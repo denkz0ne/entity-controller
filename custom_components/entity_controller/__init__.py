@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 import logging
 from collections.abc import Mapping
+from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
@@ -18,7 +19,7 @@ from homeassistant.core import HomeAssistant
 from .const import DOMAIN
 from .entry_migration import migrated_controller_data, migrated_entry_unique_id
 from .manager import EntityControllerManager
-from .migration import ImportedController, migrate_legacy_yaml
+from .migration import ImportedController, migrate_legacy_yaml, parse_legacy_yaml
 from .services import async_setup_services, async_unload_services
 
 PLATFORMS: list[str] = ["sensor", "binary_sensor", "switch", "button"]
@@ -29,7 +30,7 @@ type EntityControllerConfigEntry = ConfigEntry[EntityControllerManager]
 
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
-    """Import controllers from the already-loaded legacy YAML configuration."""
+    """Import controllers from legacy YAML during the one-time migration."""
 
     if not isinstance(config, Mapping):
         _LOGGER.error("Legacy YAML configuration must be a mapping")
@@ -37,7 +38,27 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
 
     legacy_config = config.get(DOMAIN)
     if not legacy_config:
-        return True
+        # A standalone /config/entitycontroller.yaml is not loaded by Home
+        # Assistant unless configuration.yaml includes it. Read this one
+        # conventional file as a migration fallback so reinstalling v10 can
+        # still import the original data without restoring the old integration.
+        try:
+            legacy_path = Path(hass.config.path("entitycontroller.yaml"))
+            content = await hass.async_add_executor_job(
+                lambda: legacy_path.read_text(encoding="utf-8")
+            )
+        except FileNotFoundError:
+            return True
+        except OSError:
+            _LOGGER.exception("Unable to read /config/entitycontroller.yaml")
+            return True
+        try:
+            legacy_config = parse_legacy_yaml(content)
+        except (AttributeError, KeyError, TypeError, ValueError):
+            _LOGGER.exception("Unable to parse /config/entitycontroller.yaml")
+            return True
+        if not legacy_config:
+            return True
     if not isinstance(legacy_config, Mapping):
         _LOGGER.error("Legacy YAML configuration must be a mapping")
         return True

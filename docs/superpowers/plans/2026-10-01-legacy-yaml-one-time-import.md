@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Import each controller from HA's already-loaded legacy `entity_controller` YAML into one flat config entry exactly once, leaving the source file untouched.
+**Goal:** Import each controller from HA's already-loaded legacy `entity_controller` YAML or the conventional `/config/entitycontroller.yaml` path into one flat config entry, leaving the source file untouched.
 
-**Architecture:** `async_setup(hass, config)` reads only Home Assistant's parsed integration mapping, converts controllers with `migration.py`, and starts a `SOURCE_IMPORT` flow for each valid controller. The import flow assigns a deterministic unique ID and uses the existing flat-entry identity helper; Home Assistant's unique-ID guard makes retries harmless.
+**Architecture:** `async_setup(hass, config)` prefers Home Assistant's parsed integration mapping and falls back to reading exactly `/config/entitycontroller.yaml` when that mapping is absent. It converts controllers with `migration.py` and starts a `SOURCE_IMPORT` flow for each valid controller. The import flow assigns a deterministic unique ID and uses the existing flat-entry identity helper; Home Assistant's unique-ID guard makes retries harmless.
 
 **Tech Stack:** Python 3.12, Home Assistant config entries and config flows, pytest, pytest-asyncio, Ruff.
 
@@ -185,7 +185,7 @@ git commit -m "fix: preserve supported v9 controller settings"
 
 - [ ] **Step 1: Update migration guide and changelog**
 
-Document that import only runs when Home Assistant has loaded the old integration YAML; no arbitrary path is scanned. State that valid controllers become separate entries, unsupported fields are logged, helpers are not created, supported day/night service data and state mappings are converted, and the YAML include/file should remain until EC01–EC10 pass, then be removed manually.
+Document that import uses Home Assistant's loaded YAML or the exact conventional path `/config/entitycontroller.yaml`; no other paths are scanned. State that valid controllers become separate entries, unsupported fields are logged, helpers are not created, supported day/night service data and state mappings are converted, and the source file should remain until EC01–EC10 pass, then be removed manually.
 
 - [ ] **Step 2: Run the maintained CI Ruff file list**
 

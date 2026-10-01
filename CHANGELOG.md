@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file. See [standa
 * migrate v10 prerelease controllers while retaining device identifiers, entity unique IDs, registry IDs, and user names
 * keep Add Controller on the integration page and make each controller settings action edit only that controller
 * add the selected control-center integration icon for Home Assistant and HACS
-* import legacy v9 YAML controllers once into separate config entries when Home Assistant loads the old YAML include
+* import legacy v9 YAML controllers once into separate config entries from Home Assistant's loaded YAML or `/config/entitycontroller.yaml`
 
 ### Fixes
 
