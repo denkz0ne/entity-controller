@@ -8,7 +8,7 @@
 - Validate migrated controllers, then remove YAML manually.
 - Restart again and confirm each controller Config Entry remains authoritative.
 
-## EC01-EC10 smoke matrix
+## EC01-EC11 smoke matrix
 
 - EC01: state/history sensor exposes the exact FSM state.
 - EC02: native Enabled switch disables decisions without turning controlled loads off.
@@ -20,6 +20,7 @@
 - EC08: override/interlock Helpers remain ordinary Home Assistant entities.
 - EC09: legacy state mirror preserves old `entity_controller.<object_id>` compatibility.
 - EC10: migrated config restarts without duplicate callbacks or stale timers.
+- EC11: the native sidebar lists every configured controller, controls its native Enabled switch, updates live, and renders the recorded 24-hour state timeline.
 
 ## Validation gates
 
@@ -32,7 +33,6 @@
 
 ## known limitations
 
-- Current GitHub Actions install Home Assistant 2025.1.4, so flat-entry migration and the new integration page still need real Home Assistant 2026.9 smoke validation.
+- GitHub Actions do not pin Home Assistant to the 2026.9 minimum, so the release still needs a smoke test on that supported version.
 - Migration Repairs are guide-only; Entity Controller never deletes Helpers or rewrites/removes YAML.
 - The legacy state mirror is transitional compatibility and should remain documented until stable migration feedback is clean.
-- Old v9 tests remain in the repository for reference but are not part of the maintained v10 CI surface.

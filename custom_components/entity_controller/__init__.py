@@ -20,6 +20,7 @@ from .const import DOMAIN
 from .entry_migration import migrated_controller_data, migrated_entry_unique_id
 from .manager import EntityControllerManager
 from .migration import ImportedController, migrate_legacy_yaml, parse_legacy_yaml
+from .panel import async_setup_panel, async_unsetup_panel
 from .services import async_setup_services, async_unload_services
 
 PLATFORMS: list[str] = ["sensor", "binary_sensor", "switch", "button"]
@@ -208,6 +209,7 @@ async def async_setup_entry(
     if hasattr(hass, "data") and hasattr(hass, "services"):
         hass.data.setdefault(DOMAIN, {})[entry.entry_id] = manager
         async_setup_services(hass)
+        await async_setup_panel(hass)
     if hasattr(entry, "add_update_listener"):
         remove_listener = entry.add_update_listener(_async_entry_updated)
         if hasattr(entry, "async_on_unload"):
@@ -234,6 +236,13 @@ async def async_unload_entry(
     if hasattr(hass, "data") and hasattr(hass, "services"):
         hass.data.setdefault(DOMAIN, {}).pop(entry.entry_id, None)
         async_unload_services(hass)
+        remaining_managers = [
+            manager
+            for key, manager in hass.data.get(DOMAIN, {}).items()
+            if not key.startswith("_") and hasattr(manager, "controllers")
+        ]
+        if not remaining_managers:
+            async_unsetup_panel(hass)
     return unload_ok
 
 

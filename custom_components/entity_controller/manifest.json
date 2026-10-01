@@ -8,6 +8,6 @@
   "config_flow": true,
   "issue_tracker": "https://github.com/denkz0ne/entity-controller/issues",
   "requirements": [],
-  "after_dependencies": ["light", "script"],
+  "after_dependencies": ["frontend", "http", "websocket_api", "light", "script"],
   "version": "10.0.0-rc.9"
 }

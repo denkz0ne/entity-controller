@@ -1,0 +1,135 @@
+"""Native Home Assistant sidebar panel for Entity Controller."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+from homeassistant.components import frontend, websocket_api
+from homeassistant.helpers import entity_registry
+
+from .const import DOMAIN
+
+PANEL_URL = "entity-controller"
+PANEL_JS = "/entity_controller/entity-controller-panel.js"
+_PANEL_DATA_KEY = "entity_controller_panel"
+
+
+def _registered_entity_id(hass: Any, domain: str, unique_id: str) -> str | None:
+    """Resolve an entity ID without assuming the user kept the suggested ID."""
+
+    return entity_registry.async_get(hass).async_get_entity_id(domain, DOMAIN, unique_id)
+
+
+def serialize_controllers(hass: Any) -> list[dict[str, Any]]:
+    """Build a JSON-safe, dynamic view of all loaded controller runtimes."""
+
+    result: list[dict[str, Any]] = []
+    for entry_id, manager in hass.data.get(DOMAIN, {}).items():
+        if entry_id.startswith("_") or not hasattr(manager, "controllers"):
+            continue
+        for controller_id, runtime in manager.controllers.items():
+            config = runtime.config
+            unique_prefix = config.entity_unique_id_prefix or f"{entry_id}_{controller_id}"
+            state = getattr(runtime.state, "value", str(runtime.state))
+            result.append(
+                {
+                    "id": controller_id,
+                    "name": config.name,
+                    "icon": config.icon,
+                    "state": state,
+                    "enabled": runtime.enabled,
+                    "stay_mode": runtime.stay_mode,
+                    "state_entity_id": _registered_entity_id(
+                        hass, "sensor", f"{unique_prefix}_state"
+                    ),
+                    "enabled_entity_id": _registered_entity_id(
+                        hass, "switch", f"{unique_prefix}_enabled"
+                    ),
+                    "triggers": list(config.trigger_entities),
+                    "outputs": list(config.control_entities),
+                    "constraints": list(
+                        (*config.state_entities, *config.override_entities, *config.interlock_entities)
+                    ),
+                    "last_transition_at": getattr(runtime, "last_transition_at", None),
+                    "last_transition_cause": getattr(
+                        getattr(runtime, "last_transition_cause", None), "value", None
+                    ),
+                    "last_triggered_at": getattr(runtime, "last_triggered_at", None),
+                    "expires_at": getattr(runtime, "expires_at", None),
+                    "blocked_by": list(getattr(runtime, "blocked_by", ()) or ()),
+                    "block_reason": getattr(runtime, "block_reason", None),
+                    "active_triggers": list(getattr(runtime, "active_triggers", ()) or ()),
+                    "active_state_entities": list(
+                        getattr(runtime, "active_state_entities", ()) or ()
+                    ),
+                    "active_overrides": list(getattr(runtime, "active_overrides", ()) or ()),
+                    "active_interlocks": list(getattr(runtime, "active_interlocks", ()) or ()),
+                }
+            )
+    return sorted(result, key=lambda item: (item["name"].casefold(), item["id"]))
+
+
+@websocket_api.websocket_command({"type": "entity_controller/panel"})
+@websocket_api.async_response
+async def websocket_get_panel_data(hass, connection, msg) -> None:
+    """Return current controller data to an authenticated HA frontend."""
+
+    connection.send_result(msg["id"], {"controllers": serialize_controllers(hass)})
+
+
+def _register_websocket(hass: Any) -> None:
+    """Register the read-only panel data command once per HA instance."""
+
+    marker = hass.data.setdefault(_PANEL_DATA_KEY, {})
+    if marker.get("websocket"):
+        return
+    websocket_api.async_register_command(hass, websocket_get_panel_data)
+    marker["websocket"] = True
+
+
+async def async_setup_panel(hass: Any) -> None:
+    """Register panel assets and sidebar item once controllers are loaded."""
+
+    if not hasattr(hass, "http"):
+        return
+    data = hass.data.setdefault(_PANEL_DATA_KEY, {})
+    if data.get("registered"):
+        return
+    _register_websocket(hass)
+    static_path = Path(__file__).parent / "www" / "entity-controller-panel.js"
+    if hasattr(hass.http, "async_register_static_paths"):
+        from homeassistant.components.http import StaticPathConfig
+
+        await hass.http.async_register_static_paths(
+            [StaticPathConfig(PANEL_JS, str(static_path), cache_headers=False)]
+        )
+    else:  # Compatibility with older HA versions used by the test environment.
+        hass.http.register_static_path(PANEL_JS, str(static_path), cache_headers=False)
+    frontend.async_register_built_in_panel(
+        hass,
+        component_name="custom",
+        sidebar_title="Entity Controller",
+        sidebar_icon="mdi:home-automation",
+        frontend_url_path=PANEL_URL,
+        config={
+            "_panel_custom": {
+                "name": "entity-controller-panel",
+                "js_url": PANEL_JS,
+                "embed_iframe": False,
+                "trust_external": False,
+            }
+        },
+        require_admin=False,
+        update=True,
+    )
+    data["registered"] = True
+
+
+def async_unsetup_panel(hass: Any) -> None:
+    """Remove the sidebar panel after the last integration entry unloads."""
+
+    data = hass.data.get(_PANEL_DATA_KEY)
+    if not data or not data.pop("registered", False):
+        return
+    frontend.async_remove_panel(hass, PANEL_URL, warn_if_unknown=False)
