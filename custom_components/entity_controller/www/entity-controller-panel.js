@@ -7,12 +7,23 @@ const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
 }[char]));
 
-const stateColor = (state) => {
-  if (["active_timer", "active_stay_on", "active"].includes(state)) return "active";
-  if (state === "constrained") return "constrained";
-  if (state === "blocked") return "blocked";
-  return "inactive";
+const STATES = {
+  idle: { label: "Neaktívny", color: "#aab2bd" },
+  active_timer: { label: "Aktívny · časovač", color: "#28bd57" },
+  active_stay_on: { label: "Aktívny · trvalý režim", color: "#00a896" },
+  blocked: { label: "Blokovaný", color: "#f04452" },
+  overridden: { label: "Override", color: "#9b59d0" },
+  constrained: { label: "Časovo obmedzený", color: "#1686f5" },
+  disabled: { label: "Vypnutý", color: "#667085" },
+  unknown: { label: "Neznámy", color: "#d6dbe0" },
 };
+
+const stateKey = (state) => {
+  if (["active", "active_timer"].includes(state)) return "active_timer";
+  return Object.hasOwn(STATES, state) ? state : "unknown";
+};
+
+const stateColor = (state) => stateKey(state);
 
 class EntityControllerPanel extends HTMLElement {
   constructor() {
@@ -54,7 +65,7 @@ class EntityControllerPanel extends HTMLElement {
     await this._refresh();
     this._watchStates();
     if (!this._timer) this._timer = setInterval(() => this._loadHistory(), REFRESH_MS);
-    if (!this._clockTimer) this._clockTimer = setInterval(() => this._updateClock(), 30000);
+    if (!this._clockTimer) this._clockTimer = setInterval(() => this._updateClock(), 1000);
   }
 
   async _watchStates() {
@@ -172,9 +183,8 @@ class EntityControllerPanel extends HTMLElement {
         segments.push({ start: chartEnd, end: end.getTime(), state: "unknown" });
       }
     }
-    const colors = { active: "#28bd57", constrained: "#1686f5", blocked: "#ff3030", inactive: "#d6dbe0" };
     const gradient = segments.map((segment) => {
-      const color = colors[stateColor(segment.state)] || colors.inactive;
+      const color = STATES[stateColor(segment.state)].color;
       const left = ((segment.start - start.getTime()) / WINDOW_MS * 100).toFixed(3);
       const right = ((segment.end - start.getTime()) / WINDOW_MS * 100).toFixed(3);
       return color + " " + left + "% " + right + "%";
@@ -188,7 +198,7 @@ class EntityControllerPanel extends HTMLElement {
       return '<span>' + label + '</span>';
     }).join("");
     return '<div class="timeline-wrap"><div class="timeline" role="img" aria-label="Stavový priebeh počas dňa" ' +
-      'style="background:linear-gradient(90deg,' + (gradient || colors.inactive + ' 0% 100%') + ')">' +
+      'style="background:linear-gradient(90deg,' + (gradient || STATES.unknown.color + ' 0% 100%') + ')">' +
       ticks + '</div><div class="timeline-axis">' + labels + '</div>' +
       (this.historyErrors.has(controller.id)
         ? '<div class="timeline-error" title="' + esc(this.historyErrors.get(controller.id)) + '">História nie je dostupná</div>'
@@ -196,49 +206,78 @@ class EntityControllerPanel extends HTMLElement {
   }
 
   _status(controller) {
-    const state = controller.state;
-    const active = ["active_timer", "active_stay_on"].includes(state);
-    let label = "Neaktívny";
-    const causes = {
-      sensor_trigger: "Spustený pohybom", sensor_release: "Pohyb skončil",
-      timer_expired: "Časovač skončil", manual_control: "Manuálne ovládanie",
-      override: "Prekrytie aktívne", constraint: "Časové obmedzenie",
-      stay_mode: "Trvalý režim", service: "Zmena cez službu", configuration: "Zmena nastavení",
+    const key = stateKey(controller.state);
+    const meta = STATES[key];
+    const state = this._hass?.states?.[controller.state_entity_id];
+    const attributes = state?.attributes || {};
+    const causeLabels = {
+      sensor_trigger: "Spustený pohybom",
+      sensor_release: "Pohyb skončil",
+      timer_expired: "Časovač skončil",
+      manual_control: "Ručné ovládanie",
+      override: "Override aktívny",
+      constraint: "Časové okno",
+      stay_mode: "Trvalý režim",
+      service: "Zmena cez službu",
+      configuration: "Zmena nastavení",
     };
-    let detail = causes[controller.last_transition_cause] || "Čaká na spúšťač";
-    if (active) {
-      label = "Aktívny";
-      const started = controller.last_triggered_at || controller.last_transition_at;
-      if (started) {
-        const seconds = Math.max(0, Math.floor((Date.now() - new Date(started).getTime()) / 1000));
-        label += " · " + String(Math.floor(seconds / 60)).padStart(2, "0") +
-          ":" + String(seconds % 60).padStart(2, "0");
-      }
-      detail = controller.last_transition_cause === "sensor_trigger"
-        ? "Spustený pohybom" : "Ovládač je aktívny";
-    } else if (state === "constrained") {
-      label = "Obmedzený";
-      if (controller.expires_at) {
-        label += " · do " + new Date(controller.expires_at).toLocaleTimeString([], {
-          hour: "2-digit", minute: "2-digit",
-        });
-      }
-      detail = "Časové obmedzenie";
-    } else if (state === "blocked") {
-      label = "Blokovaný";
-      detail = controller.block_reason || "Podmienky nie sú splnené";
-    } else if (state === "disabled" || !controller.enabled) {
-      label = "Vypnutý";
-      detail = "Manuálne vypnutý";
+    let detail = causeLabels[controller.last_transition_cause] || "Čaká na podmienku";
+    if (key === "blocked") {
+      detail = controller.block_reason || attributes.block_reason || "Blokujúca podmienka aktívna";
+    } else if (key === "overridden") {
+      detail = controller.overridden_by || (controller.active_overrides || []).join(", ") || "Override aktívny";
+    } else if (key === "constrained") {
+      detail = controller.next_transition_label || "Čaká na otvorenie časového okna";
+    } else if (key === "disabled") {
+      detail = "Rozhodovanie controlleru je vypnuté";
+    } else if (key === "idle") {
+      detail = "Čaká na spúšťač";
     }
-    const changedAt = controller.last_transition_at
-      ? new Date(controller.last_transition_at).toLocaleString("sk-SK", {
-        dateStyle: "short", timeStyle: "medium",
-      })
-      : "Zatiaľ bez zaznamenanej zmeny";
-    return { label, detail, changedAt, color: stateColor(state) };
+
+    let label = meta.label;
+    let countdownAt = null;
+    let countdownPrefix = "";
+    if (key === "active_timer" && controller.expires_at) {
+      countdownAt = controller.expires_at;
+      countdownPrefix = "Zostáva";
+    } else if (key === "blocked" && controller.block_expires_at) {
+      countdownAt = controller.block_expires_at;
+      countdownPrefix = "Odblokovanie";
+    } else if (controller.next_transition_at) {
+      countdownAt = controller.next_transition_at;
+      countdownPrefix = controller.next_transition_label || "Ďalšia zmena";
+    }
+
+    if (countdownAt) {
+      const seconds = Math.max(0, Math.ceil((new Date(countdownAt).getTime() - Date.now()) / 1000));
+      label += " · " + countdownPrefix + " " + this._formatDuration(seconds);
+    } else if (key === "active_stay_on" && controller.last_triggered_at) {
+      const seconds = Math.max(0, Math.floor((Date.now() - new Date(controller.last_triggered_at).getTime()) / 1000));
+      label += " · " + this._formatDuration(seconds);
+    }
+
+    const changedAt = controller.last_transition_at || attributes.last_transition_at;
+    return {
+      label,
+      detail,
+      changedAt: changedAt
+        ? new Date(changedAt).toLocaleString("sk-SK", { dateStyle: "short", timeStyle: "medium" })
+        : "Zatiaľ bez zaznamenanej zmeny",
+      color: key,
+    };
   }
 
+  _formatDuration(seconds) {
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainder = seconds % 60;
+    if (days) return days + " d " + String(hours).padStart(2, "0") + ":" +
+      String(minutes).padStart(2, "0") + ":" + String(remainder).padStart(2, "0");
+    if (hours) return String(hours).padStart(2, "0") + ":" +
+      String(minutes).padStart(2, "0") + ":" + String(remainder).padStart(2, "0");
+    return String(minutes).padStart(2, "0") + ":" + String(remainder).padStart(2, "0");
+  }
   _row(controller) {
     const status = this._status(controller);
     const title = controller.name;
@@ -267,7 +306,7 @@ class EntityControllerPanel extends HTMLElement {
   _render() {
     if (!this.shadowRoot) return;
     const styles = [
-      ':host{display:block;height:100%;min-height:0;color:var(--primary-text-color);font-family:var(--paper-font-body1_-_font-family,inherit);--ec-active:#28bd57;--ec-constrained:#1686f5;--ec-blocked:#ff3030;--ec-inactive:#d6dbe0}',
+      ':host{display:block;height:100%;min-height:0;color:var(--primary-text-color);font-family:var(--paper-font-body1_-_font-family,inherit);--ec-active:#28bd57;--ec-constrained:#1686f5;--ec-blocked:#f04452;--ec-overridden:#9b59d0;--ec-disabled:#667085;--ec-inactive:#aab2bd}',
       '.wrap{box-sizing:border-box;height:100%;min-height:calc(100vh - 64px);display:flex;flex-direction:column;padding:12px 16px 8px;gap:8px}',
       '.heading{flex:none;padding:0 4px 2px}.heading h1{font-size:30px;line-height:1.05;font-weight:700;margin:0}.heading p{font-size:16px;color:var(--secondary-text-color);margin:2px 0 0}',
       '.list{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8px;scrollbar-width:thin}',
@@ -280,7 +319,7 @@ class EntityControllerPanel extends HTMLElement {
       '.chips{grid-column:2;grid-row:1;min-width:0;display:flex;flex-wrap:wrap;align-items:center;align-content:center;gap:6px;overflow:visible;padding:1px 0}',
       '.chip{height:29px;box-sizing:border-box;flex:0 1 auto;min-width:78px;max-width:175px;display:flex;align-items:center;justify-content:flex-start;gap:7px;padding:0 10px;border:1px solid var(--divider-color);border-radius:16px;background:var(--secondary-background-color,var(--card-background-color));color:var(--primary-text-color);cursor:pointer;white-space:nowrap;font:inherit;font-size:12px}.chip span{min-width:0;overflow:hidden;text-overflow:ellipsis}.chip-icon{--mdc-icon-size:16px;flex:none;color:var(--secondary-text-color)}',
       '.timeline-line{grid-column:1/-1;grid-row:2;padding-top:2px;min-width:0}.timeline-wrap{width:100%}.timeline{height:16px;position:relative;overflow:hidden;border-radius:5px;background:#d6dbe0}.tick{position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,.9);opacity:.8;pointer-events:none}.timeline-axis{height:16px;display:flex;justify-content:space-between;align-items:flex-start;color:var(--secondary-text-color);font-size:10px;line-height:14px;padding-top:3px}.timeline-axis span{white-space:nowrap}.timeline-error{font-size:11px;color:var(--error-color);padding-top:3px}',
-      '.legend{flex:none;box-sizing:border-box;min-height:48px;padding:8px 18px;display:flex;align-items:center;justify-content:space-between;gap:15px;border:1px solid #cce8f4;border-radius:12px;background:#eaf7fc;color:var(--primary-text-color);font-size:13px}.legend-items{display:flex;align-items:center;gap:28px;flex-wrap:wrap}.legend-title{font-weight:700}.legend-items span{display:flex;align-items:center;gap:9px;white-space:nowrap}.swatch{width:29px;height:13px;border-radius:3px;background:var(--ec-inactive)}.swatch.active{background:var(--ec-active)}.swatch.constrained{background:var(--ec-constrained)}.swatch.blocked{background:var(--ec-blocked)}.count{color:var(--secondary-text-color);white-space:nowrap}',
+      '.legend{flex:none;box-sizing:border-box;min-height:48px;padding:8px 18px;display:flex;align-items:center;justify-content:space-between;gap:15px;border:1px solid #cce8f4;border-radius:12px;background:#eaf7fc;color:var(--primary-text-color);font-size:13px}.legend-items{display:flex;align-items:center;gap:28px;flex-wrap:wrap}.legend-title{font-weight:700}.legend-items span{display:flex;align-items:center;gap:9px;white-space:nowrap}.swatch{width:22px;height:12px;flex:none;border-radius:4px;background:var(--ec-inactive)}.swatch.idle{background:#aab2bd}.swatch.active_timer{background:#28bd57}.swatch.active_stay_on{background:#00a896}.swatch.constrained{background:#1686f5}.swatch.blocked{background:#f04452}.swatch.overridden{background:#9b59d0}.swatch.disabled{background:#667085}.swatch.unknown{background:repeating-linear-gradient(135deg,#d6dbe0 0 3px,#aab2bd 3px 5px)}.count{color:var(--secondary-text-color);white-space:nowrap}',
       '.empty{color:var(--secondary-text-color);text-align:center;padding:48px 16px}.error{color:var(--error-color);padding:10px 14px}',
       '@media(max-width:1100px){.row{grid-template-columns:minmax(330px,38%) minmax(0,1fr)}.identity{grid-template-columns:48px minmax(90px,1.2fr) minmax(120px,1.25fr);gap:8px}.controller-icon{--mdc-icon-size:30px}.chip{min-width:72px;padding:0 8px}.legend-items{gap:14px}}',
       '@media(max-width:760px){.wrap{padding:10px}.row{grid-template-columns:1fr;grid-template-rows:auto auto;gap:7px}.identity{grid-column:1;grid-row:1;grid-template-columns:48px minmax(95px,1.2fr) minmax(120px,1.25fr)}.chips{grid-column:1;grid-row:2}.timeline-line{grid-column:1;grid-row:3}.legend{align-items:flex-start;flex-direction:column}.legend-items{gap:10px 16px}}',
@@ -293,8 +332,10 @@ class EntityControllerPanel extends HTMLElement {
       '<p>Rýchly prehľad controllerov</p></header>' + error +
       '<section class="list">' + (rows || '<div class="empty">Nie sú nakonfigurované žiadne ovládače.</div>') +
       '</section><footer class="legend"><div class="legend-items"><span class="legend-title">Legenda časovej osi:</span>' +
-      '<span><i class="swatch active"></i>Aktívny</span><span><i class="swatch constrained"></i>Obmedzený (čas)</span>' +
-      '<span><i class="swatch blocked"></i>Blokovaný (podmienky)</span><span><i class="swatch"></i>Neaktívny</span>' +
+      '<span><i class="swatch idle"></i>Neaktívny</span><span><i class="swatch active_timer"></i>Aktívny · časovač</span>' +
+      '<span><i class="swatch active_stay_on"></i>Aktívny · trvalý režim</span><span><i class="swatch blocked"></i>Blokovaný</span>' +
+      '<span><i class="swatch overridden"></i>Override</span><span><i class="swatch constrained"></i>Časovo obmedzený</span>' +
+      '<span><i class="swatch disabled"></i>Vypnutý</span><span><i class="swatch unknown"></i>Neznámy</span>' +
       '</div><span class="count"></span></footer></main>';
 
     this.shadowRoot.querySelectorAll("ha-state-icon[data-entity]").forEach((icon) => {
@@ -319,7 +360,7 @@ class EntityControllerPanel extends HTMLElement {
 
   _updateClock() {
     this.controllers.forEach((controller) => {
-      if (!["active_timer", "active_stay_on"].includes(controller.state)) return;
+      if (!["active_timer", "active_stay_on", "blocked"].includes(controller.state) && !controller.next_transition_at) return;
       const row = [...(this.shadowRoot?.querySelectorAll(".row") || [])]
         .find((item) => item.dataset.controllerId === controller.id);
       const label = row?.querySelector(".status-label b");
