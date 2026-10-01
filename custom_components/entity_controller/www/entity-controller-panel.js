@@ -36,16 +36,21 @@ class EntityControllerPanel extends HTMLElement {
     this._removeEvents = [];
     this._timer = null;
     this._clockTimer = null;
-    this.shadowRoot.addEventListener("wheel", (event) => {
-      if (event.ctrlKey || !event.deltaY) return;
+    this._wheelHandler = (event) => {
+      if (event.ctrlKey || !event.deltaY ||
+          !event.composedPath?.().includes(this)) return;
       const list = this.shadowRoot.querySelector(".list");
-      if (!list) return;
-      const maxScroll = list.scrollHeight - list.clientHeight;
-      const canScroll = event.deltaY < 0 ? list.scrollTop > 0 : list.scrollTop < maxScroll;
-      if (!canScroll) return;
+      const wrap = this.shadowRoot.querySelector(".wrap");
+      if (!list || !wrap) return;
+      const canScroll = (element) => {
+        const max = element.scrollHeight - element.clientHeight;
+        return event.deltaY < 0 ? element.scrollTop > 0 : element.scrollTop < max - 1;
+      };
+      const scroller = canScroll(list) ? list : canScroll(wrap) ? wrap : null;
+      if (!scroller) return;
       event.preventDefault();
-      list.scrollTop += event.deltaY;
-    }, { passive: false });
+      scroller.scrollTop += event.deltaY;
+    };
   }
 
   set hass(hass) {
@@ -59,10 +64,12 @@ class EntityControllerPanel extends HTMLElement {
   get hass() { return this._hass; }
 
   connectedCallback() {
+    window.addEventListener("wheel", this._wheelHandler, { capture: true, passive: false });
     if (this._hass) this._start();
   }
 
   disconnectedCallback() {
+    window.removeEventListener("wheel", this._wheelHandler, { capture: true });
     this._removeEvents.forEach((remove) => remove());
     this._removeEvents = [];
     clearInterval(this._timer);
@@ -370,9 +377,9 @@ class EntityControllerPanel extends HTMLElement {
     if (!this.shadowRoot) return;
     const styles = [
       ':host{display:block;height:100%;min-height:0;color:var(--primary-text-color);font-family:var(--paper-font-body1_-_font-family,inherit);touch-action:pan-y;--ec-active:#28bd57;--ec-constrained:#1686f5;--ec-blocked:#f04452;--ec-overridden:#9b59d0;--ec-disabled:#667085;--ec-inactive:#aab2bd}',
-      '.wrap{box-sizing:border-box;height:100%;min-height:calc(100vh - 64px);display:flex;flex-direction:column;padding:12px 16px 8px;gap:8px}',
+      '.wrap{box-sizing:border-box;height:calc(100vh - 64px);min-height:0;overflow-y:auto;overscroll-behavior-y:contain;display:flex;flex-direction:column;padding:12px 16px 8px;gap:8px}',
       '.heading{flex:none;padding:0 4px 2px}.heading h1{font-size:var(--mush-title-font-size,24px);line-height:var(--mush-title-line-height,32px);font-weight:var(--mush-title-font-weight,400);letter-spacing:var(--mush-title-letter-spacing,-.288px);color:var(--mush-title-color,var(--primary-text-color));margin:0}.heading p{font-size:var(--mush-subtitle-font-size,16px);line-height:var(--mush-subtitle-line-height,24px);font-weight:var(--mush-subtitle-font-weight,400);color:var(--mush-subtitle-color,var(--secondary-text-color));margin:0}',
-      '.list{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;gap:8px;scrollbar-width:thin;-webkit-overflow-scrolling:touch;touch-action:pan-y;overscroll-behavior-y:contain}',
+      '.list{flex:1 1 0;height:0;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;gap:8px;scrollbar-width:thin;-webkit-overflow-scrolling:touch;touch-action:pan-y;overscroll-behavior-y:contain}',
       '.row{position:relative;flex:none;box-sizing:border-box;display:grid;grid-template-columns:minmax(400px,34%) minmax(0,1fr);grid-template-rows:auto auto;align-items:start;gap:8px 10px;padding:12px 16px;background:var(--ha-card-background,var(--card-background-color));box-shadow:var(--ha-card-box-shadow,none);border:var(--ha-card-border-width,1px) solid var(--ha-card-border-color,var(--divider-color));border-radius:var(--ha-card-border-radius,12px);min-height:88px}',
       '.row.idle{--ec-row-color:#aab2bd}.row.active_timer{--ec-row-color:#28bd57}.row.active_stay_on{--ec-row-color:#00a896}.row.constrained{--ec-row-color:#1686f5}.row.blocked{--ec-row-color:#f04452}.row.overridden{--ec-row-color:#9b59d0}.row.disabled{--ec-row-color:#667085}.row.unknown{--ec-row-color:#d6dbe0}',
       '.identity{grid-column:1;grid-row:1;min-width:0;display:grid;grid-template-columns:52px minmax(0,1fr);grid-template-rows:36px auto;gap:4px 12px;align-items:start;align-self:start}',
