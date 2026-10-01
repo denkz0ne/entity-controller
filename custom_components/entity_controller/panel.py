@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 from homeassistant.components import frontend, websocket_api
 from homeassistant.helpers import entity_registry
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
+from .schedule import resolve_schedule_point, schedule_point_from_data
 
 PANEL_URL = "entity-controller"
 PANEL_JS = "/entity_controller/entity-controller-panel.js"
@@ -20,6 +23,82 @@ def _registered_entity_id(hass: Any, domain: str, unique_id: str) -> str | None:
     """Resolve an entity ID without assuming the user kept the suggested ID."""
 
     return entity_registry.async_get(hass).async_get_entity_id(domain, DOMAIN, unique_id)
+
+
+def _next_schedule_change(hass: Any, runtime: Any) -> tuple[datetime, str] | None:
+    """Find the next configured constraint or night-profile boundary."""
+
+    now = dt_util.now()
+    candidates: list[tuple[datetime, str]] = []
+
+    for key, active, start_label, end_label in (
+        (
+            "constraint_window",
+            runtime.constrained,
+            "Otvorenie časového okna",
+            "Zatvorenie časového okna",
+        ),
+        (
+            "night_mode",
+            runtime.night_active,
+            "Začiatok nočného profilu",
+            "Koniec nočného profilu",
+        ),
+    ):
+        window = getattr(runtime.config, key, None)
+        if not window:
+            continue
+        start_point = schedule_point_from_data(dict(window["start"]))
+        end_point = schedule_point_from_data(dict(window["end"]))
+        sources = {start_point.source.value, end_point.source.value}
+        for day_offset in range(-1, 4):
+            day = (now + timedelta(days=day_offset)).date()
+            sunrise = sunset = None
+            if sources.intersection({"sunrise", "sunset"}):
+                from homeassistant.const import SUN_EVENT_SUNRISE, SUN_EVENT_SUNSET
+                from homeassistant.helpers.sun import get_astral_event_date
+
+                try:
+                    if "sunrise" in sources:
+                        sunrise = get_astral_event_date(hass, SUN_EVENT_SUNRISE, day)
+                    if "sunset" in sources:
+                        sunset = get_astral_event_date(hass, SUN_EVENT_SUNSET, day)
+                except (ValueError, TypeError):
+                    continue
+            reference = datetime.combine(day, now.timetz())
+            try:
+                start_at = resolve_schedule_point(
+                    start_point, reference, sunrise=sunrise, sunset=sunset
+                )
+                end_at = resolve_schedule_point(
+                    end_point, reference, sunrise=sunrise, sunset=sunset
+                )
+            except ValueError:
+                continue
+            if end_at <= start_at:
+                end_at += timedelta(days=1)
+            boundary = end_at if active else start_at
+            if boundary > now:
+                candidates.append(
+                    (boundary, end_label if active else start_label)
+                )
+
+    return min(candidates, default=None, key=lambda item: item[0])
+
+
+def _next_automatic_change(runtime: Any, hass: Any) -> tuple[datetime, str] | None:
+    """Return the closest deadline that can change the runtime automatically."""
+
+    candidates: list[tuple[datetime, str]] = []
+    if runtime.expires_at is not None:
+        candidates.append((runtime.expires_at, "Koniec času aktivity"))
+    if runtime.block_expires_at is not None:
+        candidates.append((runtime.block_expires_at, "Automatické odblokovanie"))
+    if schedule_change := _next_schedule_change(hass, runtime):
+        candidates.append(schedule_change)
+    now = dt_util.now()
+    future = [item for item in candidates if item[0] > now]
+    return min(future, default=None, key=lambda item: item[0])
 
 
 def serialize_controllers(hass: Any) -> list[dict[str, Any]]:
@@ -64,6 +143,13 @@ def serialize_controllers(hass: Any) -> list[dict[str, Any]]:
                     ),
                     "last_triggered_at": getattr(runtime, "last_triggered_at", None),
                     "expires_at": getattr(runtime, "expires_at", None),
+                    "block_expires_at": getattr(runtime, "block_expires_at", None),
+                    "next_transition_at": (
+                        next_change[0] if (next_change := _next_automatic_change(runtime, hass)) else None
+                    ),
+                    "next_transition_label": (
+                        next_change[1] if next_change else None
+                    ),
                     "blocked_by": list(getattr(runtime, "blocked_by", ()) or ()),
                     "block_reason": getattr(runtime, "block_reason", None),
                     "active_triggers": list(getattr(runtime, "active_triggers", ()) or ()),
