@@ -34,14 +34,14 @@ def _next_schedule_change(hass: Any, runtime: Any) -> tuple[datetime, str] | Non
     for key, active, start_label, end_label, ends_when_active in (
         (
             "constraint_window",
-            runtime.constrained,
+            getattr(runtime, "constrained", False),
             "Otvorenie časového okna",
             "Zatvorenie časového okna",
             False,
         ),
         (
             "night_mode",
-            runtime.night_active,
+            getattr(runtime, "night_active", False),
             "Začiatok nočného profilu",
             "Koniec nočného profilu",
             True,
@@ -93,9 +93,9 @@ def _next_automatic_change(runtime: Any, hass: Any) -> tuple[datetime, str] | No
     """Return the closest deadline that can change the runtime automatically."""
 
     candidates: list[tuple[datetime, str]] = []
-    if runtime.expires_at is not None:
+    if getattr(runtime, "expires_at", None) is not None:
         candidates.append((runtime.expires_at, "Koniec času aktivity"))
-    if runtime.block_expires_at is not None:
+    if getattr(runtime, "block_expires_at", None) is not None:
         candidates.append((runtime.block_expires_at, "Automatické odblokovanie"))
     if schedule_change := _next_schedule_change(hass, runtime):
         candidates.append(schedule_change)
