@@ -148,10 +148,15 @@ class EntityControllerPanel extends HTMLElement {
       ["on", "detected", "occupied", "motion", "present"].includes(value);
     const outputActive = kind === "output" &&
       ["on", "open", "playing", "active", "heat", "cool", "dry", "fan_only"].includes(value);
-    const activeClass = triggerActive ? " active-trigger" : outputActive ? " active-output" : "";
+    const activeClass = triggerActive ? " active-trigger" : outputActive ? " active-output" :
+      kind === "override" && value === "on" ? " active-override" :
+      kind === "interlock" && value === "on" ? " active-interlock" : "";
+    const switchToggle = entityId.startsWith("switch.");
     const stateTitle = state ? " · " + value : "";
     return '<button class="chip' + activeClass + '" data-entity="' + esc(entityId) +
-      '" title="' + esc(name + stateTitle) + '" aria-label="' + esc(name + stateTitle) + '">' +
+      (switchToggle ? '" data-chip-toggle="' + esc(entityId) : '') +
+      '" title="' + esc(name + stateTitle) + '" aria-label="' +
+      esc(name + stateTitle + (switchToggle ? ", prepínač" : "")) + '">' +
       '<ha-state-icon class="chip-icon" data-entity="' + esc(entityId) + '"></ha-state-icon>' +
       '<span>' + esc(name) + '</span>' +
       (available && (triggerActive || outputActive) ? '<i class="chip-active-dot" aria-hidden="true"></i>' : '') +
@@ -318,6 +323,8 @@ class EntityControllerPanel extends HTMLElement {
     const title = controller.name;
     const triggers = controller.triggers || [];
     const outputs = controller.outputs || [];
+    const overrides = controller.overrides || [];
+    const interlocks = controller.interlocks || [];
     const toggle = '<button class="toggle ' + (controller.enabled ? "on" : "") +
       '" data-toggle="' + esc(controller.enabled_entity_id || "") + '" aria-label="' +
       (controller.enabled ? "Vypnúť " : "Zapnúť ") + esc(title) + '"><span></span></button>';
@@ -336,6 +343,8 @@ class EntityControllerPanel extends HTMLElement {
       '<div class="chips entities">' +
         triggers.map((id) => this._entityChip(id, "trigger")).join("") +
         outputs.map((id) => this._entityChip(id, "output")).join("") +
+        overrides.map((id) => this._entityChip(id, "override")).join("") +
+        interlocks.map((id) => this._entityChip(id, "interlock")).join("") +
       '</div>' +
       '<div class="timeline-line">' + this._timeline(controller) + '</div>' +
       '</article>';
@@ -355,7 +364,7 @@ class EntityControllerPanel extends HTMLElement {
       '.controller-control{grid-column:1;grid-row:1/3;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:4px}.controller-avatar{width:36px;height:36px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--ec-row-color) 18%,var(--ha-card-background,var(--card-background-color)));color:var(--ec-row-color)}.controller-icon{color:var(--ec-row-color);--mdc-icon-size:24px}.controller-name{grid-column:2;grid-row:1;align-self:center;min-width:0;font-size:16px;line-height:20px;font-weight:var(--mush-card-primary-font-weight,500);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
       '.status{grid-column:2;grid-row:2;min-width:0;display:flex;flex-direction:column;gap:3px;font-size:var(--mush-card-secondary-font-size,12px);color:var(--mush-card-secondary-color,var(--secondary-text-color))}.status-head{display:flex;align-items:center;gap:9px;min-width:0}.status-label{display:flex;align-items:center;gap:7px;color:var(--mush-card-primary-color,var(--primary-text-color));white-space:nowrap}.status-label b{font-size:var(--mush-card-primary-font-size,14px);font-weight:var(--mush-card-primary-font-weight,500)}.status-label i{flex:none;width:10px;height:10px;border-radius:50%;background:var(--ec-row-color)}.status-countdown{white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--mush-card-primary-color,var(--primary-text-color));font-size:var(--mush-card-primary-font-size,14px);font-weight:var(--mush-card-primary-font-weight,500)}.status-meta{display:flex;align-items:baseline;justify-content:space-between;gap:8px;min-width:0}.status-detail{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.status-meta small{flex:none;white-space:nowrap;font-size:var(--mush-card-secondary-font-size,12px);color:var(--mush-card-secondary-color,var(--secondary-text-color))}',
       '.chips{grid-column:2;grid-row:1;min-width:0;display:flex;flex-wrap:wrap;align-items:flex-start;align-content:flex-start;align-self:start;gap:6px;overflow:visible;padding:0}',
-      '.chip{height:28px;box-sizing:border-box;flex:0 1 auto;min-width:70px;max-width:175px;display:flex;align-items:center;justify-content:flex-start;gap:7px;padding:0 9px;border:var(--ha-card-border-width,1px) solid var(--ha-card-border-color,var(--divider-color));border-radius:18px;background:var(--chip-background,var(--ha-card-background,var(--card-background-color)));box-shadow:var(--chip-box-shadow,var(--ha-card-box-shadow,none));color:var(--primary-text-color);cursor:pointer;white-space:nowrap;font:inherit;font-size:12px;touch-action:pan-y;user-select:none;-webkit-user-select:none} .chip span{min-width:0;overflow:hidden;text-overflow:ellipsis;pointer-events:none}.chip-icon{--mdc-icon-size:16px;flex:none;color:var(--secondary-text-color);pointer-events:none}.chip.active-trigger{background:rgba(76,175,80,.18);border-color:#43a047;box-shadow:0 0 0 1px rgba(67,160,71,.14)}.chip.active-output{background:rgba(255,213,79,.22);border-color:#d2a500;box-shadow:0 0 0 1px rgba(210,165,0,.14)}.chip-active-dot{width:7px;height:7px;flex:none;border-radius:50%;background:#2e8b3c}.chip.active-output .chip-active-dot{background:#b38b00}',
+      '.chip{height:28px;box-sizing:border-box;flex:0 1 auto;min-width:70px;max-width:175px;display:flex;align-items:center;justify-content:flex-start;gap:7px;padding:0 9px;border:var(--ha-card-border-width,1px) solid var(--ha-card-border-color,var(--divider-color));border-radius:18px;background:var(--chip-background,var(--ha-card-background,var(--card-background-color)));box-shadow:var(--chip-box-shadow,var(--ha-card-box-shadow,none));color:var(--primary-text-color);cursor:pointer;white-space:nowrap;font:inherit;font-size:12px;touch-action:pan-y;user-select:none;-webkit-user-select:none} .chip span{min-width:0;overflow:hidden;text-overflow:ellipsis;pointer-events:none}.chip-icon{--mdc-icon-size:16px;flex:none;color:var(--secondary-text-color);pointer-events:none}.chip.active-trigger{background:rgba(76,175,80,.18);border-color:#43a047;box-shadow:0 0 0 1px rgba(67,160,71,.14)}.chip.active-output{background:rgba(255,213,79,.22);border-color:#d2a500;box-shadow:0 0 0 1px rgba(210,165,0,.14)}.chip.active-override{background:rgba(156,39,176,.14);border-color:#9c27b0;box-shadow:0 0 0 1px rgba(156,39,176,.12)}.chip.active-interlock{background:rgba(3,169,244,.14);border-color:#039be5;box-shadow:0 0 0 1px rgba(3,155,229,.12)}.chip[data-chip-toggle]{cursor:pointer}.chip-active-dot{width:7px;height:7px;flex:none;border-radius:50%;background:#2e8b3c}.chip.active-output .chip-active-dot{background:#b38b00}',
       '.timeline-line{grid-column:1/-1;grid-row:2;padding-top:2px;min-width:0}.timeline-wrap{width:100%}.timeline{height:16px;position:relative;overflow:hidden;border-radius:5px;background:#d6dbe0}.tick{position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,.9);opacity:.8;pointer-events:none}.timeline-axis{height:16px;display:flex;justify-content:space-between;align-items:flex-start;color:var(--secondary-text-color);font-size:10px;line-height:14px;padding-top:3px}.timeline-axis span{white-space:nowrap}.timeline-error{font-size:11px;color:var(--error-color);padding-top:3px}',
       '.legend{flex:none;box-sizing:border-box;min-height:48px;padding:8px 18px;display:flex;align-items:center;justify-content:space-between;gap:15px;border:var(--ha-card-border-width,1px) solid var(--ha-card-border-color,var(--divider-color));border-radius:var(--ha-card-border-radius,12px);background:var(--ha-card-background,var(--card-background-color));box-shadow:var(--ha-card-box-shadow,none);color:var(--primary-text-color);font-size:13px}.legend-items{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap}.legend-title{font-weight:700}.legend-items span{display:flex;align-items:center;gap:9px;white-space:nowrap}.swatch{width:22px;height:12px;flex:none;border-radius:4px;background:var(--ec-inactive)}.swatch.idle{background:#aab2bd}.swatch.active_timer{background:#28bd57}.swatch.active_stay_on{background:#00a896}.swatch.constrained{background:#1686f5}.swatch.blocked{background:#f04452}.swatch.overridden{background:#9b59d0}.swatch.disabled{background:#667085}.swatch.unknown{background:repeating-linear-gradient(135deg,#d6dbe0 0 3px,#aab2bd 3px 5px)}.count{color:var(--secondary-text-color);white-space:nowrap}',
       '.empty{color:var(--secondary-text-color);text-align:center;padding:48px 16px}.error{color:var(--error-color);padding:10px 14px}',
@@ -381,9 +390,15 @@ class EntityControllerPanel extends HTMLElement {
       icon.hass = this._hass;
       icon.stateObj = this._hass?.states?.[icon.dataset.entity];
     });
-    this.shadowRoot.querySelectorAll("[data-entity]").forEach((button) => button.addEventListener("click", () => {
+    this.shadowRoot.querySelectorAll(".chip[data-entity]").forEach((button) => button.addEventListener("click", async () => {
+      const entityId = button.dataset.entity;
+      if (button.dataset.chipToggle) {
+        const value = String(this._hass?.states?.[entityId]?.state || "").toLowerCase();
+        await this._hass.callService("switch", value === "on" ? "turn_off" : "turn_on", { entity_id: entityId });
+        return;
+      }
       this.dispatchEvent(new CustomEvent("hass-more-info", {
-        bubbles: true, composed: true, detail: { entityId: button.dataset.entity },
+        bubbles: true, composed: true, detail: { entityId },
       }));
     }));
     this.shadowRoot.querySelectorAll("[data-toggle]").forEach((button) => button.addEventListener("click", async () => {
