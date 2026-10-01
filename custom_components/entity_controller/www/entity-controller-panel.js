@@ -329,6 +329,8 @@ class EntityControllerPanel extends HTMLElement {
     const outputChips = outputs.map((id) => this._entityChip(id, "output")).join("");
     const blockingChips = overrides.map((id) => this._entityChip(id, "override")).join("") +
       interlocks.map((id) => this._entityChip(id, "interlock")).join("");
+    const chipDivider = '<span class="chip-divider" role="separator"></span>';
+    const groupedChips = [triggerChips, outputChips, blockingChips].filter(Boolean).join(chipDivider);
     const toggle = '<button class="toggle ' + (controller.enabled ? "on" : "") +
       '" data-toggle="' + esc(controller.enabled_entity_id || "") + '" aria-label="' +
       (controller.enabled ? "Vypnúť " : "Zapnúť ") + esc(title) + '"><span></span></button>';
@@ -344,11 +346,7 @@ class EntityControllerPanel extends HTMLElement {
           '</div><div class="status-meta"><span class="status-detail">' + esc(status.detail) +
           '</span><small>' + esc(status.changedAt) + '</small></div></div>' +
       '</div>' +
-      '<div class="chips entities">' +
-        (triggerChips ? '<span class="chip-divider" role="separator" aria-label="Pohybové senzory" title="Pohybové senzory"></span>' + triggerChips : '') +
-        (outputChips ? '<span class="chip-divider" role="separator" aria-label="Ovládané entity" title="Ovládané entity"></span>' + outputChips : '') +
-        (blockingChips ? '<span class="chip-divider" role="separator" aria-label="Blokovacie entity" title="Blokovacie entity"></span>' + blockingChips : '') +
-      '</div>' +
+      '<div class="chips entities">' + groupedChips + '</div>' +
       '<div class="timeline-line">' + this._timeline(controller) + '</div>' +
       '</article>';
   }
