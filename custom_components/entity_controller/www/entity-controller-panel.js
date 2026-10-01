@@ -139,12 +139,23 @@ class EntityControllerPanel extends HTMLElement {
     this._render();
   }
 
-  _entityChip(entityId) {
+  _entityChip(entityId, kind) {
     const state = this._hass?.states?.[entityId];
     const name = state?.attributes?.friendly_name || entityId.split(".").pop().replaceAll("_", " ");
-    return '<button class="chip" data-entity="' + esc(entityId) + '" title="' + esc(name) + '">' +
+    const value = String(state?.state || "").toLowerCase();
+    const available = value && !["unknown", "unavailable", "none"].includes(value);
+    const triggerActive = kind === "trigger" &&
+      ["on", "detected", "occupied", "motion", "present"].includes(value);
+    const outputActive = kind === "output" &&
+      ["on", "open", "playing", "active", "heat", "cool", "dry", "fan_only"].includes(value);
+    const activeClass = triggerActive ? " active-trigger" : outputActive ? " active-output" : "";
+    const stateTitle = state ? " · " + value : "";
+    return '<button class="chip' + activeClass + '" data-entity="' + esc(entityId) +
+      '" title="' + esc(name + stateTitle) + '" aria-label="' + esc(name + stateTitle) + '">' +
       '<ha-state-icon class="chip-icon" data-entity="' + esc(entityId) + '"></ha-state-icon>' +
-      '<span>' + esc(name) + '</span></button>';
+      '<span>' + esc(name) + '</span>' +
+      (available && (triggerActive || outputActive) ? '<i class="chip-active-dot" aria-hidden="true"></i>' : '') +
+      '</button>';
   }
 
   _timeline(controller) {
@@ -293,8 +304,8 @@ class EntityControllerPanel extends HTMLElement {
           esc(status.changedAt) + '</small></div>' +
       '</div>' +
       '<div class="chips entities">' +
-        triggers.map((id) => this._entityChip(id)).join("") +
-        outputs.map((id) => this._entityChip(id)).join("") +
+        triggers.map((id) => this._entityChip(id, "trigger")).join("") +
+        outputs.map((id) => this._entityChip(id, "output")).join("") +
       '</div>' +
       '<div class="timeline-line">' + this._timeline(controller) + '</div>' +
       '</article>';
@@ -314,7 +325,7 @@ class EntityControllerPanel extends HTMLElement {
       '.controller-control{grid-column:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}.controller-icon{color:var(--secondary-text-color);--mdc-icon-size:34px}.controller-name{font-size:19px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
       '.status{min-width:0;display:flex;flex-direction:column;gap:3px;font-size:13px;color:var(--secondary-text-color)}.status-label{display:flex;align-items:center;gap:9px;color:var(--primary-text-color);white-space:nowrap}.status-label b{font-size:14px}.status-label i{flex:none;width:12px;height:12px;border-radius:50%;background:var(--ec-row-color)}.status>span,.status>small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:21px}.status>small{font-size:11px;color:var(--secondary-text-color)}',
       '.chips{grid-column:2;grid-row:1;min-width:0;display:flex;flex-wrap:wrap;align-items:center;align-content:center;gap:6px;overflow:visible;padding:1px 0}',
-      '.chip{height:29px;box-sizing:border-box;flex:0 1 auto;min-width:78px;max-width:175px;display:flex;align-items:center;justify-content:flex-start;gap:7px;padding:0 10px;border:1px solid var(--divider-color);border-radius:16px;background:var(--secondary-background-color,var(--card-background-color));color:var(--primary-text-color);cursor:pointer;white-space:nowrap;font:inherit;font-size:12px;touch-action:pan-y;user-select:none;-webkit-user-select:none}.chip span{min-width:0;overflow:hidden;text-overflow:ellipsis;pointer-events:none}.chip-icon{--mdc-icon-size:16px;flex:none;color:var(--secondary-text-color);pointer-events:none}',
+      '.chip{height:29px;box-sizing:border-box;flex:0 1 auto;min-width:78px;max-width:175px;display:flex;align-items:center;justify-content:flex-start;gap:7px;padding:0 10px;border:1px solid var(--divider-color);border-radius:16px;background:var(--secondary-background-color,var(--card-background-color));color:var(--primary-text-color);cursor:pointer;white-space:nowrap;font:inherit;font-size:12px;touch-action:pan-y;user-select:none;-webkit-user-select:none} .chip span{min-width:0;overflow:hidden;text-overflow:ellipsis;pointer-events:none}.chip-icon{--mdc-icon-size:16px;flex:none;color:var(--secondary-text-color);pointer-events:none}.chip.active-trigger{background:rgba(255,193,7,.22);border-color:#d99b00;box-shadow:0 0 0 1px rgba(217,155,0,.16)}.chip.active-output{background:rgba(76,175,80,.2);border-color:#43a047;box-shadow:0 0 0 1px rgba(67,160,71,.16)}.chip-active-dot{width:7px;height:7px;flex:none;border-radius:50%;background:#c58a00}.chip.active-output .chip-active-dot{background:#2e8b3c}',
       '.timeline-line{grid-column:1/-1;grid-row:2;padding-top:2px;min-width:0}.timeline-wrap{width:100%}.timeline{height:16px;position:relative;overflow:hidden;border-radius:5px;background:#d6dbe0}.tick{position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,.9);opacity:.8;pointer-events:none}.timeline-axis{height:16px;display:flex;justify-content:space-between;align-items:flex-start;color:var(--secondary-text-color);font-size:10px;line-height:14px;padding-top:3px}.timeline-axis span{white-space:nowrap}.timeline-error{font-size:11px;color:var(--error-color);padding-top:3px}',
       '.legend{flex:none;box-sizing:border-box;min-height:48px;padding:8px 18px;display:flex;align-items:center;justify-content:space-between;gap:15px;border:1px solid #cce8f4;border-radius:12px;background:#eaf7fc;color:var(--primary-text-color);font-size:13px}.legend-items{display:flex;align-items:center;gap:28px;flex-wrap:wrap}.legend-title{font-weight:700}.legend-items span{display:flex;align-items:center;gap:9px;white-space:nowrap}.swatch{width:22px;height:12px;flex:none;border-radius:4px;background:var(--ec-inactive)}.swatch.idle{background:#aab2bd}.swatch.active_timer{background:#28bd57}.swatch.active_stay_on{background:#00a896}.swatch.constrained{background:#1686f5}.swatch.blocked{background:#f04452}.swatch.overridden{background:#9b59d0}.swatch.disabled{background:#667085}.swatch.unknown{background:repeating-linear-gradient(135deg,#d6dbe0 0 3px,#aab2bd 3px 5px)}.count{color:var(--secondary-text-color);white-space:nowrap}',
       '.empty{color:var(--secondary-text-color);text-align:center;padding:48px 16px}.error{color:var(--error-color);padding:10px 14px}',
