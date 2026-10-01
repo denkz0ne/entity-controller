@@ -402,8 +402,11 @@ class EntityControllerPanel extends HTMLElement {
       if (!["active_timer", "active_stay_on", "blocked"].includes(controller.state) && !controller.next_transition_at) return;
       const row = [...(this.shadowRoot?.querySelectorAll(".row") || [])]
         .find((item) => item.dataset.controllerId === controller.id);
+      const status = this._status(controller);
       const label = row?.querySelector(".status-label b");
-      if (label) label.textContent = this._status(controller).label;
+      const countdown = row?.querySelector(".status-countdown");
+      if (label) label.textContent = status.label;
+      if (countdown) countdown.textContent = status.countdown;
     });
   }
 
