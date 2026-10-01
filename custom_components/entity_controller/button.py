@@ -13,6 +13,9 @@ from .entity import EntityControllerEntity
 class EntityControllerActivateButton(EntityControllerEntity, ButtonEntity):
     """Activate a controller."""
 
+    _attr_icon = "mdi:play-circle"
+    _attr_translation_key = "activate"
+
     def __init__(self, runtime, entry_id: str) -> None:
         super().__init__(runtime, entry_id, "activate")
 

@@ -13,6 +13,9 @@ from .model import ControllerState
 class EntityControllerBlockedBinarySensor(EntityControllerEntity, BinarySensorEntity):
     """Expose whether the controller is currently blocked."""
 
+    _attr_icon = "mdi:shield-lock"
+    _attr_translation_key = "blocked"
+
     def __init__(self, runtime, entry_id: str) -> None:
         super().__init__(runtime, entry_id, "blocked")
 

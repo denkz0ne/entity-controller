@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from homeassistant.helpers.entity import Entity
+from homeassistant.util import slugify
 
 from .const import DOMAIN
 from .controller import ControllerRuntime
@@ -12,6 +13,7 @@ class EntityControllerEntity(Entity):
     """Common data for one controller-owned Home Assistant entity."""
 
     entity_registry_enabled_default = True
+    _attr_has_entity_name = True
     _attr_should_poll = False
 
     def __init__(
@@ -41,16 +43,14 @@ class EntityControllerEntity(Entity):
         return f"{self.entry_id}_{self.runtime.config.subentry_id}_{self.key}"
 
     @property
-    def name(self) -> str:
-        """Return a readable entity name."""
+    def suggested_object_id(self) -> str:
+        """Suggest the canonical ID only when Home Assistant first registers us.
 
-        return f"{self.runtime.config.name} {self.key.replace('_', ' ').title()}"
+        The entity registry keys existing entries by ``unique_id``, so a user
+        rename remains intact and a later controller rename cannot overwrite it.
+        """
 
-    @property
-    def icon(self) -> str | None:
-        """Use the controller icon on all of its native entities."""
-
-        return self.runtime.config.icon
+        return f"ec_{slugify(self.runtime.config.name)}_{self.key}"
 
     @property
     def device_info(self) -> dict[str, object]:

@@ -418,5 +418,39 @@
         "ignore": "Do nothing"
       }
     }
+  },
+  "entity": {
+    "sensor": {
+      "state": {
+        "name": "EC State",
+        "state": {
+          "idle": "Idle",
+          "active_timer": "Active timer",
+          "active_stay_on": "Active stay mode",
+          "blocked": "Blocked",
+          "overridden": "Overridden",
+          "constrained": "Constrained",
+          "disabled": "Disabled"
+        }
+      }
+    },
+    "switch": {
+      "enabled": {
+        "name": "EC Enabled"
+      },
+      "stay_mode": {
+        "name": "EC Stay mode"
+      }
+    },
+    "binary_sensor": {
+      "blocked": {
+        "name": "EC Blocked"
+      }
+    },
+    "button": {
+      "activate": {
+        "name": "EC Activate"
+      }
+    }
   }
 }

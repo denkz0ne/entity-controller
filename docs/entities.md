@@ -1,10 +1,10 @@
 # Entity Controller v10 native entities
 
-> Source baseline: `v10-modernization`, `10.0.0-rc.3` (`86893e7`). The first section describes current RC.3 behavior. The naming/icon section defines the approved RC polish target and is intentionally marked as planned where it is not implemented yet.
+> Current behavior: `v10-modernization`, `10.0.0-rc.6`. Each native entity has a stable unique ID, a translated function name, a function-specific icon, and a canonical suggested entity ID for first registration.
 
 Each controller config subentry owns one virtual Home Assistant device and currently exposes five native entities.
 
-## Current RC.3 entities
+## Native entities
 
 | Domain / key | Purpose | Enabled by default |
 | --- | --- | --- |
@@ -53,7 +53,7 @@ RC.3 exposes:
 
 Because interlock blocking currently happens through reconcile rather than a transition, those attributes are not yet sufficient to explain every blocked state. The diagnostics polish issue covers this.
 
-## Planned entity-id convention
+## Entity-id convention
 
 New native entities should be created using the controller slug and an explicit EC prefix:
 
@@ -73,9 +73,9 @@ button.ec_obyvacka_activate
 
 The stable `unique_id` must remain based on root config-entry ID + controller subentry ID + entity function key. Renaming a controller must not change the unique ID.
 
-For existing registered entities, the implementation must not casually overwrite a user-customized entity ID. A migration may rename only entries that can be proven to still use an integration-generated/default ID; otherwise preserve the user's ID and only update the translated visible name.
+The suggestion is used only for the first registration. Home Assistant retains an existing registry entity ID by its stable unique ID, so controller renames and user-customized IDs are preserved.
 
-## Planned visible names and localization
+## Visible names and localization
 
 New integrations should use Home Assistant native entity naming: `has_entity_name = True` plus `translation_key`, rather than hard-coded natural-language names in Python.
 
@@ -99,7 +99,7 @@ Recommended Slovak function labels:
 
 The exact separator/combined friendly-name rendering is controlled by Home Assistant's device/entity naming model; do not hard-code the controller name into the entity translation itself.
 
-## Recommended entity icons
+## Entity icons
 
 The controller may still have its own optional user-selected icon, but native entities should have function-specific defaults so they remain instantly recognizable.
 

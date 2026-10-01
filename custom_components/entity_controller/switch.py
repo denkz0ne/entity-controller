@@ -12,6 +12,9 @@ from .entity import EntityControllerEntity
 class EntityControllerEnabledSwitch(EntityControllerEntity, SwitchEntity):
     """Enable or disable EC decisions for one controller."""
 
+    _attr_icon = "mdi:toggle-switch"
+    _attr_translation_key = "enabled"
+
     def __init__(self, runtime, entry_id: str) -> None:
         super().__init__(runtime, entry_id, "enabled")
 
@@ -34,6 +37,9 @@ class EntityControllerEnabledSwitch(EntityControllerEntity, SwitchEntity):
 
 class EntityControllerStayModeSwitch(EntityControllerEntity, SwitchEntity):
     """Control runtime stay mode."""
+
+    _attr_icon = "mdi:pin"
+    _attr_translation_key = "stay_mode"
 
     def __init__(self, runtime, entry_id: str) -> None:
         super().__init__(runtime, entry_id, "stay_mode")

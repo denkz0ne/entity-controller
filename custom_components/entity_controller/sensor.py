@@ -13,6 +13,9 @@ from .entity import EntityControllerEntity
 class EntityControllerStateSensor(EntityControllerEntity, SensorEntity):
     """Expose the exact controller FSM state."""
 
+    _attr_icon = "mdi:state-machine"
+    _attr_translation_key = "state"
+
     def __init__(
         self,
         runtime: ControllerRuntime,
@@ -27,6 +30,8 @@ class EntityControllerStateSensor(EntityControllerEntity, SensorEntity):
             enabled_default=diagnostic_key is None,
         )
         self.diagnostic_key = diagnostic_key
+        if diagnostic_key is not None:
+            self._attr_translation_key = None
 
     @property
     def native_value(self) -> str:

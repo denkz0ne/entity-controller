@@ -418,5 +418,39 @@
         "ignore": "Nerobiť nič"
       }
     }
+  },
+  "entity": {
+    "sensor": {
+      "state": {
+        "name": "EC Stav",
+        "state": {
+          "idle": "Nečinný",
+          "active_timer": "Aktívny časovač",
+          "active_stay_on": "Aktívny trvalý režim",
+          "blocked": "Blokovaný",
+          "overridden": "Override",
+          "constrained": "Časovo obmedzený",
+          "disabled": "Vypnutý"
+        }
+      }
+    },
+    "switch": {
+      "enabled": {
+        "name": "EC Zapnutý"
+      },
+      "stay_mode": {
+        "name": "EC Trvalý režim"
+      }
+    },
+    "binary_sensor": {
+      "blocked": {
+        "name": "EC Blokovaný"
+      }
+    },
+    "button": {
+      "activate": {
+        "name": "EC Aktivovať"
+      }
+    }
   }
 }

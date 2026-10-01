@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import replace
+import json
+from pathlib import Path
+
 import pytest
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.components.button import ButtonEntity
@@ -34,7 +38,7 @@ def make_runtime() -> ControllerRuntime:
     )
 
 
-def test_native_entities_have_stable_unique_ids_and_subentry_device_info() -> None:
+def test_native_entities_have_stable_unique_ids_names_icons_and_device_info() -> None:
     runtime = make_runtime()
 
     entities = [
@@ -52,12 +56,33 @@ def test_native_entities_have_stable_unique_ids_and_subentry_device_info() -> No
         "entry-1_controller-a_blocked",
         "entry-1_controller-a_activate",
     ]
+    assert [entity.suggested_object_id for entity in entities] == [
+        "ec_hall_motion_state",
+        "ec_hall_motion_enabled",
+        "ec_hall_motion_stay_mode",
+        "ec_hall_motion_blocked",
+        "ec_hall_motion_activate",
+    ]
+    assert [entity.translation_key for entity in entities] == [
+        "state",
+        "enabled",
+        "stay_mode",
+        "blocked",
+        "activate",
+    ]
+    assert [entity.icon for entity in entities] == [
+        "mdi:state-machine",
+        "mdi:toggle-switch",
+        "mdi:pin",
+        "mdi:shield-lock",
+        "mdi:play-circle",
+    ]
     for entity in entities:
         assert entity.device_info["identifiers"] == {
             ("entity_controller", "controller-a")
         }
         assert entity.device_info["name"] == "Hall Motion"
-        assert entity.icon == "mdi:motion-sensor"
+        assert entity.has_entity_name
         assert "config_entry_id" not in entity.device_info
         assert "config_subentry_id" not in entity.device_info
 
@@ -66,6 +91,34 @@ def test_native_entities_have_stable_unique_ids_and_subentry_device_info() -> No
     assert isinstance(entities[2], SwitchEntity)
     assert isinstance(entities[3], BinarySensorEntity)
     assert isinstance(entities[4], ButtonEntity)
+
+
+def test_renaming_controller_keeps_unique_id_and_only_changes_new_id_suggestion() -> None:
+    runtime = make_runtime()
+    entity = EntityControllerStateSensor(runtime, "entry-1")
+
+    renamed_runtime = ControllerRuntime(
+        replace(runtime.config, name="Kitchen Lights")
+    )
+    renamed_entity = EntityControllerStateSensor(renamed_runtime, "entry-1")
+
+    assert renamed_entity.unique_id == entity.unique_id
+    assert entity.suggested_object_id == "ec_hall_motion_state"
+    assert renamed_entity.suggested_object_id == "ec_kitchen_lights_state"
+
+
+def test_entity_translations_cover_native_function_names_and_fsm_states() -> None:
+    for path, state_name in (
+        (Path("custom_components/entity_controller/translations/en.json"), "EC State"),
+        (Path("custom_components/entity_controller/translations/sk.json"), "EC Stav"),
+    ):
+        entity = json.loads(path.read_text(encoding="utf-8"))["entity"]
+        assert entity["sensor"]["state"]["name"] == state_name
+        assert entity["sensor"]["state"]["state"]["active_timer"]
+        assert entity["switch"]["enabled"]["name"]
+        assert entity["switch"]["stay_mode"]["name"]
+        assert entity["binary_sensor"]["blocked"]["name"]
+        assert entity["button"]["activate"]["name"]
 
 
 def test_state_sensor_exposes_exact_fsm_state_and_runtime_attributes() -> None:
