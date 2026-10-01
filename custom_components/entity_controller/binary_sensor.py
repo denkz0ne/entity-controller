@@ -6,7 +6,7 @@ from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .entity import EntityControllerEntity
+from .entity import EntityControllerEntity, controller_entity_add_kwargs
 from .model import ControllerState
 
 
@@ -17,7 +17,7 @@ class EntityControllerBlockedBinarySensor(EntityControllerEntity, BinarySensorEn
     _attr_translation_key = "blocked"
 
     def __init__(self, runtime, entry_id: str) -> None:
-        super().__init__(runtime, entry_id, "blocked")
+        super().__init__(runtime, entry_id, "blocked", "binary_sensor")
 
     @property
     def is_on(self) -> bool:
@@ -51,8 +51,7 @@ async def async_setup_entry(
         entity = EntityControllerBlockedBinarySensor(runtime, entry.entry_id)
         entities[runtime.config.subentry_id] = entity
         async_add_entities(
-            [entity],
-            config_subentry_id=runtime.config.subentry_id,
+            [entity], **controller_entity_add_kwargs(entry, runtime.config.subentry_id)
         )
 
     def _changed(event: str, subentry_id: str, runtime) -> None:

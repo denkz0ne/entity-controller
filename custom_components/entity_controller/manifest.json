@@ -3,12 +3,11 @@
   "name": "Entity Controller",
   "codeowners": ["@denkz0ne"],
   "documentation": "https://github.com/denkz0ne/entity-controller",
-  "integration_type": "hub",
+  "integration_type": "device",
   "iot_class": "calculated",
   "config_flow": true,
-  "single_config_entry": true,
   "issue_tracker": "https://github.com/denkz0ne/entity-controller/issues",
   "requirements": [],
   "after_dependencies": ["light", "script"],
-  "version": "10.0.0-rc.7"
+  "version": "10.0.0-rc.8"
 }

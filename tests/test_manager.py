@@ -86,6 +86,8 @@ class FakeHass:
 
 class FakeEntry:
     entry_id = "entry-id"
+    data: dict[str, Any] = {}
+    subentries: dict[str, Any] = {}
 
 
 def subentry(subentry_id: str = "controller-a", **data: Any) -> FakeSubentry:
@@ -97,6 +99,28 @@ def subentry(subentry_id: str = "controller-a", **data: Any) -> FakeSubentry:
             **data,
         },
     )
+
+
+@pytest.mark.asyncio
+async def test_flat_config_entry_loads_one_controller_without_a_subentry() -> None:
+    entry = FakeEntry()
+    entry.data = {
+        "_ec_controller_id": "controller-id",
+        "_ec_entity_unique_id_prefix": "old-root_old-subentry",
+        "name": "WC",
+        "trigger_entities": (),
+        "control_entities": (),
+    }
+    manager = EntityControllerManager(FakeHass(), entry)
+
+    await manager.async_setup()
+
+    assert list(manager.controllers) == ["controller-id"]
+    assert manager.controllers["controller-id"].config.name == "WC"
+    assert manager.controllers["controller-id"].config.entity_unique_id_prefix == (
+        "old-root_old-subentry"
+    )
+    await manager.async_unload()
 
 
 @pytest.mark.asyncio

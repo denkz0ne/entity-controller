@@ -79,10 +79,11 @@ DEFAULT_TRANSITION_BEHAVIORS: Mapping[str, TransitionBehavior] = MappingProxyTyp
 
 @dataclass(frozen=True, slots=True)
 class ControllerConfig:
-    """Normalized configuration for one controller subentry."""
+    """Normalized configuration for one controller runtime."""
 
     subentry_id: str
     name: str
+    entity_unique_id_prefix: str | None = None
     icon: str | None = None
     trigger_entities: tuple[str, ...] = ()
     control_entities: tuple[str, ...] = ()

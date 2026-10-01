@@ -1,12 +1,13 @@
 # Entity Controller v10 development
 
-Entity Controller v10 targets Home Assistant 2026.9+ and is being rebuilt around Config Entries, Config Subentries, typed `ConfigEntry.runtime_data`, and an explicit async state machine.
+Entity Controller v10 targets Home Assistant 2026.9+ and uses one typed `ConfigEntry.runtime_data` manager per controller device, backed by an explicit async state machine.
 
-## Current milestone: 10.0.0-rc.7
+## Current milestone: 10.0.0-rc.8
 
-`10.0.0-rc.7` keeps the native single root, organizes the controller form
-around the common motion-light setup, and exposes localized native controller
-entities with runtime diagnostics and a redacted config-entry diagnostics file.
+`10.0.0-rc.8` replaces the root/subentry tree with one config entry per
+controller, organizes the controller form around the common motion-light
+setup, and exposes localized native controller entities with runtime
+diagnostics and a redacted config-entry diagnostics file.
 Runtime diagnostics retain transition provenance separately from reconcile
 reasons and do not add per-second countdown updates.
 

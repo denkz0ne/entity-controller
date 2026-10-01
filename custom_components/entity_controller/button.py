@@ -7,7 +7,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .actions import async_activate
-from .entity import EntityControllerEntity
+from .entity import EntityControllerEntity, controller_entity_add_kwargs
 
 
 class EntityControllerActivateButton(EntityControllerEntity, ButtonEntity):
@@ -17,7 +17,7 @@ class EntityControllerActivateButton(EntityControllerEntity, ButtonEntity):
     _attr_translation_key = "activate"
 
     def __init__(self, runtime, entry_id: str) -> None:
-        super().__init__(runtime, entry_id, "activate")
+        super().__init__(runtime, entry_id, "activate", "button")
 
     async def async_press(self) -> None:
         """Activate the controller."""
@@ -37,8 +37,7 @@ async def async_setup_entry(
         entity = EntityControllerActivateButton(runtime, entry.entry_id)
         entities[runtime.config.subentry_id] = entity
         async_add_entities(
-            [entity],
-            config_subentry_id=runtime.config.subentry_id,
+            [entity], **controller_entity_add_kwargs(entry, runtime.config.subentry_id)
         )
 
     def _changed(event: str, subentry_id: str, runtime) -> None:

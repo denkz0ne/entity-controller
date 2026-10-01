@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+<a name="10.0.0-rc.8"></a>
+## 10.0.0-rc.8 (2026-10-01)
+
+### Changes
+
+* represent each controller as one device config entry and remove the Hub/subentry nesting
+* migrate v10 prerelease controllers while retaining device identifiers, entity unique IDs, registry IDs, and user names
+* keep Add Controller on the integration page and make each controller settings action edit only that controller
+* add the selected control-center integration icon for Home Assistant and HACS
+* import legacy v9 YAML controllers once into separate config entries when Home Assistant loads the old YAML include
+
+### Fixes
+
+* use canonical controller entity IDs and localized names without the duplicated `EC` prefix; migrate only untouched generated prerelease IDs
+
 <a name="10.0.0-rc.7"></a>
 ## 10.0.0-rc.7 (2026-10-01)
 

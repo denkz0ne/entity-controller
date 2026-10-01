@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from PIL import Image
+
 FORBIDDEN_BRANDING = (
     "dano" + "bot",
     "daniel" + "bkr",
@@ -35,3 +37,17 @@ def test_repository_public_files_do_not_reference_legacy_owner_branding() -> Non
                 offenders.append(f"{path}: {forbidden}")
 
     assert offenders == []
+
+
+def test_integration_brand_assets_are_transparent_and_high_resolution() -> None:
+    brand_dir = Path("custom_components/entity_controller/brand")
+
+    for filename, dimensions in (("icon.png", (256, 256)), ("icon@2x.png", (512, 512))):
+        with Image.open(brand_dir / filename) as image:
+            assert image.size == dimensions
+            assert image.mode == "RGBA"
+            assert image.getchannel("A").getextrema() == (0, 255)
+
+    assert (brand_dir / "icon.svg").is_file()
+    assert not (brand_dir / "dark_icon.svg").exists()
+    assert not (brand_dir / "dark_icon.png").exists()

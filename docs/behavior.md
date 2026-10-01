@@ -1,6 +1,6 @@
 # Entity Controller v10 behavior
 
-> Source baseline: `v10-modernization`, `10.0.0-rc.7`. This is a source-derived runtime reference, not a description of planned behavior.
+> Source baseline: `v10-modernization`, `10.0.0-rc.8`. This is a source-derived runtime reference, not a description of planned behavior.
 
 Entity Controller v10 implements an explicit async finite-state machine. The controller has seven user-visible runtime states and two different ways to change state:
 
@@ -185,7 +185,7 @@ The Enabled native switch controls whether EC makes decisions for that controlle
 
 Turning it OFF does **not** call `turn_off` on controlled loads. It sets the controller-owned flag and reconciles to `disabled`. Turning it ON reconciles current sensors, constraints, overrides, interlocks, and monitored states.
 
-The value is persisted into the controller subentry.
+The value is persisted into the controller config entry.
 
 ## Activate
 

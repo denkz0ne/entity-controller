@@ -41,6 +41,7 @@ jobs:
             custom_components/entity_controller/controller.py \
             custom_components/entity_controller/diagnostics.py \
             custom_components/entity_controller/entity.py \
+            custom_components/entity_controller/entry_migration.py \
             custom_components/entity_controller/legacy_entity.py \
             custom_components/entity_controller/manager.py \
             custom_components/entity_controller/migration.py \
@@ -52,9 +53,11 @@ jobs:
             custom_components/entity_controller/storage.py \
             custom_components/entity_controller/switch.py \
             tests/test_config_flow.py \
+            tests/test_config_flow_translations.py \
             tests/test_context.py \
             tests/test_controller_fsm.py \
             tests/test_diagnostics.py \
+            tests/test_entry_migration.py \
             tests/test_entities.py \
             tests/test_init.py \
             tests/test_legacy_entity.py \
@@ -71,7 +74,6 @@ jobs:
             tests/test_repository_metadata.py \
             tests/test_schedule.py \
             tests/test_services.py \
-            tests/test_subentry_flow.py \
             tests/test_timer_backoff.py
 
       - name: Validate repository metadata
@@ -94,9 +96,10 @@ jobs:
             tests/test_reconcile.py \
             tests/test_reconfigure.py \
             tests/test_entities.py \
+            tests/test_entry_migration.py \
             tests/test_services.py \
             tests/test_config_flow.py \
-            tests/test_subentry_flow.py \
+            tests/test_config_flow_translations.py \
             tests/test_migration.py \
             tests/test_legacy_entity.py \
             tests/test_persistence.py \

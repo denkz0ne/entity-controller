@@ -1,4 +1,4 @@
-"""Root runtime manager for Entity Controller v10."""
+"""Controller runtime manager for Entity Controller v10."""
 
 from __future__ import annotations
 
@@ -6,10 +6,12 @@ from collections import defaultdict
 from collections.abc import Callable
 from datetime import datetime
 from functools import partial
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
 from .context import ContextTracker
 from .controller import ControllerRuntime, ReconcileSnapshot
+from .entry_migration import CONTROLLER_ID_KEY, ENTITY_UNIQUE_ID_PREFIX_KEY
 from .model import (
     DEFAULT_TRANSITION_BEHAVIORS,
     ControllerConfig,
@@ -177,13 +179,28 @@ class EntityControllerManager:
         return runtime
 
     async def async_sync_subentries(self) -> None:
-        """Synchronize live runtimes with the config entry's controller subentries."""
+        """Synchronize live runtimes with this entry's controller configuration."""
 
-        subentries = {
-            subentry_id: subentry
-            for subentry_id, subentry in getattr(self.entry, "subentries", {}).items()
-            if getattr(subentry, "subentry_type", "controller") == "controller"
-        }
+        if controller_id := getattr(self.entry, "data", {}).get(CONTROLLER_ID_KEY):
+            controller_data = {
+                key: value
+                for key, value in self.entry.data.items()
+                if key != CONTROLLER_ID_KEY
+            }
+            subentries = {
+                controller_id: SimpleNamespace(
+                    subentry_id=controller_id,
+                    data=controller_data,
+                )
+            }
+        else:
+            subentries = {
+                subentry_id: subentry
+                for subentry_id, subentry in getattr(
+                    self.entry, "subentries", {}
+                ).items()
+                if getattr(subentry, "subentry_type", "controller") == "controller"
+            }
         for subentry_id in set(self.controllers) - set(subentries):
             await self.async_remove_controller(subentry_id)
         for subentry_id, subentry in subentries.items():
@@ -254,9 +271,15 @@ class EntityControllerManager:
             )
 
     async def _async_persist_runtime_state(self, runtime: ControllerRuntime) -> None:
-        """Persist controller-owned switches in its config subentry."""
+        """Persist controller-owned switches in the entry or legacy subentry."""
 
         if not hasattr(self.hass, "config_entries"):
+            return
+        if getattr(self.entry, "data", {}).get(CONTROLLER_ID_KEY):
+            data = dict(self.entry.data)
+            data["enabled"] = runtime.enabled
+            data["stay_mode"] = runtime.stay_mode
+            self.hass.config_entries.async_update_entry(self.entry, data=data)
             return
         subentry = getattr(self.entry, "subentries", {}).get(runtime.config.subentry_id)
         if subentry is None or not hasattr(
@@ -289,7 +312,9 @@ class EntityControllerManager:
         kwargs: dict[str, Any] = {
             "subentry_id": subentry.subentry_id,
             "name": data.pop("name", subentry.subentry_id),
+            "entity_unique_id_prefix": data.pop(ENTITY_UNIQUE_ID_PREFIX_KEY, None),
         }
+        data.pop(CONTROLLER_ID_KEY, None)
         for field in _ENTITY_FIELDS:
             if field in data:
                 kwargs[field] = tuple(data.pop(field) or ())

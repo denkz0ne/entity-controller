@@ -1,19 +1,15 @@
 # Entity Controller v10 Configuration
 
-Entity Controller v10 uses one root Config Entry and one controller Config Subentry per controller rule.
+Entity Controller v10 uses one Home Assistant config entry and one device per controller.
 
-Home Assistant prevents a second root entry. Add further rules from the
-existing Entity Controller integration settings; each becomes its own
-controller device. The exact label of the stock Home Assistant control is
-owned by Home Assistant and is not replaced by custom frontend code.
+Add another controller with the top-right `+` on the Entity Controller
+integration page. Open a controller's settings to edit only that controller.
 
 The UI supports:
-- creating the root Entity Controller entry;
-- opening the first controller form immediately after setup;
-- showing Entity Controller on the Integrations page as one hub;
-- showing every controller below it as a device with its native entities;
-- adding further controllers from the Entity Controller integration;
-- reconfiguring one controller without reloading unrelated controllers;
+- creating a controller directly from the integration page;
+- showing every controller directly as one device with its native entities;
+- adding controllers as separate config entries of the same integration;
+- reconfiguring one controller without changing other controllers;
 - selecting trigger and controlled entities with native entity selectors;
 - preserving external override and interlock Helper/entity references;
 - allowed operating windows using fixed times, sunrise, or sunset with offsets;
@@ -31,7 +27,7 @@ controller is created; live values are managed by their native switches.
 
 Controller changes apply live. A trigger turns on the selected controlled
 entities, retriggers reset the timer, and timer expiry turns them off. Enabled
-and Stay Mode state is stored in the controller subentry. The allowed window
+and Stay Mode state is stored in the controller config entry. The allowed window
 prevents activation outside its bounds. The night window changes the active
 profile without creating another controller. All controller fields can be
 edited later from the controller device in the Entity Controller integration.

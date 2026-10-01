@@ -1,8 +1,8 @@
 # Entity Controller v10 native entities
 
-> Current behavior: `v10-modernization`, `10.0.0-rc.7`. Each native entity has a stable unique ID, a translated function name, a function-specific icon, and a canonical suggested entity ID for first registration.
+> Current behavior: `v10-modernization`, `10.0.0-rc.8`. Each controller config entry owns one device with five native entities. Each native entity has a stable unique ID, a translated function name, a function-specific icon, and a canonical entity ID.
 
-Each controller config subentry owns one virtual Home Assistant device and currently exposes five native entities.
+Each controller config entry owns one virtual Home Assistant device and currently exposes five native entities.
 
 ## Native entities
 
@@ -79,33 +79,33 @@ binary_sensor.ec_obyvacka_blocked
 button.ec_obyvacka_activate
 ```
 
-The stable `unique_id` must remain based on root config-entry ID + controller subentry ID + entity function key. Renaming a controller must not change the unique ID.
+The stable `unique_id` uses a per-controller prefix plus the entity function key. During migration from v10 prereleases, that prefix is retained exactly from the old root config-entry ID and controller subentry ID. Renaming a controller must not change the unique ID.
 
-The suggestion is used only for the first registration. Home Assistant retains an existing registry entity ID by its stable unique ID, so controller renames and user-customized IDs are preserved.
+The canonical ID is supplied to Home Assistant explicitly on first registration. The stable `unique_id` remains unchanged, so controller renames do not alter an existing ID and user-customized IDs stay intact. v10 prerelease IDs matching the exact generated `controller_ec_controller_function` pattern are migrated to the canonical ID when it is unclaimed; customized IDs and collisions are left untouched.
 
 ## Visible names and localization
 
-New integrations should use Home Assistant native entity naming: `has_entity_name = True` plus `translation_key`, rather than hard-coded natural-language names in Python.
+Native entities use Home Assistant translations for the function name and the controller name as the device name. Translation labels do not repeat the old generic `EC` prefix. For controller `Obývačka`, the visible Slovak names are:
 
 The controller device supplies the device name; the entity supplies only its translated function name. The frontend can therefore render names equivalent to:
 
-- `Obývačka - EC Stav`
-- `Obývačka - EC Zapnutý`
-- `Obývačka - EC Trvalý režim`
-- `Obývačka - EC Blokovaný`
-- `Obývačka - EC Aktivovať`
+- `Obývačka Stav`
+- `Obývačka Zapnutý`
+- `Obývačka Trvalý režim`
+- `Obývačka Blokovaný`
+- `Obývačka Aktivovať`
 
 Recommended Slovak function labels:
 
 | Key | Slovak | English |
 | --- | --- | --- |
-| `state` | `EC Stav` | `EC State` |
-| `enabled` | `EC Zapnutý` | `EC Enabled` |
-| `stay_mode` | `EC Trvalý režim` | `EC Stay mode` |
-| `blocked` | `EC Blokovaný` | `EC Blocked` |
-| `activate` | `EC Aktivovať` | `EC Activate` |
+| `state` | `Stav` | `State` |
+| `enabled` | `Zapnutý` | `Enabled` |
+| `stay_mode` | `Trvalý režim` | `Stay mode` |
+| `blocked` | `Blokovaný` | `Blocked` |
+| `activate` | `Aktivovať` | `Activate` |
 
-The exact separator/combined friendly-name rendering is controlled by Home Assistant's device/entity naming model; do not hard-code the controller name into the entity translation itself.
+Entity IDs use `ec_<controller_slug>_<function>` independently of the visible localized name. Existing user-renamed entity IDs are never rewritten when a controller is renamed.
 
 ## Entity icons
 

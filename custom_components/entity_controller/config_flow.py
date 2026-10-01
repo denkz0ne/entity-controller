@@ -1,10 +1,10 @@
-"""Config and config subentry flows for Entity Controller v10."""
+"""Config entry flow for individual Entity Controller devices."""
 
 from __future__ import annotations
 
 from datetime import timedelta
-from types import MappingProxyType
 from typing import Any
+from uuid import uuid4
 
 import voluptuous as vol
 from homeassistant import config_entries, data_entry_flow
@@ -12,14 +12,8 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import DEFAULT_DELAY_SECONDS, DOMAIN
+from .entry_migration import fresh_controller_data
 from .model import DEFAULT_TRANSITION_BEHAVIORS
-
-try:
-    ConfigSubentryFlow = config_entries.ConfigSubentryFlow
-except AttributeError:
-
-    class ConfigSubentryFlow(data_entry_flow.FlowHandler):
-        """Compatibility shim for test environments without HA subentry support."""
 
 
 def _as_tuple(value: Any) -> tuple[str, ...]:
@@ -123,13 +117,6 @@ SENSOR_TYPE_SELECTOR = selector.SelectSelector(
 )
 DURATION_SELECTOR = selector.DurationSelector(
     selector.DurationSelectorConfig(enable_day=True)
-)
-
-
-ROOT_SCHEMA = vol.Schema(
-    {
-        vol.Required("name", default="Entity Controller"): str,
-    }
 )
 
 
@@ -515,67 +502,22 @@ def normalize_controller_user_input(user_input: dict[str, Any]) -> dict[str, Any
 
 
 class EntityControllerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle the root Entity Controller config flow."""
+    """Create one controller device config entry per flow."""
 
-    VERSION = 10
+    VERSION = 11
 
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: Any) -> config_entries.OptionsFlow:
-        """Open a controller form from the integration settings action."""
+        """Open the options for this controller device."""
 
         return ControllerOptionsFlow()
 
-    @classmethod
-    @callback
-    def async_get_supported_subentry_types(
-        cls,
-        config_entry: Any,
-    ) -> dict[str, type[ConfigSubentryFlow]]:
-        """Return subentry types supported by Entity Controller."""
-
-        return {"controller": ControllerSubentryFlowHandler}
-
     async def async_step_user(
         self,
         user_input: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Create the single root Entity Controller entry."""
-
-        if user_input is None:
-            return self.async_show_form(
-                step_id="user",
-                data_schema=ROOT_SCHEMA,
-                errors={},
-            )
-        title = str(user_input.get("name") or "Entity Controller")
-        return self.async_create_entry(title=title, data={"name": title})
-
-    async def async_on_create_entry(self, result: dict[str, Any]) -> dict[str, Any]:
-        """Open the first controller form immediately after creating the root."""
-
-        subentries = self.hass.config_entries.subentries
-        subentry_result = await subentries.async_init(
-            (result["result"].entry_id, "controller"),
-            context={"source": "user"},
-        )
-        try:
-            from homeassistant.config_entries import FlowType
-
-            flow_type = FlowType.CONFIG_SUBENTRIES_FLOW
-        except ImportError:
-            flow_type = "config_subentries_flow"
-        result["next_flow"] = (flow_type, subentry_result["flow_id"])
-        return result
-
-class ControllerSubentryFlowHandler(ConfigSubentryFlow):
-    """Handle add/reconfigure flow for one controller subentry."""
-
-    async def async_step_user(
-        self,
-        user_input: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """Create a controller subentry."""
+        """Create one named controller entry directly from the integration page."""
 
         if user_input is None:
             return self.async_show_form(
@@ -583,66 +525,55 @@ class ControllerSubentryFlowHandler(ConfigSubentryFlow):
                 data_schema=CONTROLLER_SCHEMA,
                 errors={},
             )
-        data = normalize_controller_user_input(user_input)
+        controller_id = uuid4().hex
+        data = fresh_controller_data(
+            normalize_controller_user_input(user_input), controller_id=controller_id
+        )
         return self.async_create_entry(title=data["name"], data=data)
 
-    async def async_step_reconfigure(
-        self,
-        user_input: dict[str, Any] | None = None,
+    async def async_step_import(
+        self, import_config: dict[str, Any]
     ) -> dict[str, Any]:
-        """Reconfigure one controller without reloading the root entry."""
+        """Import one controller from the legacy YAML configuration."""
 
-        if user_input is None:
-            schema = CONTROLLER_RECONFIGURE_SCHEMA
-            if self.source == "reconfigure":
-                subentry = self._get_reconfigure_subentry()
-                schema = self.add_suggested_values_to_schema(
-                    schema, controller_form_values(dict(subentry.data))
-                )
-            return self.async_show_form(
-                step_id="reconfigure",
-                data_schema=schema,
-                errors={},
-            )
-        data = normalize_controller_user_input(user_input)
-        current_data = dict(getattr(self._get_reconfigure_subentry(), "data", {}))
-        for key in ("enabled", "stay_mode"):
-            if key in current_data:
-                data[key] = current_data[key]
-        return self.async_update_and_abort(
-            self._get_entry(),
-            self._get_reconfigure_subentry(),
-            data=data,
-            title=data["name"],
+        controller_id = import_config["controller_id"]
+        await self.async_set_unique_id(f"legacy-yaml:{controller_id}")
+        self._abort_if_unique_id_configured()
+        data = fresh_controller_data(
+            {key: value for key, value in import_config.items() if key != "controller_id"},
+            controller_id=controller_id,
         )
+        return self.async_create_entry(title=data["name"], data=data)
 
 
 class ControllerOptionsFlow(config_entries.OptionsFlow):
-    """Add a controller from the Entity Controller integration settings."""
+    """Edit the controller represented by this config entry."""
 
     async def async_step_init(
         self,
         user_input: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Show the add-controller form and attach the new subentry."""
+        """Show this controller's editable settings."""
 
         if user_input is None:
+            schema = CONTROLLER_RECONFIGURE_SCHEMA
+            if self.source == "init":
+                schema = self.add_suggested_values_to_schema(
+                    schema, controller_form_values(dict(self.config_entry.data))
+                )
             return self.async_show_form(
                 step_id="init",
-                data_schema=CONTROLLER_SCHEMA,
+                data_schema=schema,
                 errors={},
             )
         data = normalize_controller_user_input(user_input)
-        subentry_type = getattr(config_entries, "ConfigSubentry", None)
-        if subentry_type is None:
-            return self.async_abort(reason="subentries_not_supported")
-        self.hass.config_entries.async_add_subentry(
+        current_data = dict(self.config_entry.data)
+        for key in ("enabled", "stay_mode", "_ec_controller_id", "_ec_entity_unique_id_prefix"):
+            if key in current_data:
+                data[key] = current_data[key]
+        self.hass.config_entries.async_update_entry(
             self.config_entry,
-            subentry_type(
-                data=MappingProxyType(data),
-                subentry_type="controller",
-                title=data["name"],
-                unique_id=None,
-            ),
+            data=data,
+            title=data["name"],
         )
-        return self.async_create_entry(title="", data=dict(self.config_entry.options))
+        return self.async_create_entry(title="", data={})

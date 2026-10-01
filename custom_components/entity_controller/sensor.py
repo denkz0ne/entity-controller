@@ -7,7 +7,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .controller import ControllerRuntime
-from .entity import EntityControllerEntity
+from .entity import EntityControllerEntity, controller_entity_add_kwargs
 
 
 class EntityControllerStateSensor(EntityControllerEntity, SensorEntity):
@@ -27,6 +27,7 @@ class EntityControllerStateSensor(EntityControllerEntity, SensorEntity):
             runtime,
             entry_id,
             diagnostic_key or "state",
+            "sensor",
             enabled_default=diagnostic_key is None,
         )
         self.diagnostic_key = diagnostic_key
@@ -100,8 +101,7 @@ async def async_setup_entry(
         entity = EntityControllerStateSensor(runtime, entry.entry_id)
         entities[runtime.config.subentry_id] = entity
         async_add_entities(
-            [entity],
-            config_subentry_id=runtime.config.subentry_id,
+            [entity], **controller_entity_add_kwargs(entry, runtime.config.subentry_id)
         )
 
     def _changed(event: str, subentry_id: str, runtime) -> None:

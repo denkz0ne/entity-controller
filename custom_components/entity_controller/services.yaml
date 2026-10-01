@@ -3,35 +3,35 @@ activate:
     Active constraints, overrides, interlocks, and blocked state are preserved.
   fields:
     controller_id:
-      description: Controller subentry id. If omitted, targets all controllers.
+      description: Stable controller id. If omitted, targets all controllers.
       example: 'motion_light'
 
 clear_block:
   description: Clears the blocked state of an Entity Controller, if set
   fields:
     controller_id:
-      description: Controller subentry id. If omitted, targets all controllers.
+      description: Stable controller id. If omitted, targets all controllers.
       example: 'motion_light'
 
 enable_block:
   description: Enables the blocked state of an Entity Controller, if timer is active
   fields:
     controller_id:
-      description: Controller subentry id. If omitted, targets all controllers.
+      description: Stable controller id. If omitted, targets all controllers.
       example: 'motion_light'
 
 enable_stay_mode:
   description: Change the stay to on
   fields:
     controller_id:
-      description: Controller subentry id. If omitted, targets all controllers.
+      description: Stable controller id. If omitted, targets all controllers.
       example: 'motion_light'
 
 disable_stay_mode:
   description: Change the stay to off
   fields:
     controller_id:
-      description: Controller subentry id. If omitted, targets all controllers.
+      description: Stable controller id. If omitted, targets all controllers.
       example: 'motion_light'
 
 set_night_mode:
@@ -40,7 +40,7 @@ set_night_mode:
     are not provided, it will set both to midnight, effectivly disabling night mode.
   fields:
     controller_id:
-      description: Controller subentry id. If omitted, targets all controllers.
+      description: Stable controller id. If omitted, targets all controllers.
       example: 'motion_light'
     start_time:
       description: new start time to set night mode to.

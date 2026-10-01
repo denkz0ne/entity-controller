@@ -3,10 +3,10 @@
 ## Migration rehearsal
 
 - Rehearse v9.7.6 -> v10 with a legacy YAML fixture.
-- Import legacy YAML into controller subentry data.
-- Restart once with legacy YAML still present and confirm no duplicate controller subentries.
+- Import legacy YAML into one config entry per controller.
+- Restart once with legacy YAML still present and confirm no duplicate controller entries or devices.
 - Validate migrated controllers, then remove YAML manually.
-- Restart again and confirm the Config Entry remains authoritative.
+- Restart again and confirm each controller Config Entry remains authoritative.
 
 ## EC01-EC10 smoke matrix
 
@@ -32,7 +32,7 @@
 
 ## known limitations
 
-- Current GitHub Actions install Home Assistant 2025.1.4, so Config Subentry behavior still needs real Home Assistant 2026.9 smoke validation.
+- Current GitHub Actions install Home Assistant 2025.1.4, so flat-entry migration and the new integration page still need real Home Assistant 2026.9 smoke validation.
 - Migration Repairs are guide-only; Entity Controller never deletes Helpers or rewrites/removes YAML.
 - The legacy state mirror is transitional compatibility and should remain documented until stable migration feedback is clean.
 - Old v9 tests remain in the repository for reference but are not part of the maintained v10 CI surface.

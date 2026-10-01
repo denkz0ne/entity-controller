@@ -11,7 +11,7 @@ Entity Controller v10 keeps compatibility actions for common v9 service workflow
 - `entity_controller.disable_stay_mode`
 - `entity_controller.set_night_mode`
 
-Actions target one controller by subentry/controller id. They operate on the assigned runtime only and do not rebuild the root integration.
+Actions target one controller by its stable controller id. They operate on the assigned runtime only and do not rebuild or change other controller entries.
 
 ## Native controls
 

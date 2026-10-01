@@ -6,7 +6,7 @@ from homeassistant.components.switch import SwitchEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .entity import EntityControllerEntity
+from .entity import EntityControllerEntity, controller_entity_add_kwargs
 
 
 class EntityControllerEnabledSwitch(EntityControllerEntity, SwitchEntity):
@@ -16,7 +16,7 @@ class EntityControllerEnabledSwitch(EntityControllerEntity, SwitchEntity):
     _attr_translation_key = "enabled"
 
     def __init__(self, runtime, entry_id: str) -> None:
-        super().__init__(runtime, entry_id, "enabled")
+        super().__init__(runtime, entry_id, "enabled", "switch")
 
     @property
     def is_on(self) -> bool:
@@ -42,7 +42,7 @@ class EntityControllerStayModeSwitch(EntityControllerEntity, SwitchEntity):
     _attr_translation_key = "stay_mode"
 
     def __init__(self, runtime, entry_id: str) -> None:
-        super().__init__(runtime, entry_id, "stay_mode")
+        super().__init__(runtime, entry_id, "stay_mode", "switch")
 
     @property
     def is_on(self) -> bool:
@@ -77,7 +77,7 @@ async def async_setup_entry(
         entities[runtime.config.subentry_id] = controller_entities
         async_add_entities(
             controller_entities,
-            config_subentry_id=runtime.config.subentry_id,
+            **controller_entity_add_kwargs(entry, runtime.config.subentry_id),
         )
 
     def _changed(event: str, subentry_id: str, runtime) -> None:

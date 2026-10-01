@@ -1,16 +1,18 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
-from homeassistant import config_entries
+from homeassistant import data_entry_flow
+from homeassistant.config_entries import ConfigEntryState
 
 from custom_components.entity_controller.config_flow import (
     CONTROLLER_RECONFIGURE_SCHEMA,
     CONTROLLER_SCHEMA,
     ControllerOptionsFlow,
-    ControllerSubentryFlowHandler,
     EntityControllerConfigFlow,
     controller_form_values,
     normalize_controller_user_input,
@@ -23,15 +25,6 @@ def _prepare_config_flow(
 ) -> EntityControllerConfigFlow:
     flow.flow_id = "root-flow"
     flow.handler = DOMAIN
-    flow.context = {"source": "user"}
-    return flow
-
-
-def _prepare_subentry_flow(
-    flow: ControllerSubentryFlowHandler,
-) -> ControllerSubentryFlowHandler:
-    flow.flow_id = "controller-flow"
-    flow.handler = ("entry-id", "controller")
     flow.context = {"source": "user"}
     return flow
 
@@ -56,48 +49,111 @@ def _section_schema(schema: object, name: str) -> object:
     raise AssertionError(f"Missing section {name}")
 
 
+class _ImportFlowManager:
+    def async_progress_by_handler(self, *args, **kwargs):
+        return []
+
+    def async_abort(self, flow_id):
+        raise AssertionError(f"Unexpected flow abort: {flow_id}")
+
+
+class _ImportConfigEntries:
+    def __init__(self, entries=()):
+        self.entries = list(entries)
+        self.flow = _ImportFlowManager()
+
+    def async_entries(self, domain, include_ignore=False):
+        return self.entries
+
+    def async_entry_for_domain_unique_id(self, domain, unique_id):
+        return next((entry for entry in self.entries if entry.unique_id == unique_id), None)
+
+
+def _prepare_import_flow(existing=()):
+    flow = EntityControllerConfigFlow()
+    flow.flow_id = "import-flow"
+    flow.handler = DOMAIN
+    flow.context = {"source": "import"}
+    flow.hass = SimpleNamespace(
+        loop=asyncio.get_running_loop(),
+        config_entries=_ImportConfigEntries(existing),
+    )
+    return flow
+
+
 @pytest.mark.asyncio
-async def test_root_flow_creates_single_entity_controller_entry() -> None:
+async def test_import_flow_creates_entry_with_stable_legacy_identity() -> None:
+    flow = _prepare_import_flow()
+
+    result = await flow.async_step_import(
+        {
+            "controller_id": "old_bedroom",
+            "name": "Old Bedroom",
+            "trigger_entities": ("binary_sensor.bedroom_motion",),
+            "control_entities": ("light.bedroom",),
+            "delay_seconds": 90.0,
+        }
+    )
+
+    assert result["type"] == "create_entry"
+    assert result["title"] == "Old Bedroom"
+    assert result["data"] == {
+        "name": "Old Bedroom",
+        "trigger_entities": ("binary_sensor.bedroom_motion",),
+        "control_entities": ("light.bedroom",),
+        "delay_seconds": 90.0,
+        "_ec_controller_id": "old_bedroom",
+        "_ec_entity_unique_id_prefix": "old_bedroom",
+    }
+    assert result["context"]["unique_id"] == "legacy-yaml:old_bedroom"
+    assert result["version"] == 11
+
+
+@pytest.mark.asyncio
+async def test_import_flow_aborts_duplicate_without_changing_existing_entry() -> None:
+    existing = SimpleNamespace(
+        unique_id="legacy-yaml:old_bedroom",
+        data={"name": "User edited name"},
+        source="import",
+        state=ConfigEntryState.NOT_LOADED,
+    )
+    flow = _prepare_import_flow([existing])
+
+    with pytest.raises(data_entry_flow.AbortFlow):
+        await flow.async_step_import(
+            {"controller_id": "old_bedroom", "name": "Old Bedroom"}
+        )
+
+    assert existing.data == {"name": "User edited name"}
+
+
+@pytest.mark.asyncio
+async def test_user_flow_creates_a_controller_device_entry() -> None:
     flow = _prepare_config_flow(EntityControllerConfigFlow())
 
-    result = await flow.async_step_user({"name": "Entity Controller"})
+    result = await flow.async_step_user(
+        {
+            "name": "WC",
+            "trigger_entities": ["binary_sensor.wc_motion"],
+            "control_entities": ["light.wc"],
+        }
+    )
 
     assert result["type"] == "create_entry"
     assert result["flow_id"] == "root-flow"
     assert result["handler"] == DOMAIN
-    assert result["title"] == "Entity Controller"
-    assert result["data"] == {"name": "Entity Controller"}
-    assert result["version"] == 10
+    assert result["title"] == "WC"
+    assert result["data"]["name"] == "WC"
+    assert result["data"]["trigger_entities"] == ("binary_sensor.wc_motion",)
+    assert result["data"]["_ec_controller_id"]
+    assert result["data"]["_ec_entity_unique_id_prefix"] == result["data"][
+        "_ec_controller_id"
+    ]
+    assert result["version"] == 11
 
 
 @pytest.mark.asyncio
-async def test_root_creation_starts_controller_subentry_flow() -> None:
-    class SubentryFlows:
-        async def async_init(self, handler, *, context):
-            assert handler == ("entry-id", "controller")
-            assert context["source"] == "user"
-            return {"flow_id": "subentry-flow"}
-
-    flow = _prepare_config_flow(EntityControllerConfigFlow())
-    flow.hass = type(
-        "Hass",
-        (),
-        {
-            "config_entries": type(
-                "ConfigEntries", (), {"subentries": SubentryFlows()}
-            )()
-        },
-    )()
-
-    result = await flow.async_on_create_entry(
-        {"result": type("Entry", (), {"entry_id": "entry-id"})()}
-    )
-
-    assert result["next_flow"][1] == "subentry-flow"
-
-
-@pytest.mark.asyncio
-async def test_root_flow_form_has_visible_fields() -> None:
+async def test_add_flow_form_has_controller_fields() -> None:
     flow = _prepare_config_flow(EntityControllerConfigFlow())
 
     result = await flow.async_step_user()
@@ -105,7 +161,7 @@ async def test_root_flow_form_has_visible_fields() -> None:
     assert result["type"] == "form"
     assert result["flow_id"] == "root-flow"
     assert result["handler"] == DOMAIN
-    assert "name" in _schema_keys(result["data_schema"])
+    assert _schema_keys(result["data_schema"]) == _schema_keys(CONTROLLER_SCHEMA)
 
 
 def test_controller_form_keeps_common_setup_in_one_expanded_section() -> None:
@@ -133,46 +189,69 @@ def test_reconfigure_form_omits_creation_only_defaults() -> None:
     assert "initial_state" not in _schema_keys(CONTROLLER_RECONFIGURE_SCHEMA)
 
 
-def test_root_flow_advertises_controller_subentry_type() -> None:
-    supported = EntityControllerConfigFlow.async_get_supported_subentry_types(object())
-
-    assert supported == {"controller": ControllerSubentryFlowHandler}
-
-
 @pytest.mark.asyncio
-async def test_integration_settings_opens_add_controller_form() -> None:
-    flow = ControllerOptionsFlow()
-    flow.flow_id = "options-flow"
-    flow.handler = "entry-id"
-    flow.context = {"source": "init"}
-
-    result = await flow.async_step_init()
-
-    assert result["type"] == "form"
-    assert result["handler"] == "entry-id"
-    assert "trigger_entities" in _all_schema_keys(result["data_schema"])
-
-
-@pytest.mark.asyncio
-async def test_integration_settings_adds_controller_subentry(monkeypatch) -> None:
-    added: list[object] = []
-
-    class Subentry:
-        def __init__(self, **kwargs):
-            self.__dict__.update(kwargs)
-
-    entry = type("Entry", (), {"domain": DOMAIN, "options": {}})()
+async def test_device_settings_opens_edit_controller_form() -> None:
+    entry = type(
+        "Entry",
+        (),
+        {
+            "entry_id": "entry-id",
+            "data": {"name": "Hall", "trigger_entities": ("binary_sensor.hall",)},
+        },
+    )()
 
     class ConfigEntries:
         def async_get_known_entry(self, entry_id):
             assert entry_id == "entry-id"
             return entry
 
-        def async_add_subentry(self, parent, subentry):
-            assert parent is entry
-            added.append(subentry)
+    flow = ControllerOptionsFlow()
+    flow.flow_id = "options-flow"
+    flow.handler = "entry-id"
+    flow.context = {"source": "init"}
+    flow.hass = type("Hass", (), {"config_entries": ConfigEntries()})()
 
-    monkeypatch.setattr(config_entries, "ConfigSubentry", Subentry, raising=False)
+    result = await flow.async_step_init()
+
+    assert result["type"] == "form"
+    assert result["handler"] == "entry-id"
+    assert _schema_keys(result["data_schema"]) == _schema_keys(
+        CONTROLLER_RECONFIGURE_SCHEMA
+    )
+
+
+@pytest.mark.asyncio
+async def test_device_settings_updates_only_that_controller() -> None:
+    entry = type(
+        "Entry",
+        (),
+        {
+            "domain": DOMAIN,
+            "entry_id": "entry-id",
+            "options": {},
+            "title": "Hall",
+            "data": {
+                "_ec_controller_id": "stable-controller-id",
+                "_ec_entity_unique_id_prefix": "stable-controller-id",
+                "name": "Hall",
+                "trigger_entities": ("binary_sensor.old",),
+                "control_entities": ("light.hall",),
+                "enabled": False,
+                "stay_mode": True,
+            },
+        },
+    )()
+
+    class ConfigEntries:
+        def async_get_known_entry(self, entry_id):
+            assert entry_id == "entry-id"
+            return entry
+
+        def async_update_entry(self, target, *, data, title):
+            assert target is entry
+            entry.data = data
+            entry.title = title
+
     flow = ControllerOptionsFlow()
     flow.flow_id = "options-flow"
     flow.handler = "entry-id"
@@ -182,14 +261,17 @@ async def test_integration_settings_adds_controller_subentry(monkeypatch) -> Non
     result = await flow.async_step_init(
         {
             "name": "Hall",
-            "trigger_entities": ["binary_sensor.hall"],
+            "trigger_entities": ["binary_sensor.new"],
             "control_entities": ["light.hall"],
         }
     )
 
     assert result["type"] == "create_entry"
-    assert added[0].subentry_type == "controller"
-    assert added[0].data["control_entities"] == ("light.hall",)
+    assert entry.title == "Hall"
+    assert entry.data["trigger_entities"] == ("binary_sensor.new",)
+    assert entry.data["_ec_controller_id"] == "stable-controller-id"
+    assert entry.data["enabled"] is False
+    assert entry.data["stay_mode"] is True
 
 
 def test_manifest_enables_config_flow() -> None:
@@ -199,8 +281,8 @@ def test_manifest_enables_config_flow() -> None:
 
     assert manifest["domain"] == DOMAIN
     assert manifest["config_flow"] is True
-    assert manifest["single_config_entry"] is True
-    assert manifest["integration_type"] == "hub"
+    assert manifest.get("single_config_entry", False) is False
+    assert manifest["integration_type"] == "device"
 
 
 def test_basic_controller_input_is_normalized_without_advanced_fields() -> None:
@@ -376,14 +458,14 @@ def test_stored_controller_data_is_expanded_back_into_form_sections() -> None:
 
 
 @pytest.mark.asyncio
-async def test_controller_subentry_form_is_valid_flow_result() -> None:
-    flow = _prepare_subentry_flow(ControllerSubentryFlowHandler())
+async def test_add_controller_form_contains_complete_configuration() -> None:
+    flow = _prepare_config_flow(EntityControllerConfigFlow())
 
     result = await flow.async_step_user()
 
     assert result["type"] == "form"
-    assert result["flow_id"] == "controller-flow"
-    assert result["handler"] == ("entry-id", "controller")
+    assert result["flow_id"] == "root-flow"
+    assert result["handler"] == DOMAIN
     assert result["step_id"] == "user"
     keys = _all_schema_keys(result["data_schema"])
     for required in (

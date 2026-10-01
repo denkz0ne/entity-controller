@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from homeassistant.components.binary_sensor import BinarySensorEntity
@@ -18,6 +19,7 @@ from custom_components.entity_controller.controller import (
     ControllerRuntime,
     ReconcileSnapshot,
 )
+from custom_components.entity_controller.entity import migrate_legacy_entity_id
 from custom_components.entity_controller.model import (
     ControllerConfig,
     ControllerState,
@@ -97,6 +99,76 @@ def test_native_entities_have_stable_unique_ids_names_icons_and_device_info() ->
     assert isinstance(entities[4], ButtonEntity)
 
 
+def test_wc_controller_uses_expected_canonical_entity_ids() -> None:
+    runtime = ControllerRuntime(replace(make_runtime().config, name="WC"))
+    entities = [
+        EntityControllerStateSensor(runtime, "entry-1"),
+        EntityControllerBlockedBinarySensor(runtime, "entry-1"),
+        EntityControllerEnabledSwitch(runtime, "entry-1"),
+        EntityControllerStayModeSwitch(runtime, "entry-1"),
+        EntityControllerActivateButton(runtime, "entry-1"),
+    ]
+
+    assert [entity.entity_id for entity in entities] == [
+        "sensor.ec_wc_state",
+        "binary_sensor.ec_wc_blocked",
+        "switch.ec_wc_enabled",
+        "switch.ec_wc_stay_mode",
+        "button.ec_wc_activate",
+    ]
+
+
+def test_legacy_wrong_entity_id_migrates_only_when_unchanged_and_unclaimed() -> None:
+    old_id = "switch.wc_ec_wc_enabled"
+    new_id = "switch.ec_wc_enabled"
+    entry = SimpleNamespace(unique_id="entry-1_controller-a_enabled")
+
+    class Registry:
+        def __init__(self, target_entry=None):
+            self.entries = {old_id: entry}
+            if target_entry:
+                self.entries[new_id] = target_entry
+            self.updated = None
+
+        def async_get(self, entity_id):
+            return self.entries.get(entity_id)
+
+        def async_update_entity(self, entity_id, *, new_entity_id):
+            self.updated = (entity_id, new_entity_id)
+
+    registry = Registry()
+    assert migrate_legacy_entity_id(
+        registry,
+        old_id,
+        entry.unique_id,
+        expected_legacy_entity_id=old_id,
+        canonical_entity_id=new_id,
+    )
+    assert registry.updated == (old_id, new_id)
+
+    # A custom ID never matching the generated legacy spelling is left alone.
+    custom_registry = Registry()
+    assert not migrate_legacy_entity_id(
+        custom_registry,
+        "switch.my_custom_enabled",
+        entry.unique_id,
+        expected_legacy_entity_id=old_id,
+        canonical_entity_id=new_id,
+    )
+    assert custom_registry.updated is None
+
+    # Never take a canonical ID already owned by another registry entry.
+    collision_registry = Registry(SimpleNamespace(unique_id="another-entity"))
+    assert not migrate_legacy_entity_id(
+        collision_registry,
+        old_id,
+        entry.unique_id,
+        expected_legacy_entity_id=old_id,
+        canonical_entity_id=new_id,
+    )
+    assert collision_registry.updated is None
+
+
 def test_renaming_controller_keeps_unique_id_and_only_changes_new_id_suggestion() -> None:
     runtime = make_runtime()
     entity = EntityControllerStateSensor(runtime, "entry-1")
@@ -111,18 +183,32 @@ def test_renaming_controller_keeps_unique_id_and_only_changes_new_id_suggestion(
     assert renamed_entity.suggested_object_id == "ec_kitchen_lights_state"
 
 
+def test_diacritic_controller_name_uses_canonical_entity_id_slug() -> None:
+    runtime = ControllerRuntime(
+        replace(make_runtime().config, name="Obývačka")
+    )
+
+    assert EntityControllerStateSensor(runtime, "entry-1").suggested_object_id == (
+        "ec_obyvacka_state"
+    )
+    assert EntityControllerActivateButton(runtime, "entry-1").suggested_object_id == (
+        "ec_obyvacka_activate"
+    )
+
+
 def test_entity_translations_cover_native_function_names_and_fsm_states() -> None:
     for path, state_name in (
-        (Path("custom_components/entity_controller/translations/en.json"), "EC State"),
-        (Path("custom_components/entity_controller/translations/sk.json"), "EC Stav"),
+        (Path("custom_components/entity_controller/translations/en.json"), "State"),
+        (Path("custom_components/entity_controller/translations/sk.json"), "Stav"),
     ):
         entity = json.loads(path.read_text(encoding="utf-8"))["entity"]
         assert entity["sensor"]["state"]["name"] == state_name
         assert entity["sensor"]["state"]["state"]["active_timer"]
-        assert entity["switch"]["enabled"]["name"]
-        assert entity["switch"]["stay_mode"]["name"]
-        assert entity["binary_sensor"]["blocked"]["name"]
-        assert entity["button"]["activate"]["name"]
+        assert not entity["sensor"]["state"]["name"].startswith("EC ")
+        assert not entity["switch"]["enabled"]["name"].startswith("EC ")
+        assert not entity["switch"]["stay_mode"]["name"].startswith("EC ")
+        assert not entity["binary_sensor"]["blocked"]["name"].startswith("EC ")
+        assert not entity["button"]["activate"]["name"].startswith("EC ")
 
 
 def test_state_sensor_exposes_exact_fsm_state_and_runtime_attributes() -> None:

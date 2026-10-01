@@ -3,28 +3,8 @@
   "config": {
     "step": {
       "user": {
-        "title": "Entity Controller",
-        "description": "Create Entity Controller. The controller form opens next.",
-        "data": {
-          "name": "Name"
-        }
-      },
-      "reconfigure": {
-        "title": "Rename Entity Controller",
-        "data": {
-          "name": "Name"
-        }
-      }
-    },
-    "abort": {
-      "single_instance_allowed": "Entity Controller is already configured. Open its settings to add a controller."
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
         "title": "Add controller",
-        "description": "Configure a new Entity Controller rule.",
+        "description": "Configure one controller device.",
         "sections": {
           "basic": {
             "name": "Basic setup",
@@ -143,255 +123,129 @@
             "description": "Values in neither list are neutral and leave the current condition unchanged. Unknown, unavailable, and transitional states count only when listed."
           }
         }
+      },
+      "reconfigure": {
+        "title": "Rename Entity Controller",
+        "data": {
+          "name": "Name"
+        }
       }
     }
   },
-  "config_subentries": {
-    "controller": {
-      "title": "Controller",
-      "step": {
-        "user": {
-          "title": "Add controller",
-          "description": "Configure one Entity Controller rule.",
-          "sections": {
-            "basic": {
-              "name": "Basic setup",
-              "data": {
-                "name": "Name",
-                "icon": "Icon",
-                "trigger_entities": "Trigger entities",
-                "control_entities": "Control entities",
-                "delay_seconds": "Day delay in seconds"
-              }
-            },
-            "timer": {
-              "name": "Trigger and timer",
-              "data": {
-                "sensor_type": "Sensor type",
-                "sensor_resets_timer": "Duration sensor resets timer when released",
-                "backoff_enabled": "Increase delay after retriggers",
-                "backoff_factor": "Backoff multiplier",
-                "backoff_max_seconds": "Maximum backoff delay"
-              },
-              "data_description": {
-                "sensor_type": "Event starts the timer. Duration keeps EC active while the trigger remains active.",
-                "sensor_resets_timer": "For Duration only: starts the full activity time again after the last trigger is released.",
-                "backoff_enabled": "Repeated triggers can gradually extend activity time."
-              }
-            },
-            "monitoring": {
-              "name": "Manual control and observed state",
-              "data": {
-                "state_entities": "State entities",
-                "blocking_enabled": "Block on manual control",
-                "block_timeout_seconds": "Block timeout (0 = no timeout)"
-              },
-              "data_description": {
-                "state_entities": "Optional extra entities used to observe the real state. Controlled entities are observed automatically.",
-                "blocking_enabled": "Manual changes outside EC put the controller into Blocked instead of immediately overwriting them.",
-                "block_timeout_seconds": "Zero disables the timeout. Active interlocks stay blocked until cleared."
-              }
-            },
-            "rules": {
-              "name": "Override and interlock",
-              "data": {
-                "override_entities": "Override entities",
-                "interlock_entities": "Interlock entities"
-              },
-              "data_description": {
-                "override_entities": "An active override temporarily replaces normal EC logic.",
-                "interlock_entities": "An active interlock blocks this controller. One Helper may be shared by multiple controllers."
-              }
-            },
-            "constraints": {
-              "name": "Allowed time window",
-              "data": {
-                "constraint_enabled": "Limit operation to a time window",
-                "constraint_start_source": "Allowed window start source",
-                "constraint_start_time": "Allowed window start time",
-                "constraint_start_offset_seconds": "Start offset in seconds",
-                "constraint_end_source": "Allowed window end source",
-                "constraint_end_time": "Allowed window end time",
-                "constraint_end_offset_seconds": "End offset in seconds"
-              },
-              "description": "Outside this allowed window EC is constrained and normal triggers do not start it."
-            },
-            "night": {
-              "name": "Night profile",
-              "data": {
-                "night_mode_enabled": "Enable night profile",
-                "night_start_source": "Night start source",
-                "night_start_time": "Night start time",
-                "night_start_offset_seconds": "Night start offset in seconds",
-                "night_end_source": "Night end source",
-                "night_end_time": "Night end time",
-                "night_end_offset_seconds": "Night end offset in seconds",
-                "night_delay_seconds": "Night delay (0 = day delay)",
-                "night_service_data_on": "Night turn-on service data",
-                "night_service_data_off": "Night turn-off service data"
-              },
-              "description": "The night profile does not block EC. It can use a different activity time and service data during its window."
-            },
-            "initial_state": {
-              "name": "Initial state",
-              "data": {
-                "enabled_default": "Enabled after creation",
-                "stay_mode_default": "Stay mode by default"
-              }
-            },
-            "actions": {
-              "name": "State transition actions",
-              "data": {
-                "service_data_on": "Day turn-on service data",
-                "service_data_off": "Day turn-off service data",
-                "on_enter_idle": "When entering idle",
-                "on_exit_idle": "When leaving idle",
-                "on_enter_active": "When entering active",
-                "on_exit_active": "When leaving active",
-                "on_enter_overridden": "When entering override",
-                "on_exit_overridden": "When leaving override",
-                "on_enter_constrained": "When entering constrained",
-                "on_exit_constrained": "When leaving constrained",
-                "on_enter_blocked": "When entering blocked",
-                "on_exit_blocked": "When leaving blocked"
-              },
-              "description": "Defines what EC does while entering or leaving states. By default it turns on on activation and off on return to idle."
-            },
-            "advanced": {
-              "name": "Advanced state mapping",
-              "data": {
-                "trigger_on_states": "Trigger active states (comma separated)",
-                "trigger_off_states": "Trigger inactive states",
-                "state_on_states": "Controlled entity ON states",
-                "state_off_states": "Controlled entity OFF states",
-                "override_on_states": "Override active states",
-                "override_off_states": "Override inactive states",
-                "state_attributes_ignore": "Ignored state attributes"
-              },
-              "description": "Values in neither list are neutral and leave the current condition unchanged. Unknown, unavailable, and transitional states count only when listed."
+  "options": {
+    "step": {
+      "init": {
+        "title": "Edit controller",
+        "description": "Change settings for this controller.",
+        "sections": {
+          "basic": {
+            "name": "Basic setup",
+            "data": {
+              "name": "Name",
+              "icon": "Icon",
+              "trigger_entities": "Trigger entities",
+              "control_entities": "Control entities",
+              "delay_seconds": "Day delay in seconds"
             }
-          }
-        },
-        "reconfigure": {
-          "title": "Edit controller",
-          "description": "Update this controller without reloading unrelated controllers.",
-          "sections": {
-            "basic": {
-              "name": "Basic setup",
-              "data": {
-                "name": "Name",
-                "icon": "Icon",
-                "trigger_entities": "Trigger entities",
-                "control_entities": "Control entities",
-                "delay_seconds": "Day delay in seconds"
-              }
+          },
+          "timer": {
+            "name": "Trigger and timer",
+            "data": {
+              "sensor_type": "Sensor type",
+              "sensor_resets_timer": "Duration sensor resets timer when released",
+              "backoff_enabled": "Increase delay after retriggers",
+              "backoff_factor": "Backoff multiplier",
+              "backoff_max_seconds": "Maximum backoff delay"
             },
-            "timer": {
-              "name": "Trigger and timer",
-              "data": {
-                "sensor_type": "Sensor type",
-                "sensor_resets_timer": "Duration sensor resets timer when released",
-                "backoff_enabled": "Increase delay after retriggers",
-                "backoff_factor": "Backoff multiplier",
-                "backoff_max_seconds": "Maximum backoff delay"
-              },
-              "data_description": {
-                "sensor_type": "Event starts the timer. Duration keeps EC active while the trigger remains active.",
-                "sensor_resets_timer": "For Duration only: starts the full activity time again after the last trigger is released.",
-                "backoff_enabled": "Repeated triggers can gradually extend activity time."
-              }
-            },
-            "monitoring": {
-              "name": "Manual control and observed state",
-              "data": {
-                "state_entities": "State entities",
-                "blocking_enabled": "Block on manual control",
-                "block_timeout_seconds": "Block timeout (0 = no timeout)"
-              },
-              "data_description": {
-                "state_entities": "Optional extra entities used to observe the real state. Controlled entities are observed automatically.",
-                "blocking_enabled": "Manual changes outside EC put the controller into Blocked instead of immediately overwriting them.",
-                "block_timeout_seconds": "Zero disables the timeout. Active interlocks stay blocked until cleared."
-              }
-            },
-            "rules": {
-              "name": "Override and interlock",
-              "data": {
-                "override_entities": "Override entities",
-                "interlock_entities": "Interlock entities"
-              },
-              "data_description": {
-                "override_entities": "An active override temporarily replaces normal EC logic.",
-                "interlock_entities": "An active interlock blocks this controller. One Helper may be shared by multiple controllers."
-              }
-            },
-            "constraints": {
-              "name": "Allowed time window",
-              "data": {
-                "constraint_enabled": "Limit operation to a time window",
-                "constraint_start_source": "Allowed window start source",
-                "constraint_start_time": "Allowed window start time",
-                "constraint_start_offset_seconds": "Start offset in seconds",
-                "constraint_end_source": "Allowed window end source",
-                "constraint_end_time": "Allowed window end time",
-                "constraint_end_offset_seconds": "End offset in seconds"
-              },
-              "description": "Outside this allowed window EC is constrained and normal triggers do not start it."
-            },
-            "night": {
-              "name": "Night profile",
-              "data": {
-                "night_mode_enabled": "Enable night profile",
-                "night_start_source": "Night start source",
-                "night_start_time": "Night start time",
-                "night_start_offset_seconds": "Night start offset in seconds",
-                "night_end_source": "Night end source",
-                "night_end_time": "Night end time",
-                "night_end_offset_seconds": "Night end offset in seconds",
-                "night_delay_seconds": "Night delay (0 = day delay)",
-                "night_service_data_on": "Night turn-on service data",
-                "night_service_data_off": "Night turn-off service data"
-              },
-              "description": "The night profile does not block EC. It can use a different activity time and service data during its window."
-            },
-            "initial_state": {
-              "name": "Initial state",
-              "data": {
-                "enabled_default": "Enabled after creation",
-                "stay_mode_default": "Stay mode by default"
-              }
-            },
-            "actions": {
-              "name": "State transition actions",
-              "data": {
-                "service_data_on": "Day turn-on service data",
-                "service_data_off": "Day turn-off service data",
-                "on_enter_idle": "When entering idle",
-                "on_exit_idle": "When leaving idle",
-                "on_enter_active": "When entering active",
-                "on_exit_active": "When leaving active",
-                "on_enter_overridden": "When entering override",
-                "on_exit_overridden": "When leaving override",
-                "on_enter_constrained": "When entering constrained",
-                "on_exit_constrained": "When leaving constrained",
-                "on_enter_blocked": "When entering blocked",
-                "on_exit_blocked": "When leaving blocked"
-              },
-              "description": "Defines what EC does while entering or leaving states. By default it turns on on activation and off on return to idle."
-            },
-            "advanced": {
-              "name": "Advanced state mapping",
-              "data": {
-                "trigger_on_states": "Trigger active states (comma separated)",
-                "trigger_off_states": "Trigger inactive states",
-                "state_on_states": "Controlled entity ON states",
-                "state_off_states": "Controlled entity OFF states",
-                "override_on_states": "Override active states",
-                "override_off_states": "Override inactive states",
-                "state_attributes_ignore": "Ignored state attributes"
-              },
-              "description": "Values in neither list are neutral and leave the current condition unchanged. Unknown, unavailable, and transitional states count only when listed."
+            "data_description": {
+              "sensor_type": "Event starts the timer. Duration keeps EC active while the trigger remains active.",
+              "sensor_resets_timer": "For Duration only: starts the full activity time again after the last trigger is released.",
+              "backoff_enabled": "Repeated triggers can gradually extend activity time."
             }
+          },
+          "monitoring": {
+            "name": "Manual control and observed state",
+            "data": {
+              "state_entities": "State entities",
+              "blocking_enabled": "Block on manual control",
+              "block_timeout_seconds": "Block timeout (0 = no timeout)"
+            },
+            "data_description": {
+              "state_entities": "Optional extra entities used to observe the real state. Controlled entities are observed automatically.",
+              "blocking_enabled": "Manual changes outside EC put the controller into Blocked instead of immediately overwriting them.",
+              "block_timeout_seconds": "Zero disables the timeout. Active interlocks stay blocked until cleared."
+            }
+          },
+          "rules": {
+            "name": "Override and interlock",
+            "data": {
+              "override_entities": "Override entities",
+              "interlock_entities": "Interlock entities"
+            },
+            "data_description": {
+              "override_entities": "An active override temporarily replaces normal EC logic.",
+              "interlock_entities": "An active interlock blocks this controller. One Helper may be shared by multiple controllers."
+            }
+          },
+          "constraints": {
+            "name": "Allowed time window",
+            "data": {
+              "constraint_enabled": "Limit operation to a time window",
+              "constraint_start_source": "Allowed window start source",
+              "constraint_start_time": "Allowed window start time",
+              "constraint_start_offset_seconds": "Start offset in seconds",
+              "constraint_end_source": "Allowed window end source",
+              "constraint_end_time": "Allowed window end time",
+              "constraint_end_offset_seconds": "End offset in seconds"
+            },
+            "description": "Outside this allowed window EC is constrained and normal triggers do not start it."
+          },
+          "night": {
+            "name": "Night profile",
+            "data": {
+              "night_mode_enabled": "Enable night profile",
+              "night_start_source": "Night start source",
+              "night_start_time": "Night start time",
+              "night_start_offset_seconds": "Night start offset in seconds",
+              "night_end_source": "Night end source",
+              "night_end_time": "Night end time",
+              "night_end_offset_seconds": "Night end offset in seconds",
+              "night_delay_seconds": "Night delay (0 = day delay)",
+              "night_service_data_on": "Night turn-on service data",
+              "night_service_data_off": "Night turn-off service data"
+            },
+            "description": "The night profile does not block EC. It can use a different activity time and service data during its window."
+          },
+          "actions": {
+            "name": "State transition actions",
+            "data": {
+              "service_data_on": "Day turn-on service data",
+              "service_data_off": "Day turn-off service data",
+              "on_enter_idle": "When entering idle",
+              "on_exit_idle": "When leaving idle",
+              "on_enter_active": "When entering active",
+              "on_exit_active": "When leaving active",
+              "on_enter_overridden": "When entering override",
+              "on_exit_overridden": "When leaving override",
+              "on_enter_constrained": "When entering constrained",
+              "on_exit_constrained": "When leaving constrained",
+              "on_enter_blocked": "When entering blocked",
+              "on_exit_blocked": "When leaving blocked"
+            },
+            "description": "Defines what EC does while entering or leaving states. By default it turns on on activation and off on return to idle."
+          },
+          "advanced": {
+            "name": "Advanced state mapping",
+            "data": {
+              "trigger_on_states": "Trigger active states (comma separated)",
+              "trigger_off_states": "Trigger inactive states",
+              "state_on_states": "Controlled entity ON states",
+              "state_off_states": "Controlled entity OFF states",
+              "override_on_states": "Override active states",
+              "override_off_states": "Override inactive states",
+              "state_attributes_ignore": "Ignored state attributes"
+            },
+            "description": "Values in neither list are neutral and leave the current condition unchanged. Unknown, unavailable, and transitional states count only when listed."
           }
         }
       }
