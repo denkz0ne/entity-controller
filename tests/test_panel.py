@@ -66,6 +66,12 @@ def test_panel_payload_is_dynamic_and_resolves_registered_entities(monkeypatch):
     assert controller["state_entity_id"] == "sensor.custom_hall_state"
     assert controller["enabled_entity_id"] == "switch.custom_hall_enabled"
     assert controller["triggers"] == ["binary_sensor.hall_motion"]
+    assert controller["inputs"] == [
+        "binary_sensor.hall_motion",
+        "binary_sensor.window",
+        "input_boolean.manual",
+        "binary_sensor.lock",
+    ]
     assert controller["outputs"] == ["light.hall", "switch.fan"]
     assert controller["constraints"] == [
         "binary_sensor.window",
