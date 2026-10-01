@@ -73,7 +73,7 @@ def serialize_controllers(hass: Any) -> list[dict[str, Any]]:
                     "active_interlocks": list(getattr(runtime, "active_interlocks", ()) or ()),
                 }
             )
-    return sorted(result, key=lambda item: (item["name"].casefold(), item["id"]))
+    return result
 
 
 @websocket_api.websocket_command({"type": "entity_controller/panel"})
