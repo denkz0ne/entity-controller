@@ -1,6 +1,6 @@
 # Entity Controller v10 native entities
 
-> Current behavior: `v10-modernization`, `10.0.0-rc.6`. Each native entity has a stable unique ID, a translated function name, a function-specific icon, and a canonical suggested entity ID for first registration.
+> Current behavior: `v10-modernization`, `10.0.0-rc.7`. Each native entity has a stable unique ID, a translated function name, a function-specific icon, and a canonical suggested entity ID for first registration.
 
 Each controller config subentry owns one virtual Home Assistant device and currently exposes five native entities.
 
@@ -28,30 +28,38 @@ The state sensor reports one of:
 - `constrained`
 - `disabled`
 
-RC.3 already exposes these attributes on the state sensor:
+The State sensor exposes low-churn runtime context:
 
-- `last_transition`
-- `transition_cause`
+- `last_transition_at`, `last_transition_cause`, `last_transition_source`
+- `last_reconcile_reason` (kept separate from real FSM transitions)
 - `last_triggered_by`
 - `last_triggered_at`
+- `blocked_by`, `blocked_at`, `block_reason`, `block_expires_at`
+- `overridden_by`, `active_overrides`, `active_interlocks`
+- `active_triggers`, `active_state_entities`
+- `enabled`, `stay_mode`, `override_active`, `interlock_active`, `sensor_active`, `state_entities_on`
 - `effective_delay`
+- `backoff_count`, `timer_expired_pending_sensor`
 - `profile` (`day` / `night`)
 - `expires_at`
-- `block_expires_at`
-- `blocked_by`
-- `overridden_by`
 
-Useful runtime data that exists in Python but is not yet exposed includes `last_reconcile_reason`, `blocked_at`, `backoff_count`, `timer_expired_pending_sensor`, the current `interlock_active`/`override_active` flags, and the generic source of the most recent state change.
+The earlier `last_transition` and `transition_cause` attribute names remain as aliases for existing automations. Attributes update on runtime events; there is no per-second countdown. A reconcile updates `last_reconcile_reason` and active source lists without pretending that an FSM transition happened.
 
 ## Blocked binary sensor
 
-RC.3 exposes:
+The Blocked binary sensor exposes:
 
-- `reason` — currently the controller's last transition cause;
+- `block_reason` (and compatibility alias `reason`);
 - `blocked_by`;
+- `blocked_at`;
 - `block_expires_at`.
+- `active_interlocks`.
 
-Because interlock blocking currently happens through reconcile rather than a transition, those attributes are not yet sufficient to explain every blocked state. The diagnostics polish issue covers this.
+When reconcile resolves the controller as blocked by an active interlock, `blocked_by` names the first currently active configured interlock. The Blocked boolean and diagnostics also include the full active interlock list.
+
+## Diagnostics download
+
+The config-entry diagnostics export includes per-controller runtime provenance, active source lists, timer/backoff values, relevant configuration, and controller errors. Sensitive keys are redacted recursively before export.
 
 ## Entity-id convention
 

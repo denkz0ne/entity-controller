@@ -326,6 +326,11 @@ class EntityControllerManager:
         async def _handle(event: Any) -> None:
             await self._async_refresh_time_windows(runtime)
             entity_id = self._event_entity_id(event)
+            runtime.active_triggers = tuple(
+                candidate
+                for candidate in runtime.config.trigger_entities
+                if self._entity_matches(candidate, runtime.config.trigger_on_states)
+            )
             if self._event_matches(event, runtime.config.trigger_on_states):
                 await runtime.async_handle_sensor_on(entity_id)
             else:
@@ -403,6 +408,14 @@ class EntityControllerManager:
                 )
                 if candidate != entity_id
             )
+            runtime.active_state_entities = tuple(
+                candidate
+                for candidate in (
+                    *runtime.config.state_entities,
+                    *runtime.config.control_entities,
+                )
+                if self._entity_matches(candidate, runtime.config.state_on_states)
+            )
             await runtime.async_handle_state_entity_change(
                 entity_id,
                 is_on=is_on or other_is_on,
@@ -435,6 +448,11 @@ class EntityControllerManager:
     def _override_listener(self, runtime: ControllerRuntime) -> Callable[[Any], Any]:
         async def _handle(event: Any) -> None:
             entity_id = self._event_entity_id(event)
+            runtime.active_overrides = tuple(
+                candidate
+                for candidate in runtime.config.override_entities
+                if self._entity_matches(candidate, runtime.config.override_on_states)
+            )
             is_active = self._event_matches(
                 event, runtime.config.override_on_states
             )
@@ -450,6 +468,8 @@ class EntityControllerManager:
                 entity_id,
                 is_active=is_active,
             )
+            if runtime.state is ControllerState.OVERRIDDEN:
+                runtime.overridden_by = next(iter(runtime.active_overrides), None)
 
         return _handle
 
@@ -531,6 +551,26 @@ class EntityControllerManager:
                 for entity_id in (*config.state_entities, *config.control_entities)
             ),
             night_active=night_active,
+            active_overrides=tuple(
+                entity_id
+                for entity_id in config.override_entities
+                if self._entity_matches(entity_id, config.override_on_states)
+            ),
+            active_interlocks=tuple(
+                entity_id
+                for entity_id in config.interlock_entities
+                if self._entity_is_on(entity_id)
+            ),
+            active_triggers=tuple(
+                entity_id
+                for entity_id in config.trigger_entities
+                if self._entity_matches(entity_id, config.trigger_on_states)
+            ),
+            active_state_entities=tuple(
+                entity_id
+                for entity_id in (*config.state_entities, *config.control_entities)
+                if self._entity_matches(entity_id, config.state_on_states)
+            ),
         )
 
     def _sun_events(

@@ -50,18 +50,41 @@ class EntityControllerStateSensor(EntityControllerEntity, SensorEntity):
         """Return useful runtime metadata without per-second countdown churn."""
 
         return {
+            # Keep the original keys for automations created during early v10 RCs.
             "last_transition": self.runtime.last_transition_at,
             "transition_cause": None
             if self.runtime.last_transition_cause is None
             else self.runtime.last_transition_cause.value,
+            "last_transition_at": self.runtime.last_transition_at,
+            "last_transition_cause": None
+            if self.runtime.last_transition_cause is None
+            else self.runtime.last_transition_cause.value,
+            "last_transition_source": self.runtime.last_transition_source,
+            "last_reconcile_reason": None
+            if self.runtime.last_reconcile_reason is None
+            else self.runtime.last_reconcile_reason.value,
             "last_triggered_by": self.runtime.last_triggered_by,
             "last_triggered_at": self.runtime.last_triggered_at,
+            "blocked_by": self.runtime.blocked_by,
+            "blocked_at": self.runtime.blocked_at,
+            "block_reason": self.runtime.block_reason,
+            "block_expires_at": self.runtime.block_expires_at,
+            "overridden_by": self.runtime.overridden_by,
+            "active_overrides": list(self.runtime.active_overrides),
+            "active_interlocks": list(self.runtime.active_interlocks),
+            "active_triggers": list(self.runtime.active_triggers),
+            "active_state_entities": list(self.runtime.active_state_entities),
+            "enabled": self.runtime.enabled,
+            "stay_mode": self.runtime.stay_mode,
+            "override_active": self.runtime.override_active,
+            "interlock_active": self.runtime.interlock_active,
+            "sensor_active": self.runtime.sensor_active,
+            "state_entities_on": self.runtime.state_entities_on,
             "effective_delay": self.runtime.effective_delay_seconds,
+            "backoff_count": self.runtime.backoff_count,
+            "timer_expired_pending_sensor": self.runtime.timer_expired_pending_sensor,
             "profile": "night" if self.runtime.night_active else "day",
             "expires_at": self.runtime.expires_at,
-            "block_expires_at": self.runtime.block_expires_at,
-            "blocked_by": self.runtime.blocked_by,
-            "overridden_by": self.runtime.overridden_by,
         }
 
 

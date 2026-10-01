@@ -115,6 +115,38 @@ async def test_add_controller_reconciles_control_entity_on_without_forcing_off()
 
 
 @pytest.mark.asyncio
+async def test_reconcile_retains_active_sources_for_runtime_diagnostics() -> None:
+    hass = FakeHass(
+        {
+            "input_boolean.block_a": "on",
+            "input_boolean.block_b": "on",
+            "input_boolean.guest": "on",
+            "binary_sensor.motion": "on",
+            "light.hall": "on",
+        }
+    )
+    manager = EntityControllerManager(hass, FakeEntry())
+
+    runtime = await manager.async_add_controller(
+        subentry(
+            interlock_entities=("input_boolean.block_a", "input_boolean.block_b"),
+            override_entities=("input_boolean.guest",),
+            trigger_entities=("binary_sensor.motion",),
+            control_entities=("light.hall",),
+        )
+    )
+
+    assert runtime.active_interlocks == (
+        "input_boolean.block_a",
+        "input_boolean.block_b",
+    )
+    assert runtime.active_overrides == ("input_boolean.guest",)
+    assert runtime.active_triggers == ("binary_sensor.motion",)
+    assert runtime.active_state_entities == ("light.hall",)
+    assert runtime.overridden_by == "input_boolean.guest"
+
+
+@pytest.mark.asyncio
 async def test_manager_routes_multiple_trigger_entities_to_one_controller() -> None:
     hass = FakeHass()
     manager = EntityControllerManager(hass, FakeEntry())
@@ -128,6 +160,7 @@ async def test_manager_routes_multiple_trigger_entities_to_one_controller() -> N
     assert runtime.state is ControllerState.ACTIVE_TIMER
     assert runtime.last_triggered_by == "binary_sensor.two"
     assert runtime.trigger_generation == 2
+    assert runtime.active_triggers == ("binary_sensor.one", "binary_sensor.two")
 
 
 @pytest.mark.asyncio
@@ -164,6 +197,8 @@ async def test_one_override_turning_off_keeps_other_override_active() -> None:
 
     assert runtime.override_active is True
     assert runtime.state is ControllerState.OVERRIDDEN
+    assert runtime.active_overrides == ("input_boolean.two",)
+    assert runtime.overridden_by == "input_boolean.two"
 
 
 @pytest.mark.asyncio
@@ -178,6 +213,7 @@ async def test_external_override_helper_updates_controller_immediately() -> None
 
     assert runtime.state is ControllerState.OVERRIDDEN
     assert runtime.overridden_by == "input_boolean.guest"
+    assert runtime.active_overrides == ("input_boolean.guest",)
 
 
 @pytest.mark.asyncio

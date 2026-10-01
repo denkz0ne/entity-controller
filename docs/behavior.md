@@ -1,6 +1,6 @@
 # Entity Controller v10 behavior
 
-> Source baseline: `v10-modernization`, `10.0.0-rc.3` (`86893e7`). This is a source-derived runtime reference, not a description of planned behavior.
+> Source baseline: `v10-modernization`, `10.0.0-rc.7`. This is a source-derived runtime reference, not a description of planned behavior.
 
 Entity Controller v10 implements an explicit async finite-state machine. The controller has seven user-visible runtime states and two different ways to change state:
 
@@ -130,15 +130,15 @@ When the last override clears:
 
 Override entities use OR semantics.
 
-During startup/reconcile the controller can resolve to `overridden` without a transition event, so RC.3 may not have a populated `overridden_by` source in that case.
+During startup/reconcile the controller can resolve to `overridden` without a transition event. The runtime records the currently active override entity in `overridden_by` and exposes all active override entities in diagnostics attributes.
 
 ## Interlock
 
 An interlock is a normal external HA entity. RC.3 considers it active if its state is not `off`, `unavailable`, `unknown`, or empty.
 
-Interlock state changes request a full reconcile rather than a transition. Therefore an active interlock resolves the controller to `blocked` but RC.3 does not yet retain the identity of the active interlock in `blocked_by` and does not run normal `on_enter_blocked` transition behavior during that reconcile.
+Interlock state changes request a full reconcile rather than a transition. An active interlock resolves the controller to `blocked`; the state and Blocked sensor expose the active interlock list, and `blocked_by` names the first active configured interlock. Reconcile does not run normal `on_enter_blocked` transition behavior. Block-timeout behavior while an interlock remains held is tracked separately in Issue #5.
 
-This is intentional to document as a current limitation; the planned polish task will add clear source/reason diagnostics and settle timeout semantics for held interlocks.
+This keeps diagnostics accurate without fabricating an FSM transition or changing reconcile side effects.
 
 ## Constraint
 
@@ -197,26 +197,28 @@ The runtime already tracks:
 - `last_triggered_at`
 - `last_transition_at`
 - `last_transition_cause`
+- `last_transition_source`
 - `last_reconcile_reason`
 - `blocked_by`
 - `blocked_at`
+- `block_reason`
 - `block_expires_at`
 - `overridden_by`
+- `active_overrides`, `active_interlocks`, `active_triggers`, and `active_state_entities`
+- current `enabled`, `stay_mode`, `override_active`, `interlock_active`, `sensor_active`, and `state_entities_on`
 - `backoff_count`
 - `effective_delay_seconds`
 - `expires_at`
 - `timer_expired_pending_sensor`
 - active day/night profile
 
-Not all of those values are exposed through native entity attributes in RC.3. The RC polish task should expose the useful subset while avoiding high-frequency recorder churn.
+The State sensor exposes this low-churn runtime context, while config-entry diagnostics also include a redacted configuration summary and controller errors. No per-second countdown is written to entity attributes.
 
-## Known RC.3 behavior gaps
+## Known behavior gaps after RC.7
 
 These are source-level gaps, not documentation TODOs:
 
-- `source_entity_id` is accepted by `async_transition()` but is not persisted as a generic transition source.
 - `trigger_off_states`, `state_off_states`, and `override_off_states` are stored but not consulted by the manager/runtime.
-- Interlock-driven blocking does not retain which interlock(s) caused the block.
 - A held interlock combined with an automatic block timeout needs an explicit regression test; timeout should not silently defeat a still-active gate.
 - Leaving `constrained` currently goes straight to `idle` instead of full reconcile.
 - `TransitionBehavior.CUSTOM` exists in the model but current UI/executor only implement ON, OFF, and IGNORE.

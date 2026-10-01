@@ -30,11 +30,12 @@ class EntityControllerBlockedBinarySensor(EntityControllerEntity, BinarySensorEn
         """Return blocked reason/source metadata."""
 
         return {
-            "reason": None
-            if self.runtime.last_transition_cause is None
-            else self.runtime.last_transition_cause.value,
+            "block_reason": self.runtime.block_reason,
+            "reason": self.runtime.block_reason,
             "blocked_by": self.runtime.blocked_by,
+            "blocked_at": self.runtime.blocked_at,
             "block_expires_at": self.runtime.block_expires_at,
+            "active_interlocks": list(self.runtime.active_interlocks),
         }
 
 

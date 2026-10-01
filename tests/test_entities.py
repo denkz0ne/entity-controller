@@ -14,10 +14,14 @@ from custom_components.entity_controller.binary_sensor import (
     EntityControllerBlockedBinarySensor,
 )
 from custom_components.entity_controller.button import EntityControllerActivateButton
-from custom_components.entity_controller.controller import ControllerRuntime
+from custom_components.entity_controller.controller import (
+    ControllerRuntime,
+    ReconcileSnapshot,
+)
 from custom_components.entity_controller.model import (
     ControllerConfig,
     ControllerState,
+    ReconcileReason,
     TransitionCause,
 )
 from custom_components.entity_controller.sensor import EntityControllerStateSensor
@@ -138,6 +142,75 @@ def test_state_sensor_exposes_exact_fsm_state_and_runtime_attributes() -> None:
 
 
 @pytest.mark.asyncio
+async def test_state_sensor_exposes_transition_provenance_and_reconcile_sources() -> None:
+    runtime = make_runtime()
+    source = "binary_sensor.motion"
+    await runtime.async_transition(
+        ControllerState.ACTIVE_TIMER,
+        TransitionCause.SENSOR_TRIGGER,
+        source_entity_id=source,
+    )
+    sensor = EntityControllerStateSensor(runtime, "entry-1")
+
+    assert runtime.last_transition_source == source
+    assert sensor.extra_state_attributes["last_transition_source"] == source
+    assert sensor.extra_state_attributes["last_transition_cause"] == "sensor_trigger"
+    assert sensor.extra_state_attributes["last_transition_at"] is not None
+
+    await runtime.async_reconcile(
+        ReconcileReason.RESTORE,
+        ReconcileSnapshot(
+            enabled=True,
+            constrained=False,
+            override_active=True,
+            interlock_active=False,
+            sensor_active=False,
+            state_entities_on=False,
+            active_overrides=("input_boolean.guest_mode",),
+        ),
+    )
+
+    attributes = sensor.extra_state_attributes
+    assert attributes["last_reconcile_reason"] == "restore"
+    assert attributes["active_overrides"] == ["input_boolean.guest_mode"]
+    assert attributes["active_interlocks"] == []
+    assert attributes["override_active"] is True
+    assert attributes["last_transition_source"] == source
+
+    await runtime.async_transition(ControllerState.IDLE, TransitionCause.SERVICE)
+    assert runtime.last_transition_source is None
+
+
+@pytest.mark.asyncio
+async def test_blocked_sensor_explains_interlock_reconcile_without_fake_transition() -> None:
+    runtime = make_runtime()
+    await runtime.async_reconcile(
+        ReconcileReason.RESTORE,
+        ReconcileSnapshot(
+            enabled=True,
+            constrained=False,
+            override_active=False,
+            interlock_active=True,
+            sensor_active=False,
+            state_entities_on=False,
+            active_interlocks=("input_boolean.maintenance",),
+        ),
+    )
+
+    blocked = EntityControllerBlockedBinarySensor(runtime, "entry-1")
+    assert runtime.state is ControllerState.BLOCKED
+    assert runtime.last_transition_at is None
+    assert blocked.extra_state_attributes == {
+        "block_reason": "interlock",
+        "reason": "interlock",
+        "blocked_by": "input_boolean.maintenance",
+        "blocked_at": runtime.blocked_at,
+        "block_expires_at": runtime.block_expires_at,
+        "active_interlocks": ["input_boolean.maintenance"],
+    }
+
+
+@pytest.mark.asyncio
 async def test_enabled_switch_off_disables_decisions_without_turning_loads_off() -> (
     None
 ):
@@ -167,6 +240,7 @@ def test_blocked_binary_sensor_exposes_reason_and_source() -> None:
     runtime = make_runtime()
     runtime.state = ControllerState.BLOCKED
     runtime.blocked_by = "light.hall"
+    runtime.block_reason = "manual_control"
     runtime.last_transition_cause = TransitionCause.MANUAL_CONTROL
     sensor = EntityControllerBlockedBinarySensor(runtime, "entry-1")
 

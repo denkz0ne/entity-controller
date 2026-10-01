@@ -2,7 +2,7 @@
 
 Entity Controller v10 is a Home Assistant hub integration for reusable "when this happens, keep that active for a while" automations. The v10 line is being rebuilt around Config Entries, Config Subentries, native controller entities, hot reconfiguration, diagnostics, and controlled migration from legacy v9 YAML.
 
-Current prerelease: `10.0.0-rc.6`
+Current prerelease: `10.0.0-rc.7`
 
 The setup flow immediately opens the first controller form. Entity Controller
 appears once on the Integrations page; each configured controller appears below

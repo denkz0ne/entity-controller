@@ -32,6 +32,10 @@ class ReconcileSnapshot:
     sensor_active: bool
     state_entities_on: bool
     night_active: bool = False
+    active_overrides: tuple[str, ...] = ()
+    active_interlocks: tuple[str, ...] = ()
+    active_triggers: tuple[str, ...] = ()
+    active_state_entities: tuple[str, ...] = ()
 
 
 _ALLOWED_TRANSITIONS: dict[ControllerState, frozenset[ControllerState]] = {
@@ -144,11 +148,17 @@ class ControllerRuntime:
         self.last_triggered_at: datetime | None = None
         self.last_transition_at: datetime | None = None
         self.last_transition_cause: TransitionCause | None = None
+        self.last_transition_source: str | None = None
         self.last_reconcile_reason: ReconcileReason | None = None
         self.blocked_by: str | None = None
         self.blocked_at: datetime | None = None
+        self.block_reason: str | None = None
         self.block_expires_at: datetime | None = None
         self.overridden_by: str | None = None
+        self.active_overrides: tuple[str, ...] = ()
+        self.active_interlocks: tuple[str, ...] = ()
+        self.active_triggers: tuple[str, ...] = ()
+        self.active_state_entities: tuple[str, ...] = ()
         self.trigger_generation = 0
         self.timer_expired_pending_sensor = False
         self.backoff_count = 0
@@ -372,12 +382,17 @@ class ControllerRuntime:
         self.state = target
         self.last_transition_at = self._clock()
         self.last_transition_cause = cause
+        self.last_transition_source = source_entity_id
 
-        if target is not ControllerState.BLOCKED:
+        if target is ControllerState.BLOCKED:
+            self.blocked_by = source_entity_id
+            self.block_reason = cause.value
+            if source is not ControllerState.BLOCKED:
+                self.blocked_at = self._clock()
+                self._schedule_block_timer()
+        else:
             self.blocked_by = None
-        elif source is not ControllerState.BLOCKED:
-            self.blocked_at = self._clock()
-            self._schedule_block_timer()
+            self.block_reason = None
         if target is not ControllerState.OVERRIDDEN:
             self.overridden_by = None
 
@@ -411,6 +426,10 @@ class ControllerRuntime:
             self.sensor_active = snapshot.sensor_active
             self.state_entities_on = snapshot.state_entities_on
             self.night_active = snapshot.night_active
+            self.active_overrides = snapshot.active_overrides
+            self.active_interlocks = snapshot.active_interlocks
+            self.active_triggers = snapshot.active_triggers
+            self.active_state_entities = snapshot.active_state_entities
 
         if not self.enabled:
             target = ControllerState.DISABLED
@@ -436,12 +455,25 @@ class ControllerRuntime:
         if target is not ControllerState.BLOCKED:
             self.blocked_by = None
             self.blocked_at = None
+            self.block_reason = None
             self._cancel_block_timer()
-        elif self.block_expires_at is None:
-            self.blocked_at = self.blocked_at or self._clock()
-            self._schedule_block_timer()
+        else:
+            if self.active_interlocks:
+                self.blocked_by = self.active_interlocks[0]
+                self.block_reason = "interlock"
+            elif self.active_state_entities:
+                self.blocked_by = self.active_state_entities[0]
+                self.block_reason = "controlled_entity_on"
+            else:
+                self.blocked_by = None
+                self.block_reason = None
+            if self.block_expires_at is None:
+                self.blocked_at = self.blocked_at or self._clock()
+                self._schedule_block_timer()
         if target is not ControllerState.OVERRIDDEN:
             self.overridden_by = None
+        else:
+            self.overridden_by = next(iter(self.active_overrides), None)
         self._notify_updated()
         return target
 
