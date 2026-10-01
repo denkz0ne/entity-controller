@@ -208,8 +208,12 @@ async def test_device_settings_opens_edit_controller_form() -> None:
     flow = ControllerOptionsFlow()
     flow.flow_id = "options-flow"
     flow.handler = "entry-id"
-    flow.context = {"source": "init"}
+    flow.context = {"source": "options"}
     flow.hass = type("Hass", (), {"config_entries": ConfigEntries()})()
+    suggested_values = []
+    flow.add_suggested_values_to_schema = lambda schema, values: (
+        suggested_values.append(values) or schema
+    )
 
     result = await flow.async_step_init()
 
@@ -218,6 +222,18 @@ async def test_device_settings_opens_edit_controller_form() -> None:
     assert _schema_keys(result["data_schema"]) == _schema_keys(
         CONTROLLER_RECONFIGURE_SCHEMA
     )
+    assert suggested_values == [
+        {
+            "basic": {"name": "Hall", "trigger_entities": ("binary_sensor.hall",)},
+            "timer": {},
+            "monitoring": {},
+            "rules": {},
+            "constraints": {"constraint_enabled": False},
+            "night": {"night_mode_enabled": False},
+            "actions": {},
+            "advanced": {},
+        }
+    ]
 
 
 @pytest.mark.asyncio
