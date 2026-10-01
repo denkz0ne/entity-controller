@@ -180,7 +180,13 @@ class EntityControllerPanel extends HTMLElement {
     const state = controller.state;
     const active = ["active_timer", "active_stay_on"].includes(state);
     let label = "Neaktívny";
-    let detail = controller.last_transition_cause || "Čaká na spúšťač";
+    const causes = {
+      sensor_trigger: "Spustený pohybom", sensor_release: "Pohyb skončil",
+      timer_expired: "Časovač skončil", manual_control: "Manuálne ovládanie",
+      override: "Prekrytie aktívne", constraint: "Časové obmedzenie",
+      stay_mode: "Trvalý režim", service: "Zmena cez službu", configuration: "Zmena nastavení",
+    };
+    let detail = causes[controller.last_transition_cause] || "Čaká na spúšťač";
     if (active) {
       label = "Aktívny";
       const started = controller.last_triggered_at || controller.last_transition_at;
@@ -189,7 +195,7 @@ class EntityControllerPanel extends HTMLElement {
         label += " · " + String(Math.floor(seconds / 60)).padStart(2, "0") +
           ":" + String(seconds % 60).padStart(2, "0");
       }
-      detail = controller.last_transition_cause === "trigger_on"
+      detail = controller.last_transition_cause === "sensor_trigger"
         ? "Spustený pohybom" : "Ovládač je aktívny";
     } else if (state === "constrained") {
       label = "Obmedzený";
