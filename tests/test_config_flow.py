@@ -230,6 +230,7 @@ async def test_device_settings_opens_edit_controller_form() -> None:
             "rules": {},
             "constraints": {"constraint_enabled": False},
             "night": {"night_mode_enabled": False},
+            "initial_state": {},
             "actions": {},
             "advanced": {},
         }
