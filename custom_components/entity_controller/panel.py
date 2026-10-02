@@ -16,6 +16,7 @@ from .schedule import resolve_schedule_point, schedule_point_from_data
 
 PANEL_URL = "entity-controller"
 PANEL_JS = "/entity_controller/entity-controller-panel.js"
+PANEL_JS_VERSION = "10.0.0-rc.10"
 _PANEL_DATA_KEY = "entity_controller_panel"
 
 
@@ -220,7 +221,7 @@ async def async_setup_panel(hass: Any) -> None:
             config={
                 "_panel_custom": {
                     "name": "entity-controller-panel",
-                    "js_url": PANEL_JS,
+                    "js_url": f"{PANEL_JS}?v={PANEL_JS_VERSION}",
                     "embed_iframe": False,
                     "trust_external": False,
                 }

@@ -116,7 +116,7 @@ SENSOR_TYPE_SELECTOR = selector.SelectSelector(
     )
 )
 DURATION_SELECTOR = selector.DurationSelector(
-    selector.DurationSelectorConfig(enable_day=True)
+    selector.DurationSelectorConfig(enable_day=False)
 )
 
 

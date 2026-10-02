@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented in this file. Entries for earlier releases are retained as project history.
 
+<a name="10.0.0-rc.10"></a>
+## 10.0.0-rc.10 (2026-10-02)
+
+### Fixes
+
+* keep the panel scroll container alive across Home Assistant updates instead of rebuilding and resetting it
+* use one native scroll area for desktop wheel, trackpad and mobile swipes over chips, switches and timelines
+* defer row replacements until a touch gesture ends, preserving scrolling and avoiding accidental toggles
+* version the panel asset URL so refreshed clients load the updated frontend
+* show only hours, minutes and seconds in configuration duration pickers
+
+### Tests
+
+* add Chromium browser regressions for wheel scrolling, mobile touch gestures, live updates and entity taps
+
 <a name="10.0.0-rc.9"></a>
 ## 10.0.0-rc.9 (2026-10-01)
 

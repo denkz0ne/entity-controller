@@ -107,3 +107,21 @@ jobs:
             tests/test_diagnostics.py \
             tests/test_repairs.py \
             -v
+
+  panel-browser:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install browser test dependencies
+        run: |
+          python -m pip install pytest playwright ruff
+          python -m playwright install --with-deps chromium
+      - name: Check panel browser test style
+        run: python -m ruff check tests/test_panel_browser.py
+      - name: Test desktop wheel and mobile touch scrolling
+        run: python -m pytest tests/test_panel_browser.py -v
