@@ -60,7 +60,7 @@ def browser():
 
 def mount_panel(page):
     page.set_content(
-        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        '<!doctype html><meta name="viewport" content="width=device-width, initial-scale=1">'
         '<style>html,body{margin:0;height:100%;overflow:hidden}'
         '#mount{height:calc(100dvh - 64px)}</style><div id="mount"></div>'
     )
