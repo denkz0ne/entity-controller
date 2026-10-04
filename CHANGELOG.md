@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented in this file. Entries for earlier releases are retained as project history.
 
+<a name="10.0.0"></a>
+## 10.0.0 (2026-10-04)
+
+### Features
+
+* deliver v10 as a native Home Assistant integration with independent controllers, native entities, migration support, and a responsive sidebar panel
+
+### Fixes
+
+* correct controller entity naming and config-flow behavior
+* improve panel scrolling on desktop and mobile and simplify duration pickers
+* add browser coverage for panel interactions and live updates
+
+### Compatibility
+
+* requires Home Assistant 2026.9.0 or newer
+* migration from v9.7.6 uses config entries; Helpers and legacy YAML are left in place for manual validation and cleanup
+
 <a name="10.0.0-rc.10"></a>
 ## 10.0.0-rc.10 (2026-10-02)
 
