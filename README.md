@@ -4,7 +4,7 @@
 
 Entity Controller v10 is a Home Assistant device integration for reusable "when this happens, keep that active for a while" automations. Each controller is one Home Assistant config entry and one device, so the integration page lists controllers directly.
 
-Current prerelease: `10.0.0-rc.10`
+Current stable release: `10.0.0`
 
 The setup flow immediately opens the first controller form. Entity Controller
 appears once on the Integrations page; each configured controller appears below
@@ -20,7 +20,7 @@ No frontend patch is used.
 
 ## Status
 
-The `v10-modernization` branch is active prerelease work. It targets Home Assistant `2026.9.0` and newer. Do not treat prereleases as a finished production migration until the release candidate smoke gate is complete.
+The v10 stable line targets Home Assistant `2026.9.0` and newer. Review the migration guide before upgrading from v9; legacy YAML and Helpers are preserved for manual validation and cleanup.
 
 ## Documentation
 
@@ -34,7 +34,7 @@ The `v10-modernization` branch is active prerelease work. It targets Home Assist
 
 ## Migration model
 
-The migration guide covers legacy YAML and v10 prerelease data. Entity Controller does not delete Helpers or rewrite `ec.yaml`. External Helpers stay ordinary Home Assistant entities and can be selected by one or more controller rules.
+The migration guide covers legacy YAML and v10 config-entry data. Entity Controller does not delete Helpers or rewrite `ec.yaml`. External Helpers stay ordinary Home Assistant entities and can be selected by one or more controller rules.
 
 ## Development
 
