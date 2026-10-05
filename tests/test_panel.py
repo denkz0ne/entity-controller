@@ -41,7 +41,19 @@ def test_panel_payload_is_dynamic_and_resolves_registered_entities(monkeypatch):
         active_overrides=(),
         active_interlocks=(),
     )
-    manager = SimpleNamespace(controllers={"hall-id": runtime})
+    manager = SimpleNamespace(
+        controllers={"hall-id": runtime},
+        entry=SimpleNamespace(
+            data={
+                "name": "Hall",
+                "icon": "mdi:door",
+                "trigger_entities": ["binary_sensor.hall_motion"],
+                "control_entities": ["light.hall", "switch.fan"],
+                "delay_seconds": 180,
+            },
+            subentries={},
+        ),
+    )
     hass = SimpleNamespace(
         data={"entity_controller": {"entry-1": manager}},
     )
@@ -80,6 +92,15 @@ def test_panel_payload_is_dynamic_and_resolves_registered_entities(monkeypatch):
     ]
     assert controller["enabled"] is True
     assert controller["last_transition_cause"] == "trigger_on"
+    assert controller["form"]["basic"]["name"] == "Hall"
+    assert controller["form"]["basic"]["trigger_entities"] == [
+        "binary_sensor.hall_motion"
+    ]
+    assert controller["form"]["basic"]["delay_seconds"] == {
+        "hours": 0,
+        "minutes": 3,
+        "seconds": 0,
+    }
 
 
 def test_panel_payload_handles_no_controller_entries_and_missing_entity_registry():
@@ -129,5 +150,5 @@ def test_panel_lifecycle_registers_once_and_removes_sidebar(monkeypatch):
 
     assert len([item for item in registrations if item[0] == panel.PANEL_JS]) == 1
     assert len([item for item in registrations if isinstance(item[0], tuple)]) == 2
-    assert len(websocket_registrations) == 1
+    assert len(websocket_registrations) == 2
     assert len(removals) == 1

@@ -1,4 +1,5 @@
 const DATA_COMMAND = "entity_controller/panel";
+const SAVE_COMMAND = "entity_controller/panel/save";
 const HISTORY_COMMAND = "history/history_during_period";
 const WINDOW_MS = 24 * 60 * 60 * 1000;
 const REFRESH_MS = 5 * 60 * 1000;
@@ -24,6 +25,42 @@ const stateKey = (state) => {
 };
 
 const stateColor = (state) => stateKey(state);
+const durationSeconds = (value) => {
+  if (typeof value === "number") return value;
+  if (!value || typeof value !== "object") return Number(value) || 0;
+  return (Number(value.days || 0) * 86400) + (Number(value.hours || 0) * 3600) +
+    (Number(value.minutes || 0) * 60) + Number(value.seconds || 0);
+};
+const FIELD_LABELS = {
+  name: "Názov", icon: "Ikona", trigger_entities: "Spúšťacie entity",
+  control_entities: "Ovládané entity", delay_seconds: "Doba aktivity",
+  sensor_type: "Typ spúšťača", sensor_resets_timer: "Opakovaný spúšťač obnoví časovač",
+  backoff_enabled: "Postupne predlžovať opakovanie", backoff_factor: "Faktor predĺženia",
+  backoff_max_seconds: "Najdlhšie predĺženie", state_entities: "Sledované entity",
+  blocking_enabled: "Povoliť blokovanie", block_timeout_seconds: "Automatické odblokovanie po",
+  override_entities: "Override entity", interlock_entities: "Interlock entity",
+  constraint_enabled: "Povoliť časové okno", night_mode_enabled: "Povoliť nočný režim",
+  night_delay_seconds: "Nočný čas aktivity", service_data_on: "Parametre pri zapnutí",
+  service_data_off: "Parametre pri vypnutí", night_service_data_on: "Nočné parametre pri zapnutí",
+  night_service_data_off: "Nočné parametre pri vypnutí", enabled_default: "Počiatočne povolený",
+  stay_mode_default: "Počiatočný trvalý režim", trigger_on_states: "Spúšťací stavy · aktívny",
+  trigger_off_states: "Spúšťacie stavy · neaktívny", state_on_states: "Sledované stavy · aktívny",
+  state_off_states: "Sledované stavy · neaktívny", override_on_states: "Override stavy · aktívny",
+  override_off_states: "Override stavy · neaktívny", state_attributes_ignore: "Ignorované atribúty",
+  constraint_start_source: "Začiatok podľa", constraint_end_source: "Koniec podľa",
+  night_start_source: "Začiatok noci podľa", night_end_source: "Koniec noci podľa",
+  constraint_start_time: "Začiatok okna", constraint_end_time: "Koniec okna",
+  night_start_time: "Začiatok noci", night_end_time: "Koniec noci",
+  constraint_start_offset_seconds: "Posun začiatku v sekundách",
+  constraint_end_offset_seconds: "Posun konca v sekundách",
+  night_start_offset_seconds: "Posun začiatku v sekundách",
+  night_end_offset_seconds: "Posun konca v sekundách",
+  on_enter_idle: "Pri skončení aktivity", on_exit_idle: "Pri obnovení z neaktivity",
+  on_enter_active: "Pri aktivácii", on_exit_active: "Po skončení aktivity",
+  on_enter_overridden: "Pri prevzatí override", on_exit_overridden: "Po skončení override",
+  on_enter_constrained: "Pri zatvorení časového okna", on_exit_constrained: "Pri otvorení časového okna",
+  on_enter_blocked: "Pri zablokovaní", on_exit_blocked: "Po odblokovaní",
+};
 
 class EntityControllerPanel extends HTMLElement {
   constructor() {
@@ -39,6 +76,10 @@ class EntityControllerPanel extends HTMLElement {
     this._rowMarkup = new Map();
     this._touching = false;
     this._renderPending = false;
+    this._editing = null;
+    this._saveTimers = new Map();
+    this._saveQueues = new Map();
+    this._editorRenderPending = false;
     this._touchStartHandler = () => { this._touching = true; };
     this._touchEndHandler = (event) => {
       if (!this._touching || event.touches.length) return;
@@ -49,6 +90,13 @@ class EntityControllerPanel extends HTMLElement {
       }
     };
     this.shadowRoot.addEventListener("click", (event) => this._handleClick(event));
+    this.shadowRoot.addEventListener("change", (event) => this._handleEditorChange(event));
+    this.shadowRoot.addEventListener("input", (event) => this._handleEditorInput(event));
+    this.shadowRoot.addEventListener("focusout", (event) => {
+      if (event.target.matches?.(".editor [data-field]") && this._editorRenderPending) {
+        setTimeout(() => this._render(), 0);
+      }
+    });
   }
 
   set hass(hass) {
@@ -360,12 +408,17 @@ class EntityControllerPanel extends HTMLElement {
     const toggle = '<button class="toggle ' + (controller.enabled ? "on" : "") +
       '" data-toggle="' + esc(controller.enabled_entity_id || "") + '" aria-label="' +
       (controller.enabled ? "Vypnúť " : "Zapnúť ") + esc(title) + '"><span></span></button>';
-    return '<article class="row ' + status.color + '" data-controller-id="' + esc(controller.id) + '">' +
+    const editButton = this._hass?.user?.is_admin
+      ? '<button class="edit-toggle" data-edit="' + esc(controller.id) + '" aria-expanded="' +
+        (this._editing?.id === controller.id) + '" title="Upraviť nastavenia">' +
+        (this._editing?.id === controller.id ? 'Zavrieť' : '<ha-icon icon="mdi:cog-outline"></ha-icon>') + '</button>' : '';
+    return '<article class="row ' + status.color + (this._editing?.id === controller.id ? ' editing' : '') +
+      '" data-controller-id="' + esc(controller.id) + '">' +
       '<div class="identity">' +
         '<div class="controller-control"><div class="controller-avatar"><ha-icon class="controller-icon" data-controller-icon="' +
           esc(controller.icon || "mdi:home-automation") + '" icon="' +
           esc(controller.icon || "mdi:home-automation") + '"></ha-icon></div>' + toggle + '</div>' +
-        '<strong class="controller-name">' + esc(title) + '</strong>' +
+        '<strong class="controller-name">' + esc(title) + '</strong>' + editButton +
         '<div class="status"><div class="status-head"><div class="status-label"><i></i><b>' +
           esc(status.label) + '</b></div>' + (status.countdown
             ? '<span class="status-countdown">' + esc(status.countdown) + '</span>' : '') +
@@ -374,11 +427,82 @@ class EntityControllerPanel extends HTMLElement {
       '</div>' +
       '<div class="chips entities">' + groupedChips + '</div>' +
       '<div class="timeline-line">' + this._timeline(controller) + '</div>' +
+      (this._editing?.id === controller.id ? this._editor(controller) : '') +
       '</article>';
+  }
+
+  _editor(controller) {
+    const form = structuredClone(controller.form || {});
+    const mode = this._editing?.mode || "basic";
+    const sections = [
+      ["basic", "Základné", "basic"], ["timer", "Časovač", "basic"],
+      ["monitoring", "Stav a blokovanie", "basic"], ["rules", "Override a interlock", "basic"],
+      ["constraints", "Časové okno", "basic"], ["night", "Nočný režim", "basic"],
+      ["initial_state", "Počiatočný stav", "basic"],
+      ["actions", "Akcie pri zmene stavu", "full"], ["advanced", "Pokročilé stavy", "full"],
+    ];
+    const renderField = (section, key, value) => {
+      const entityField = key.endsWith("_entities");
+      const booleanField = typeof value === "boolean" || key.endsWith("_enabled") ||
+        key.endsWith("_resets_timer") || key.endsWith("_default");
+      const isArray = Array.isArray(value) || entityField;
+      const isObject = value && typeof value === "object" && !Array.isArray(value);
+      const label = FIELD_LABELS[key] || key.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase());
+      if (entityField) {
+        const domains = key === "trigger_entities"
+          ? ["binary_sensor", "sensor", "input_boolean", "switch", "light", "fan", "event", "device_tracker"]
+          : key === "control_entities" ? ["light", "switch", "fan"]
+            : ["binary_sensor", "sensor", "input_boolean", "light", "switch", "fan", "device_tracker", "cover"];
+        const options = Object.keys(this._hass?.states || {}).filter((entity) => domains.includes(entity.split(".")[0]));
+        for (const entity of value || []) if (!options.includes(entity)) options.push(entity);
+        return '<label class="field"><span>' + esc(label) + '</span><select multiple data-section="' + esc(section) +
+          '" data-field="' + esc(key) + '">' + options.sort().map((entity) => '<option value="' + esc(entity) + '"' +
+            ((value || []).includes(entity) ? ' selected' : '') + '>' + esc(this._hass?.states?.[entity]?.attributes?.friendly_name || entity) +
+          '</option>').join('') + '</select><small>Viac možností vyberieš podržaním Ctrl alebo ⌘.</small></label>';
+      }
+      if (booleanField) return '<label class="field check"><input type="checkbox" data-section="' + esc(section) +
+        '" data-field="' + esc(key) + '"' + (Boolean(value) ? ' checked' : '') + '><span>' + esc(label) + '</span></label>';
+      if (isObject) return '<label class="field"><span>' + esc(label) + '</span><textarea rows="3" data-kind="json" data-section="' +
+        esc(section) + '" data-field="' + esc(key) + '">' + esc(JSON.stringify(value, null, 2)) + '</textarea></label>';
+      if (isArray) value = value.join(", ");
+      const kind = key.endsWith("_time") ? "time" :
+        key === "sensor_type" ? "select" :
+        key.startsWith("on_") ? "behavior" :
+        key.endsWith("_source") ? "schedule-source" :
+        ["delay_seconds", "block_timeout_seconds", "backoff_max_seconds", "night_delay_seconds"].includes(key) ? "duration" :
+        ["backoff_factor", "constraint_start_offset_seconds", "constraint_end_offset_seconds", "night_start_offset_seconds", "night_end_offset_seconds"].includes(key) ? "number" :
+        ["trigger_on_states", "trigger_off_states", "state_on_states", "state_off_states", "override_on_states", "override_off_states", "state_attributes_ignore"].includes(key) ? "states" : "text";
+      const normalizedValue = kind === "duration" ? durationSeconds(value) : value ?? "";
+      const input = kind === "select" || kind === "behavior" || kind === "schedule-source"
+        ? '<select data-kind="' + kind + '" data-section="' + esc(section) + '" data-field="' + esc(key) + '">' +
+          (kind === "behavior" ? [["on", "Zapnúť"], ["off", "Vypnúť"], ["ignore", "Nič nerobiť"], ["custom", "Vlastná akcia"]]
+            : kind === "schedule-source" ? [["fixed", "Konkrétny čas"], ["sunrise", "Východ slnka"], ["sunset", "Západ slnka"]]
+              : [["event", "Udalosť"], ["duration", "Trvanie"]]).map(([option, text]) => '<option value="' + option + '"' +
+                (value === option ? ' selected' : '') + '>' + text + '</option>').join('') + '</select>'
+        : '<input type="' + (kind === "time" ? "time" : kind === "number" || kind === "duration" ? "number" : "text") +
+          '" data-kind="' + kind + '" data-section="' + esc(section) + '" data-field="' + esc(key) + '" value="' + esc(normalizedValue) + '"' +
+          (kind === "number" || kind === "duration" ? ' step="any"' + (kind === "duration" ? ' min="0"' : '') : '') + '>';
+      return '<label class="field"><span>' + esc(label) + '</span>' + input + '</label>';
+    };
+    const markup = sections.filter(([, , tier]) => mode === "full" || tier === "basic").map(([key, title]) => {
+      const values = form[key] || {};
+      const fields = Object.entries(values).map(([field, value]) => renderField(key, field, value)).join("");
+      return fields ? '<details class="editor-section"' + (key === "basic" ? ' open' : '') + '><summary>' + esc(title) +
+        '</summary><div class="editor-fields">' + fields + '</div></details>' : '';
+    }).join("");
+    return '<section class="editor"><header><strong>Upraviť ' + esc(controller.name) + '</strong>' +
+      '<div class="edit-modes"><button data-mode="basic" class="' + (mode === "basic" ? "selected" : "") + '">Základný</button>' +
+      '<button data-mode="full" class="' + (mode === "full" ? "selected" : "") + '">Pokročilý</button></div></header>' +
+      '<p class="save-state" role="status">' + esc(this._saveMessage || "Zmeny sa ukladajú automaticky.") + '</p>' + markup + '</section>';
   }
 
   _render() {
     if (!this.shadowRoot) return;
+    if (this.shadowRoot.activeElement?.matches?.(".editor input, .editor select, .editor textarea")) {
+      this._editorRenderPending = true;
+      return;
+    }
+    this._editorRenderPending = false;
     // Keep the gesture target alive until touchend; native scrolling owns the gesture.
     if (this._touching) {
       this._renderPending = true;
@@ -399,6 +523,7 @@ class EntityControllerPanel extends HTMLElement {
         '.chips{grid-column:2;grid-row:1;min-width:0;display:flex;flex-wrap:wrap;align-items:flex-start;align-content:flex-start;align-self:start;gap:4px;overflow:visible;padding:0}',
         '.chip-separator{flex:none;padding:0;margin:0 -1px;align-self:center;color:var(--secondary-text-color);font-size:13px;line-height:1;opacity:.7}.chip{height:28px;box-sizing:border-box;flex:0 1 auto;min-width:70px;max-width:175px;display:flex;align-items:center;justify-content:flex-start;gap:7px;padding:0 9px;border:var(--ha-card-border-width,1px) solid var(--ha-card-border-color,var(--divider-color));border-radius:18px;background:var(--chip-background,var(--ha-card-background,var(--card-background-color)));box-shadow:var(--chip-box-shadow,var(--ha-card-box-shadow,none));color:var(--primary-text-color);cursor:pointer;white-space:nowrap;font:inherit;font-size:12px;touch-action:pan-y pinch-zoom;user-select:none;-webkit-user-select:none} .chip span{min-width:0;overflow:hidden;text-overflow:ellipsis;pointer-events:none}.chip.unavailable{color:var(--disabled-text-color,var(--secondary-text-color));border-color:var(--disabled-text-color,var(--divider-color));background:color-mix(in srgb,var(--ha-card-background,var(--card-background-color)) 78%,var(--secondary-text-color));box-shadow:none;opacity:.62;filter:grayscale(1)}.chip.unavailable .chip-label{text-decoration:line-through;text-decoration-thickness:1px}.chip.unavailable .chip-icon{color:var(--disabled-text-color,var(--secondary-text-color))}.chip-switch{position:relative;width:22px;height:13px;flex:none;box-sizing:border-box;border-radius:8px;background:var(--disabled-text-color,#9e9e9e);opacity:.75;transition:background .15s}.chip-switch i{position:absolute;top:2px;left:2px;width:9px;height:9px;border-radius:50%;background:#fff;transition:transform .15s}.chip-switch.is-on{background:var(--success-color,#43a047);opacity:1}.chip-switch.is-on i{transform:translateX(9px)}.chip-icon{--mdc-icon-size:16px;flex:none;color:var(--secondary-text-color);pointer-events:none}.chip.active-trigger{background:rgba(76,175,80,.18);border-color:#43a047;box-shadow:0 0 0 1px rgba(67,160,71,.14)}.chip.active-output{background:rgba(255,213,79,.22);border-color:#d2a500;box-shadow:0 0 0 1px rgba(210,165,0,.14)}.chip.active-override{background:rgba(156,39,176,.14);border-color:#9c27b0;box-shadow:0 0 0 1px rgba(156,39,176,.12)}.chip.active-interlock{background:rgba(3,169,244,.14);border-color:#039be5;box-shadow:0 0 0 1px rgba(3,155,229,.12)}.chip[data-chip-toggle]{cursor:pointer}.chip-active-dot{width:7px;height:7px;flex:none;border-radius:50%;background:#2e8b3c}.chip.active-output .chip-active-dot{background:#b38b00}',
         '.timeline-line{grid-column:1/-1;grid-row:2;padding-top:2px;min-width:0}.timeline-wrap{width:100%}.timeline{height:16px;position:relative;overflow:hidden;border-radius:5px;background:#d6dbe0;direction:ltr}.tick{position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,.9);opacity:.8;pointer-events:none}.timeline-axis{height:16px;display:flex;justify-content:space-between;align-items:flex-start;color:var(--secondary-text-color);font-size:10px;line-height:14px;padding-top:3px;direction:ltr}.timeline-axis span{white-space:nowrap;flex:none}.timeline-error{font-size:11px;color:var(--error-color);padding-top:3px}',
+        '.edit-toggle{position:absolute;right:12px;top:12px;z-index:1;display:flex;align-items:center;gap:5px;min-height:32px;padding:4px 8px;border:1px solid var(--divider-color);border-radius:8px;color:var(--primary-text-color);background:var(--ha-card-background,var(--card-background-color));cursor:pointer}.edit-toggle ha-icon{--mdc-icon-size:20px}.controller-name{padding-right:52px}.row.editing{grid-template-columns:minmax(0,1fr);gap:0}.row.editing .identity{grid-column:1;grid-row:1;grid-template-columns:48px minmax(0,1fr);grid-template-rows:36px auto}.row.editing .controller-name{grid-column:2;grid-row:1}.row.editing .chips{grid-column:1;grid-row:2}.row.editing .timeline-line{grid-column:1;grid-row:3}.editor{grid-column:1;grid-row:4;min-width:0;margin-top:10px;padding-top:12px;border-top:1px solid var(--divider-color)}.editor>header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.edit-modes{display:flex;padding:3px;background:var(--secondary-background-color,var(--divider-color));border-radius:10px}.edit-modes button{border:0;border-radius:8px;padding:7px 12px;color:var(--primary-text-color);background:transparent;cursor:pointer}.edit-modes button.selected{background:var(--ha-card-background,var(--card-background-color));box-shadow:var(--ha-card-box-shadow,0 1px 3px #0002)}.save-state{margin:8px 0;color:var(--secondary-text-color);font-size:12px}.editor-section{margin:8px 0;border:1px solid var(--divider-color);border-radius:10px;background:var(--card-background-color)}.editor-section summary{padding:11px 13px;cursor:pointer;font-weight:500}.editor-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:0 12px 12px}.field{display:flex;flex-direction:column;gap:5px;min-width:0;color:var(--primary-text-color);font-size:13px}.field input:not([type=checkbox]),.field select,.field textarea{box-sizing:border-box;width:100%;min-height:38px;padding:7px 9px;border:1px solid var(--input-fill-color,var(--divider-color));border-radius:7px;color:var(--primary-text-color);background:var(--input-background-color,var(--primary-background-color));font:inherit}.field select[multiple]{height:118px}.field textarea{resize:vertical;font-family:monospace}.field small{color:var(--secondary-text-color);font-size:11px}.field.check{flex-direction:row;align-items:center;min-height:38px}.field.check input{width:18px;height:18px;accent-color:var(--primary-color)}@media(max-width:620px){.editor-fields{grid-template-columns:1fr}.row.editing .identity{grid-template-columns:42px minmax(0,1fr);gap:4px 8px}.edit-toggle{padding:3px 7px}}',
         '.legend{flex:none;box-sizing:border-box;min-height:48px;padding:8px 18px;display:flex;align-items:center;justify-content:space-between;gap:15px;border:var(--ha-card-border-width,1px) solid var(--ha-card-border-color,var(--divider-color));border-radius:var(--ha-card-border-radius,12px);background:var(--ha-card-background,var(--card-background-color));box-shadow:var(--ha-card-box-shadow,none);color:var(--primary-text-color);font-size:13px}.legend-items{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap}.legend-title{font-weight:700}.legend-items span{display:flex;align-items:center;gap:9px;white-space:nowrap}.swatch{width:22px;height:12px;flex:none;border-radius:4px;background:var(--ec-inactive)}.swatch.idle{background:#aab2bd}.swatch.active_timer{background:#28bd57}.swatch.active_stay_on{background:#00a896}.swatch.constrained{background:#1686f5}.swatch.blocked{background:#f04452}.swatch.overridden{background:#9b59d0}.swatch.disabled{background:#667085}.swatch.unknown{background:repeating-linear-gradient(135deg,#d6dbe0 0 3px,#aab2bd 3px 5px)}.count{color:var(--secondary-text-color);white-space:nowrap}',
         '.empty{color:var(--secondary-text-color);text-align:center;padding:48px 16px}.error{color:var(--error-color);padding:10px 14px}',
         '@media(max-width:1100px){.row{grid-template-columns:minmax(330px,38%) minmax(0,1fr)}.identity{grid-template-columns:48px minmax(0,1fr);grid-template-rows:34px auto;gap:4px 8px}.controller-avatar{width:32px;height:32px}.controller-icon{--mdc-icon-size:22px}.chip{min-width:66px;padding:0 8px}.legend-items{gap:14px}}',
@@ -462,8 +587,22 @@ class EntityControllerPanel extends HTMLElement {
 
   async _handleClick(event) {
     const button = event.composedPath().find((element) =>
-      element.matches?.(".chip[data-entity], button[data-toggle]"));
+      element.matches?.(".chip[data-entity], button[data-toggle], button[data-edit], button[data-mode]"));
     if (!button) return;
+    if (button.dataset.edit) {
+      this._saveMessage = "Zmeny sa ukladajú automaticky.";
+      this._editing = this._editing?.id === button.dataset.edit
+        ? null : { id: button.dataset.edit, mode: "basic" };
+      this._rowMarkup.clear();
+      this._render();
+      return;
+    }
+    if (button.dataset.mode) {
+      if (this._editing) this._editing.mode = button.dataset.mode;
+      this._rowMarkup.clear();
+      this._render();
+      return;
+    }
     if (button.dataset.toggle) {
       const entityId = button.dataset.toggle;
       const enabled = this.controllers.find((item) => item.enabled_entity_id === entityId)?.enabled;
@@ -481,6 +620,81 @@ class EntityControllerPanel extends HTMLElement {
     this.dispatchEvent(new CustomEvent("hass-more-info", {
       bubbles: true, composed: true, detail: { entityId },
     }));
+  }
+
+  _readEditorValue(element) {
+    const kind = element.dataset.kind;
+    if (element.type === "checkbox") return element.checked;
+    if (element.multiple) return [...element.selectedOptions].map((option) => option.value);
+    if (kind === "json") return JSON.parse(element.value || "{}");
+    if (kind === "states") return element.value.split(",").map((item) => item.trim()).filter(Boolean);
+    if (kind === "duration") {
+      const seconds = Math.max(0, Number(element.value) || 0);
+      const days = Math.floor(seconds / 86400);
+      const hours = Math.floor((seconds % 86400) / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      return { days, hours, minutes, seconds: Math.round(seconds % 60) };
+    }
+    if (kind === "number") return Number(element.value);
+    return element.value;
+  }
+
+  _handleEditorInput(event) {
+    const field = event.target;
+    if (!field.matches?.(".editor [data-field]") || ["checkbox", "select-multiple"].includes(field.type)) return;
+    clearTimeout(this._saveTimers.get(field));
+    this._saveTimers.set(field, setTimeout(() => this._persistEditorField(field), 650));
+  }
+
+  _handleEditorChange(event) {
+    const field = event.target;
+    if (!field.matches?.(".editor [data-field]")) return;
+    clearTimeout(this._saveTimers.get(field));
+    this._persistEditorField(field);
+  }
+
+  async _persistEditorField(field) {
+    const controller = this.controllers.find((item) => item.id === this._editing?.id);
+    if (!controller || !field.isConnected) return;
+    const section = field.dataset.section;
+    const key = field.dataset.field;
+    const previousForm = structuredClone(controller.form || {});
+    const nextForm = structuredClone(controller.form || {});
+    if (!nextForm[section]) nextForm[section] = {};
+    try {
+      nextForm[section][key] = this._readEditorValue(field);
+    } catch (error) {
+      const status = field.closest(".editor")?.querySelector(".save-state");
+      if (status) status.textContent = "Neplatná hodnota: " + (error?.message || "skontroluj JSON.");
+      return;
+    }
+    const snapshot = JSON.stringify(nextForm[section][key]);
+    if (field.dataset.savedSnapshot === snapshot) return;
+    controller.form = nextForm;
+    this._saveMessage = "Ukladám…";
+    const status = field.closest(".editor")?.querySelector(".save-state");
+    if (status) status.textContent = this._saveMessage;
+    try {
+      const previousSave = this._saveQueues.get(controller.id) || Promise.resolve();
+      const save = previousSave.catch(() => {}).then(() => this._hass.callWS({
+        type: SAVE_COMMAND,
+        entry_id: controller.entry_id,
+        controller_id: controller.id,
+        form: nextForm,
+      }));
+      this._saveQueues.set(controller.id, save);
+      await save;
+      field.dataset.savedSnapshot = snapshot;
+      this._saveMessage = "Uložené";
+      if (status?.isConnected) status.textContent = this._saveMessage;
+      if (this._saveQueues.get(controller.id) === save) await this._refresh();
+    } catch (error) {
+      controller.form = previousForm;
+      this._saveMessage = "Chyba pri ukladaní; pôvodná hodnota zostala zachovaná.";
+      if (status?.isConnected) status.textContent = this._saveMessage;
+      this._rowMarkup.clear();
+      this._render();
+    }
   }
 
   _updateClock() {

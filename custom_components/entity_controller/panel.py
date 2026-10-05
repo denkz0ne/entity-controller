@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import voluptuous as vol
 from homeassistant.components import frontend, websocket_api
 from homeassistant.helpers import entity_registry
 from homeassistant.util import dt as dt_util
@@ -16,8 +17,14 @@ from .schedule import resolve_schedule_point, schedule_point_from_data
 
 PANEL_URL = "entity-controller"
 PANEL_JS = "/entity_controller/entity-controller-panel.js"
-PANEL_JS_VERSION = "10.0.0-timeline.1"
+PANEL_JS_VERSION = "10.0.0-config.1"
 _PANEL_DATA_KEY = "entity_controller_panel"
+_PANEL_SAVE_SCHEMA = {
+    vol.Required("type"): "entity_controller/panel/save",
+    vol.Required("entry_id"): str,
+    vol.Required("controller_id"): str,
+    vol.Required("form"): dict,
+}
 
 
 def _registered_entity_id(hass: Any, domain: str, unique_id: str) -> str | None:
@@ -109,16 +116,27 @@ def serialize_controllers(hass: Any) -> list[dict[str, Any]]:
     """Build a JSON-safe, dynamic view of all loaded controller runtimes."""
 
     result: list[dict[str, Any]] = []
+    from .config_flow import controller_form_values
+
     for entry_id, manager in hass.data.get(DOMAIN, {}).items():
         if entry_id.startswith("_") or not hasattr(manager, "controllers"):
             continue
         for controller_id, runtime in manager.controllers.items():
             config = runtime.config
+            entry = getattr(manager, "entry", None)
+            entry_data = dict(getattr(entry, "data", {}) or {})
+            subentry = getattr(entry, "subentries", {}).get(controller_id)
+            if subentry is not None:
+                entry_data = dict(subentry.data)
+            form = controller_form_values(entry_data)
+            form.setdefault("basic", {}).setdefault("icon", config.icon or "")
             unique_prefix = config.entity_unique_id_prefix or f"{entry_id}_{controller_id}"
             state = getattr(runtime.state, "value", str(runtime.state))
             result.append(
                 {
                     "id": controller_id,
+                    "entry_id": entry_id,
+                    "form": form,
                     "name": config.name,
                     "icon": config.icon,
                     "state": state,
@@ -178,6 +196,63 @@ async def websocket_get_panel_data(hass, connection, msg) -> None:
     connection.send_result(msg["id"], {"controllers": serialize_controllers(hass)})
 
 
+@websocket_api.websocket_command(_PANEL_SAVE_SCHEMA)
+@websocket_api.async_response
+async def websocket_save_controller(hass, connection, msg) -> None:
+    """Persist an inline controller edit and hot-reconfigure its runtime."""
+
+    if not getattr(getattr(connection, "user", None), "is_admin", False):
+        connection.send_error(msg["id"], "unauthorized", "Administrator access is required")
+        return
+
+    controller_id = msg["controller_id"]
+    entry_id = msg["entry_id"]
+    manager = hass.data.get(DOMAIN, {}).get(entry_id)
+    runtime = getattr(manager, "controllers", {}).get(controller_id)
+    if runtime is None:
+        connection.send_error(msg["id"], "not_found", "Controller was not found")
+        return
+
+    entry = manager.entry
+    from .config_flow import CONTROLLER_SCHEMA, normalize_controller_user_input
+    from .entry_migration import CONTROLLER_ID_KEY
+
+    current = dict(entry.data)
+    subentry = None
+    if not current.get(CONTROLLER_ID_KEY):
+        subentry = getattr(entry, "subentries", {}).get(controller_id)
+        if subentry is None:
+            connection.send_error(msg["id"], "not_found", "Controller configuration was not found")
+            return
+        current = dict(subentry.data)
+
+    try:
+        form = dict(msg["form"])
+        basic = dict(form.get("basic", {}))
+        if not basic.get("icon"):
+            basic.pop("icon", None)
+            form["basic"] = basic
+        validated_form = CONTROLLER_SCHEMA(form)
+        normalized = normalize_controller_user_input(validated_form)
+        updated = {**current, **normalized}
+        if subentry is None:
+            hass.config_entries.async_update_entry(
+                entry, data=updated, title=updated.get("name", entry.title)
+            )
+        else:
+            hass.config_entries.async_update_subentry(
+                entry,
+                subentry,
+                data=updated,
+                title=updated.get("name", subentry.title),
+            )
+    except (KeyError, TypeError, ValueError, vol.Invalid) as err:
+        connection.send_error(msg["id"], "invalid_format", str(err))
+        return
+
+    connection.send_result(msg["id"], {"success": True})
+
+
 def _register_websocket(hass: Any) -> None:
     """Register the read-only panel data command once per HA instance."""
 
@@ -185,6 +260,7 @@ def _register_websocket(hass: Any) -> None:
     if marker.get("websocket"):
         return
     websocket_api.async_register_command(hass, websocket_get_panel_data)
+    websocket_api.async_register_command(hass, websocket_save_controller)
     marker["websocket"] = True
 
 

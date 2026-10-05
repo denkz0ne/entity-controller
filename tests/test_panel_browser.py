@@ -233,3 +233,48 @@ def test_timeline_loads_recorder_states_on_a_rolling_offset_axis(page):
     history_call = page.evaluate("timelineCalls[0]")
     assert history_call["minimal_response"] is False
     assert history_call["end_time"] > history_call["start_time"]
+
+
+def test_admin_config_panel_switches_modes_and_saves_inline(page):
+    page.evaluate(
+        """() => {
+          const controller = panel.controllers[0];
+          controller.entry_id = "entry-1";
+          controller.form = {
+            basic: {
+              name: controller.name,
+              icon: controller.icon,
+              trigger_entities: ["binary_sensor.motion"],
+              control_entities: ["light.room"],
+              delay_seconds: {days: 0, hours: 0, minutes: 3, seconds: 0},
+            },
+            timer: {sensor_type: "event", sensor_resets_timer: false},
+            advanced: {state_on_states: "on", state_off_states: "off"},
+          };
+          window.wsCalls = [];
+          panel.hass = {
+            ...panel.hass,
+            user: {is_admin: true},
+            callWS: async (message) => {
+              wsCalls.push(message);
+              if (message.type === "entity_controller/panel/save") return {success: true};
+              if (message.type === "entity_controller/panel") return {controllers: panel.controllers};
+              return [[]];
+            },
+          };
+        }"""
+    )
+    page.locator(".edit-toggle").first.click()
+    assert page.locator(".editor").is_visible()
+    assert page.locator('[data-field="state_on_states"]').count() == 0
+    page.locator('button[data-mode="full"]').click()
+    assert page.locator('[data-field="state_on_states"]').is_visible()
+    page.locator('[data-field="name"]').first.fill("Updated room")
+    page.wait_for_function(
+        'wsCalls.some((call) => call.type === "entity_controller/panel/save")'
+    )
+    save = page.evaluate(
+        'wsCalls.find((call) => call.type === "entity_controller/panel/save")'
+    )
+    assert save["entry_id"] == "entry-1"
+    assert save["form"]["basic"]["name"] == "Updated room"
