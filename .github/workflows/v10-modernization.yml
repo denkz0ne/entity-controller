@@ -46,6 +46,7 @@ jobs:
             custom_components/entity_controller/manager.py \
             custom_components/entity_controller/migration.py \
             custom_components/entity_controller/model.py \
+            custom_components/entity_controller/panel.py \
             custom_components/entity_controller/repairs.py \
             custom_components/entity_controller/schedule.py \
             custom_components/entity_controller/sensor.py \
@@ -67,6 +68,7 @@ jobs:
             tests/test_model.py \
             tests/test_repository_branding.py \
             tests/test_persistence.py \
+            tests/test_panel.py \
             tests/test_release_gate.py \
             tests/test_reconcile.py \
             tests/test_reconfigure.py \
@@ -103,6 +105,7 @@ jobs:
             tests/test_migration.py \
             tests/test_legacy_entity.py \
             tests/test_persistence.py \
+            tests/test_panel.py \
             tests/test_release_gate.py \
             tests/test_diagnostics.py \
             tests/test_repairs.py \

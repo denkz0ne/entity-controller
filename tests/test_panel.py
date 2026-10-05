@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 from homeassistant.helpers import entity_registry
@@ -33,7 +34,7 @@ def test_panel_payload_is_dynamic_and_resolves_registered_entities(monkeypatch):
         last_transition_at="2026-10-01T10:00:00+00:00",
         last_transition_cause=SimpleNamespace(value="trigger_on"),
         last_triggered_at="2026-10-01T10:00:00+00:00",
-        expires_at="2026-10-01T10:03:00+00:00",
+        expires_at=datetime(2026, 10, 1, 10, 3, tzinfo=UTC),
         blocked_by=(),
         block_reason=None,
         active_triggers=("binary_sensor.hall_motion",),
@@ -41,7 +42,19 @@ def test_panel_payload_is_dynamic_and_resolves_registered_entities(monkeypatch):
         active_overrides=(),
         active_interlocks=(),
     )
-    manager = SimpleNamespace(controllers={"hall-id": runtime})
+    manager = SimpleNamespace(
+        controllers={"hall-id": runtime},
+        entry=SimpleNamespace(
+            data={
+                "name": "Hall",
+                "icon": "mdi:door",
+                "trigger_entities": ["binary_sensor.hall_motion"],
+                "control_entities": ["light.hall", "switch.fan"],
+                "delay_seconds": 180,
+            },
+            subentries={},
+        ),
+    )
     hass = SimpleNamespace(
         data={"entity_controller": {"entry-1": manager}},
     )
@@ -80,6 +93,15 @@ def test_panel_payload_is_dynamic_and_resolves_registered_entities(monkeypatch):
     ]
     assert controller["enabled"] is True
     assert controller["last_transition_cause"] == "trigger_on"
+    assert controller["form"]["basic"]["name"] == "Hall"
+    assert controller["form"]["basic"]["trigger_entities"] == [
+        "binary_sensor.hall_motion"
+    ]
+    assert controller["form"]["basic"]["delay_seconds"] == {
+        "hours": 0,
+        "minutes": 3,
+        "seconds": 0,
+    }
 
 
 def test_panel_payload_handles_no_controller_entries_and_missing_entity_registry():
@@ -129,5 +151,5 @@ def test_panel_lifecycle_registers_once_and_removes_sidebar(monkeypatch):
 
     assert len([item for item in registrations if item[0] == panel.PANEL_JS]) == 1
     assert len([item for item in registrations if isinstance(item[0], tuple)]) == 2
-    assert len(websocket_registrations) == 1
+    assert len(websocket_registrations) == 2
     assert len(removals) == 1
