@@ -474,6 +474,24 @@ def test_stored_controller_data_is_expanded_back_into_form_sections() -> None:
     assert values["advanced"]["trigger_on_states"] == "on, playing"
 
 
+def test_stored_disabled_block_timeout_is_a_duration_mapping() -> None:
+    values = controller_form_values(
+        {
+            "name": "Hall",
+            "trigger_entities": ("binary_sensor.hall",),
+            "control_entities": ("light.hall",),
+            "block_timeout_seconds": None,
+        }
+    )
+
+    CONTROLLER_SCHEMA(values)
+    assert values["monitoring"]["block_timeout_seconds"] == {
+        "hours": 0,
+        "minutes": 0,
+        "seconds": 0,
+    }
+
+
 @pytest.mark.asyncio
 async def test_add_controller_form_contains_complete_configuration() -> None:
     flow = _prepare_config_flow(EntityControllerConfigFlow())

@@ -8,7 +8,7 @@ def test_manifest_is_v10_controller_device_without_transitions_dependency() -> N
     )
 
     assert manifest["domain"] == "entity_controller"
-    assert manifest["version"] == "10.4.0"
+    assert manifest["version"] == "10.4.1"
     assert manifest["integration_type"] == "device"
     assert "single_config_entry" not in manifest
     assert manifest["iot_class"] == "calculated"
