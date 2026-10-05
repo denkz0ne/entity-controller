@@ -235,7 +235,7 @@ def test_timeline_loads_recorder_states_on_a_rolling_offset_axis(page):
     assert history_call["end_time"] > history_call["start_time"]
 
 
-def test_admin_config_panel_switches_modes_and_saves_inline(page):
+def test_admin_config_panel_switches_modes_and_saves_explicitly(page):
     page.evaluate(
         """() => {
           const controller = panel.controllers[0];
@@ -271,6 +271,10 @@ def test_admin_config_panel_switches_modes_and_saves_inline(page):
     page.locator(".editor-section").filter(has_text="Pokročilé stavy").locator("summary").click()
     assert page.locator('[data-field="state_on_states"]').is_visible()
     page.locator('[data-field="name"]').first.fill("Updated room")
+    assert page.evaluate(
+        'wsCalls.filter((call) => call.type === "entity_controller/panel/save").length'
+    ) == 0
+    page.locator(".editor-save").click()
     page.wait_for_function(
         'wsCalls.some((call) => call.type === "entity_controller/panel/save")'
     )
@@ -321,7 +325,8 @@ def test_editor_uses_compact_cards_and_searchable_entity_chips(page):
     assert not page.locator(".row.editing .timeline-line").is_visible()
     assert page.locator(".editor-card").filter(has_text="Spúšťače").is_visible()
     assert page.locator(".editor-card").filter(has_text="Ovládané entity").is_visible()
-    assert page.locator('[data-field="delay_seconds"]').get_attribute("type") == "range"
+    assert page.locator('input[type="range"][data-field="delay_seconds"]').get_attribute("type") == "range"
+    assert page.locator('[data-duration-manual="basic.delay_seconds"]').get_attribute("type") == "number"
     assert page.locator('[data-picker-toggle="basic.trigger_entities"]').is_visible()
 
     page.locator('[data-picker-toggle="basic.trigger_entities"]').click()
@@ -391,7 +396,7 @@ def test_controller_icon_is_selected_from_searchable_visual_picker(page):
     assert page.locator("article").first.locator(".controller-icon").get_attribute("icon") == "mdi:weather-sunset"
 
 
-def test_confirmed_save_uses_authoritative_response_without_full_panel_reload(page):
+def test_explicit_save_uses_authoritative_response_without_full_panel_reload(page):
     page.evaluate(
         """() => {
           const controller = panel.controllers[0];
@@ -415,12 +420,16 @@ def test_confirmed_save_uses_authoritative_response_without_full_panel_reload(pa
     )
     page.locator(".edit-toggle").first.click()
     page.locator('[data-field="name"]').first.fill("Saved room")
+    assert page.evaluate(
+        'panel._dirtyControllers.has("controller-0") && panelRequests === 0'
+    )
+    page.locator(".editor-save").click()
     page.wait_for_function('panel.shadowRoot.querySelector(".save-state")?.textContent === "Uložené"')
     assert page.evaluate("panelRequests") == 0
     assert page.locator('[data-field="name"]').first.input_value() == "Saved room"
 
 
-def test_failed_save_restores_last_confirmed_form_with_local_error(page):
+def test_failed_save_keeps_draft_and_reports_backend_error(page):
     page.evaluate(
         """() => {
           const controller = panel.controllers[0];
@@ -438,9 +447,11 @@ def test_failed_save_restores_last_confirmed_form_with_local_error(page):
     page.locator(".edit-toggle").first.click()
     field = page.locator('[data-field="name"]').first
     field.fill("Rejected room")
-    page.wait_for_function('panel._failedSaves.has("controller-0")')
-    assert page.locator(".save-state").inner_text()
-    assert page.locator('[data-field="name"]').first.input_value() == "Confirmed room"
+    page.locator(".editor-save").click()
+    page.wait_for_function('panel._saveErrors.has("controller-0")')
+    assert "Rejected by backend" in page.locator(".save-state").inner_text()
+    assert page.locator('[data-field="name"]').first.input_value() == "Rejected room"
+    assert page.evaluate('panel._dirtyControllers.has("controller-0")')
 
 
 def test_schedule_range_displays_and_saves_an_overnight_window(page):
@@ -474,6 +485,8 @@ def test_schedule_range_displays_and_saves_an_overnight_window(page):
     assert start.get_attribute("type") == "range"
     start.focus()
     start.press("ArrowRight")
+    assert page.evaluate('wsCalls.filter((call) => call.type === "entity_controller/panel/save").length') == 0
+    page.locator(".editor-save").click()
     page.wait_for_function(
         'wsCalls.some((call) => call.type === "entity_controller/panel/save")'
     )
@@ -511,6 +524,7 @@ def test_dragging_solar_schedule_endpoint_switches_to_fixed_time(page):
     assert start.is_enabled()
     start.focus()
     start.press("ArrowRight")
+    page.locator(".editor-save").click()
     page.wait_for_function(
         'wsCalls.some((call) => call.type === "entity_controller/panel/save")'
     )
@@ -542,6 +556,10 @@ def test_solar_offset_uses_fifteen_minute_steps_once_in_basic_mode(page):
     )
     page.locator(".edit-toggle").first.click()
     page.locator('[aria-label="Zvýšiť posun o 15 minút"]').click()
+    assert page.evaluate(
+        'panel.controllers[0].form.constraints.constraint_start_offset_seconds'
+    ) == 900
+    page.locator(".editor-save").click()
     page.wait_for_function(
         'wsCalls.some((call) => call.type === "entity_controller/panel/save")'
     )
@@ -550,4 +568,84 @@ def test_solar_offset_uses_fifteen_minute_steps_once_in_basic_mode(page):
     )
     assert save["form"]["constraints"]["constraint_start_offset_seconds"] == 900
     assert page.locator('.editor-section [data-field="constraint_start_offset_seconds"]').count() == 0
+
+
+def test_editor_waits_for_explicit_save_and_has_manual_duration_input(page):
+    page.evaluate(
+        """() => {
+          const controller = panel.controllers[0];
+          controller.entry_id = "entry-1";
+          controller.form = {
+            basic: {name: controller.name, trigger_entities: [], control_entities: [], delay_seconds: 240},
+          };
+          window.wsCalls = [];
+          panel.hass = {...panel.hass, user: {is_admin: true},
+            callWS: async (message) => {
+              wsCalls.push(message);
+              return message.type === "entity_controller/panel/save"
+                ? {success: true, form: message.form} : {controllers: panel.controllers};
+            }};
+        }"""
+    )
+
+    page.locator(".edit-toggle").first.click()
+    duration = page.locator('input[type="range"][data-field="delay_seconds"][data-kind="duration"]')
+    assert duration.get_attribute("type") == "range"
+    manual = page.locator('[data-duration-manual="basic.delay_seconds"]')
+    assert manual.get_attribute("type") == "number"
+    manual.fill("301")
+    assert page.evaluate(
+        'wsCalls.filter((call) => call.type === "entity_controller/panel/save").length'
+    ) == 0
+    assert page.locator(".editor-save").is_visible()
+    assert page.locator(".editor-close").is_visible()
+
+    page.locator(".editor-save").click()
+    page.wait_for_function(
+        'wsCalls.some((call) => call.type === "entity_controller/panel/save")'
+    )
+    saved = page.evaluate(
+        'wsCalls.find((call) => call.type === "entity_controller/panel/save")'
+    )
+    assert saved["form"]["basic"]["delay_seconds"] == {
+        "days": 0, "hours": 0, "minutes": 5, "seconds": 1
+    }
+
+
+def test_close_reopen_is_single_click_and_preserves_unsaved_draft(page):
+    page.evaluate(
+        """() => {
+          const controller = panel.controllers[0];
+          controller.entry_id = "entry-1";
+          controller.form = {
+            basic: {name: controller.name, trigger_entities: [], control_entities: [], delay_seconds: 240},
+          };
+          window.wsCalls = [];
+          panel.style.setProperty("--secondary-background-color", "rgb(20, 30, 40)");
+          panel.hass = {...panel.hass, user: {is_admin: true},
+            callWS: async (message) => {
+              wsCalls.push(message);
+              return message.type === "entity_controller/panel/save"
+                ? {success: true, form: message.form} : {controllers: panel.controllers};
+            }};
+        }"""
+    )
+
+    page.locator(".edit-toggle").first.click()
+    assert page.locator(".editor").is_visible()
+    assert page.locator(".editor").evaluate("element => getComputedStyle(element).backgroundColor") == "rgb(20, 30, 40)"
+    assert page.locator(".editor-card").first.evaluate(
+        "element => getComputedStyle(element).backgroundColor"
+    ) == "rgba(0, 0, 0, 0)"
+    page.locator('[data-field="name"]').first.fill("Draft room")
+    page.locator(".editor-close").click()
+    assert page.locator(".editor").count() == 0
+    assert page.evaluate(
+        'wsCalls.filter((call) => call.type === "entity_controller/panel/save").length'
+    ) == 0
+
+    page.locator(".edit-toggle").first.click()
+    assert page.locator(".editor").is_visible()
+    assert page.locator('[data-field="name"]').first.input_value() == "Draft room"
+    assert page.locator(".save-state").inner_text() == "Neuložené zmeny"
 

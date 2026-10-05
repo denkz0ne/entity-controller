@@ -2,6 +2,21 @@
 
 All notable changes to Entity Controller v10 are documented here.
 
+<a name="10.4.0"></a>
+## 10.4.0 (2026-10-05)
+
+### Features
+
+* replace automatic editor saves with explicit Save and Close actions
+* add manual seconds input synchronized with duration sliders
+
+### Fixes
+
+* preserve unsaved drafts after closing settings and while panel data refreshes
+* keep unsaved values visible after a failed save and show the backend error
+* place transparent setting groups on a shared compact editor background
+* avoid treating schedule offset buttons as form values during save
+
 <a name="10.3.0"></a>
 ## 10.3.0 (2026-10-05)
 
