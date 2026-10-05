@@ -448,8 +448,8 @@ def test_stored_controller_data_is_expanded_back_into_form_sections() -> None:
     values = controller_form_values(
         {
             "name": "Hall",
-            "trigger_entities": ("binary_sensor.hall",),
-            "control_entities": ("light.hall",),
+            "trigger_entities": ["binary_sensor.hall"],
+            "control_entities": ["light.hall"],
             "constraint_window": {
                 "start": {"source": "sunset", "time": "20:00:00", "offset_seconds": -600},
                 "end": {"source": "fixed", "time": "23:00:00", "offset_seconds": 0},
