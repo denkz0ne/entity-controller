@@ -81,6 +81,11 @@ async def async_get_config_entry_diagnostics(
                     "last_action_hook": runtime.last_action_hook,
                     "last_action_result": runtime.last_action_result,
                     "last_action_error": runtime.last_action_error,
+                    "last_action_at": runtime.last_action_at.isoformat()
+                    if runtime.last_action_at is not None else None,
+                    "snapshot_generation": runtime.snapshot_generation,
+                    "selected_exit_strategy": runtime.selected_exit_strategy,
+                    "restore_skipped_manual": runtime.restore_skipped_manual,
                     "active_state_entities": list(runtime.active_state_entities),
                     "effective_delay": runtime.effective_delay_seconds,
                     "backoff_count": runtime.backoff_count,

@@ -584,3 +584,34 @@ async def test_default_manual_off_protection_holds_with_legacy_blocking_disabled
     assert runtime.state is ControllerState.IDLE
     assert runtime.manual_takeover_pending
     assert len(hass.calls) == before
+
+
+@pytest.mark.asyncio
+async def test_unprotected_manual_off_with_other_output_on_does_not_use_on_protection():
+    hass = Lights()
+    hass.values["light.second"] = SimpleNamespace(state="off", attributes={"brightness": 180})
+    manager = EntityControllerManager(hass, SimpleNamespace(data={}), now=lambda: datetime.now(UTC))
+    runtime = await manager.async_add_controller(SimpleNamespace(subentry_id="a", data={"name": "A", "control_entities": ["light.room", "light.second"], "protect_manual_off": False, "protect_manual_on": True}))
+    await runtime.async_handle_sensor_on("binary_sensor.motion")
+    state = hass.values["light.room"]
+    state.state = "off"
+    await manager._state_listener(runtime)({"entity_id": "light.room", "old_state": SimpleNamespace(state="on", attributes=dict(state.attributes)), "new_state": state})
+    assert runtime.state is ControllerState.ACTIVE_TIMER
+    assert not runtime.manual_takeover_pending
+    assert hass.values["light.second"].state == "on"
+
+
+@pytest.mark.asyncio
+async def test_protected_manual_off_with_other_output_on_uses_off_protection():
+    hass = Lights()
+    hass.values["light.second"] = SimpleNamespace(state="off", attributes={"brightness": 180})
+    manager = EntityControllerManager(hass, SimpleNamespace(data={}), now=lambda: datetime.now(UTC))
+    runtime = await manager.async_add_controller(SimpleNamespace(subentry_id="a", data={"name": "A", "control_entities": ["light.room", "light.second"], "protect_manual_off": True, "protect_manual_on": False}))
+    await runtime.async_handle_sensor_on("binary_sensor.motion")
+    state = hass.values["light.room"]
+    state.state = "off"
+    await manager._state_listener(runtime)({"entity_id": "light.room", "old_state": SimpleNamespace(state="on", attributes=dict(state.attributes)), "new_state": state})
+    assert runtime.state is ControllerState.BLOCKED
+    assert runtime.manual_takeover_pending
+    assert runtime.manual_control_kind == "manual_off"
+    assert hass.values["light.second"].state == "on"

@@ -776,13 +776,16 @@ class ControllerRuntime:
             return changed
         if self._is_active_state(self.state):
             kind = manual_control_kind or ("manual_on" if is_on else "manual_off")
-            if kind != "manual_off" and not self.config.protect_manual_on:
-                await self.async_reset_timer()
-                return False
-            self.manual_control_kind = manual_control_kind or ("manual_on" if is_on else "manual_off")
+            protected = self.config.protect_manual_off if kind == "manual_off" else self.config.protect_manual_on
+            self.manual_control_kind = kind
             self.manual_control_entity = entity_id
             self.manual_control_at = self._clock()
-            self.manual_takeover_pending = self.config.protect_manual_off if self.manual_control_kind == "manual_off" else self.config.protect_manual_on
+            self.manual_takeover_pending = protected
+            # Protection follows the actual changed output, not the aggregate
+            # ON state of other outputs in the same room.
+            if not protected and is_on:
+                await self.async_reset_timer()
+                return False
             await self._finish_session()
 
         if self.state in (ControllerState.ACTIVE_TIMER, ControllerState.ACTIVE_STAY_ON):
@@ -794,7 +797,7 @@ class ControllerRuntime:
                 )
                 await self._release_manual_session_if_clear()
                 return changed
-            if self.config.protect_manual_on or self.config.blocking_enabled:
+            if self.manual_takeover_pending:
                 self.blocked_by = entity_id
                 changed = await self.async_transition(
                     ControllerState.BLOCKED,

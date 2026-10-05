@@ -150,7 +150,7 @@ class EntityControllerPanel extends HTMLElement {
   async _start() {
     await this._refresh();
     this._watchStates();
-    if (!this._timer) this._timer = setInterval(() => this._loadHistory(), REFRESH_MS);
+    if (!this._timer) this._timer = setInterval(() => this._refresh(), REFRESH_MS);
     if (!this._clockTimer) this._clockTimer = setInterval(() => this._updateClock(), 1000);
   }
 
@@ -198,7 +198,16 @@ class EntityControllerPanel extends HTMLElement {
       this.error = null;
       this._render(Boolean(this._editing));
       const editing = this.controllers.find(item => item.id === this._editing?.id);
-      if (editing) this._updateEditorStatus(editing);
+      if (editing) {
+        this._updateEditorStatus(editing);
+        for (const prefix of ['constraint', 'night']) {
+          const section = prefix === 'constraint' ? 'constraints' : 'night';
+          for (const side of ['start', 'end']) {
+            const source = editing.form?.[section]?.[prefix + '_' + side + '_source'];
+            if (source && source !== 'fixed') this._syncScheduleEndpoint(editing, prefix, side);
+          }
+        }
+      }
       await this._loadHistory();
     } catch (error) {
       this.error = error?.message || "Nepodarilo sa načítať ovládače.";
@@ -909,7 +918,13 @@ class EntityControllerPanel extends HTMLElement {
       new Date(controller.next_transition_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : 'Žiadna naplánovaná zmena';
     const draft = controller.form || {};
     const dirty = this._dirtyControllers.has(controller.id);
-    return '<div class="decision-heading"><h3>Čo sa stane teraz</h3><span class="live-badge">Bežiace nastavenie</span></div>' +
+    const helpId = 'decision-help-' + controller.id;
+    const help = '<button type="button" class="field-help" data-help="' + esc(helpId) +
+      '" aria-label="Pomoc: aktuálne rozhodnutie" aria-controls="' + esc(helpId) +
+      '" aria-expanded="false">?</button><div id="' + esc(helpId) +
+      '" class="help-popover" popover role="note">' + esc(reason + '. ' + next +
+      '. Odpočet neznamená automatické vypnutie pri ručnom riadení alebo Override. Neuložený návrh ešte neovplyvňuje bežiaci profil.') + '</div>';
+    return '<div class="decision-heading"><h3>Čo sa stane teraz ' + help + '</h3><span class="live-badge">Bežiace nastavenie</span></div>' +
       '<div class="decision-metrics"><div title="' + esc(reason) + '"><span>Stav</span><strong>' + esc(STATES[state].label) + '</strong><small>' + esc(reason) + '</small></div>' +
       '<div><span>Zostáva do konca aktivity</span><strong data-decision-countdown title="Čas aktivity nie je zárukou vypnutia pri Override alebo ručnom riadení.">' + esc(countdown) + '</strong></div>' +
       '<div title="' + esc(next) + '"><span>' + profile + ' profil</span><strong>' + esc(this._parameterText(params)) + '</strong><small>' +
@@ -1069,13 +1084,13 @@ class EntityControllerPanel extends HTMLElement {
         .advanced-setting{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:6px;min-width:0}.advanced-setting>.field-help{margin-top:0}.advanced-setting .switch-setting{margin:0}.advanced-setting .field,.advanced-setting .duration-control{min-width:0}
         .advanced-fields{grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:12px}.editor-grid>.editor-section[data-editor-section=timer],.editor-grid>.editor-section[data-editor-section=monitoring],.editor-grid>.editor-section[data-editor-section=initial_state]{grid-column:span 1}
         .parameter-editor{margin-top:8px;border:0;min-width:0}.parameter-editor>summary{display:flex;align-items:center;gap:8px;min-height:32px;cursor:pointer;font-size:12px;list-style:none}.parameter-editor>summary::-webkit-details-marker{display:none}.parameter-editor>summary small{flex:1;color:var(--secondary-text-color);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}.parameter-editor ha-icon{--mdc-icon-size:16px}.parameter-fields{display:grid;gap:8px;padding:4px 0}.parameter-help{font-size:12px}.parameter-setting{display:grid;grid-template-columns:115px minmax(0,1fr);gap:8px;align-items:center;font-size:12px;min-width:0}.parameter-label{display:flex;gap:6px;align-items:center}.parameter-label input{accent-color:var(--primary-color);width:18px;height:18px;margin:0}.parameter-inputs{display:grid;grid-template-columns:minmax(0,1fr) 66px auto;gap:6px;align-items:center;min-width:0}.parameter-inputs input[type=range]{width:100%;min-width:0;accent-color:var(--primary-color);border-radius:8px}.parameter-inputs input[type=number],.parameter-setting select{box-sizing:border-box;width:100%;min-width:0;min-height:32px;padding:5px;border:1px solid transparent;border-radius:8px;background:var(--primary-background-color);color:var(--primary-text-color);font:inherit}.parameter-setting input[type=color]{width:100%;height:32px;border:0;padding:0;background:transparent;cursor:pointer}.parameter-setting input:disabled{opacity:.4}.parameter-editor[open]>summary ha-icon{transform:rotate(180deg)}
-        .editor-grid>.live-decision{grid-column:1/-1;padding:10px 12px}.decision-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}.decision-heading h3{margin:0;font-size:14px}.live-badge{font-size:10px;color:var(--secondary-text-color)}.decision-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.decision-metrics>div{display:flex;flex-direction:column;gap:3px;min-width:0}.decision-metrics span,.decision-metrics small{font-size:11px;color:var(--secondary-text-color);line-height:1.35}.decision-metrics strong{font-size:13px;line-height:1.4;overflow-wrap:anywhere}.draft-preview{display:flex;flex-wrap:wrap;gap:4px 10px;padding-top:8px;margin-top:8px;border-top:1px solid var(--divider-color);font-size:11px}.draft-preview b{color:var(--primary-color)}
+        .editor-grid>.live-decision{grid-column:1/-1;padding:8px 12px}.decision-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}.decision-heading h3{margin:0;font-size:14px}.live-badge{font-size:10px;color:var(--secondary-text-color)}.decision-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.decision-metrics>div{display:flex;flex-direction:column;gap:3px;min-width:0}.decision-metrics span,.decision-metrics small{font-size:11px;color:var(--secondary-text-color);line-height:1.35}.decision-metrics strong{font-size:13px;line-height:1.4;overflow-wrap:anywhere}.draft-preview{display:flex;flex-wrap:wrap;gap:4px 10px;padding-top:8px;margin-top:8px;border-top:1px solid var(--divider-color);font-size:11px}.draft-preview b{color:var(--primary-color)}
         @container ec-panel (max-width:950px){.editor-grid>.live-decision{grid-row:2}.inputs-card{grid-row:3}.behavior-card{grid-row:4}.schedule-card-constraint{grid-row:5}.schedule-card-night{grid-row:6}.editor-grid>.editor-section[data-editor-section]{grid-column:1}}
         @container ec-panel (max-width:620px){.decision-metrics{grid-template-columns:minmax(0,1fr);gap:8px}.decision-metrics>div{display:grid;grid-template-columns:1fr 1fr;gap:2px 8px}.decision-metrics small{grid-column:1/-1}.parameter-setting{grid-template-columns:1fr;gap:4px}.parameter-inputs input[type=number],.parameter-setting select{min-height:44px;font-size:16px}.parameter-label{min-height:36px}.parameter-editor>summary{min-height:44px}.parameter-inputs input[type=range]{height:32px}.advanced-fields{grid-template-columns:1fr}.parameter-editor>summary small{white-space:normal}}
         @container ec-panel (max-width:950px){.controller-summary{grid-template-columns:minmax(0,1fr)}.controller-summary .identity{grid-row:1}.controller-summary .chips{grid-column:1;grid-row:2}.controller-summary .timeline-line{grid-row:3}.editor-header{align-items:flex-start}.editor-toolbar{gap:10px}.editor-grid{grid-template-columns:minmax(0,1fr)}.editor-grid>.editor-card{grid-column:1}.editor-column{display:contents}.inputs-card{grid-row:2}.behavior-card{grid-row:3}.schedule-card-constraint{grid-row:4}.schedule-card-night{grid-row:5}.editor-grid>.identity-card{grid-template-columns:110px minmax(0,1fr)}.rule-groups{grid-template-columns:1fr}}
         @container ec-panel (max-width:620px){.editor-grid>.editor-card,.editor-column>.editor-card{padding:14px}.editor-grid>.rules-card,.editor-grid>.editor-section{padding:0}.editor-header{flex-direction:column;align-items:stretch;gap:10px}.editor-toolbar{width:100%;justify-content:space-between;gap:8px}.edit-modes{width:auto}.field-help{width:36px;height:36px}.edit-modes button,.editor-buttons button{min-height:44px;padding:8px 10px}.editor-grid>.identity-card{grid-template-columns:minmax(0,1fr);gap:8px}.identity-card .card-fields{grid-template-columns:minmax(0,1fr) auto}.identity-card .icon-picker{min-width:0}.identity-card .icon-picker>.add-entity{min-height:44px}.inputs-card,.behavior-card{grid-template-columns:minmax(0,1fr);gap:16px}.schedule-endpoints{grid-template-columns:1fr}.rule-groups{padding:4px 14px 14px}.field input:not([type=checkbox]),.field select,.field textarea,.schedule-endpoint select,.entity-search{min-height:44px;font-size:16px}.add-entity,.entity-option,.icon-option{min-height:44px}.selected-entity{min-height:36px}.remove-entity{width:36px;height:36px}.switch-setting{min-height:44px}.schedule-heading .switch-setting{min-height:44px}.offset-control button{min-width:44px;min-height:44px}.schedule-track{height:40px}.duration-setting .duration-control .duration-manual input{min-height:44px;font-size:16px}.rules-card summary,.editor-section summary{min-height:44px}.editor-actions .card-fields{grid-template-columns:minmax(0,1fr)}}
         .parameter-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.parameter-pair:has(details[open]){display:block}.parameter-pair .parameter-editor>summary{font-size:11px}
-        .editor-grid>.live-decision{display:grid;grid-template-columns:140px minmax(0,1fr);gap:12px;align-items:center}.live-decision .decision-heading{flex-direction:column;align-items:flex-start;margin:0;gap:4px}.live-decision .decision-metrics small{display:none}.draft-preview{grid-column:1/-1}
+        .editor-grid>.live-decision{display:grid;grid-template-columns:180px minmax(0,1fr);gap:12px;align-items:center}.live-decision .decision-heading{flex-direction:column;align-items:flex-start;margin:0;gap:4px}.live-decision .decision-metrics small{display:none}.draft-preview{grid-column:1/-1}
         .editor-grid>.identity-card{padding-top:8px;padding-bottom:8px}.schedule-card:not(.enabled){padding-top:8px;padding-bottom:8px}.schedule-card:not(.enabled) .card-heading{margin-bottom:0}.inputs-card .card-heading,.behavior-card .card-heading{margin-bottom:6px}.inputs-card,.behavior-card{gap:8px}
         @container ec-panel (max-width:950px){.editor-grid>.live-decision{grid-row:2}.inputs-card{grid-row:3}.behavior-card{grid-row:4}.schedule-card-constraint{grid-row:5}.schedule-card-night{grid-row:6}.editor-grid>.editor-section[data-editor-section]{grid-column:1}}
         @container ec-panel (max-width:620px){.editor-grid>.live-decision{display:block}.live-decision .decision-heading{flex-direction:row;margin-bottom:8px}.live-decision .decision-metrics small{display:block}.parameter-pair{display:block}}

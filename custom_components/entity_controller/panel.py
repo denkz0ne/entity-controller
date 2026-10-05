@@ -226,6 +226,10 @@ def serialize_controllers(hass: Any) -> list[dict[str, Any]]:
                     "last_action_hook": getattr(runtime, "last_action_hook", None),
                     "last_action_result": getattr(runtime, "last_action_result", None),
                     "last_action_error": getattr(runtime, "last_action_error", None),
+                    "last_action_at": getattr(runtime, "last_action_at", None),
+                    "snapshot_generation": getattr(runtime, "snapshot_generation", 0),
+                    "selected_exit_strategy": getattr(runtime, "selected_exit_strategy", None),
+                    "restore_skipped_manual": getattr(runtime, "restore_skipped_manual", False),
                     "expires_at": getattr(runtime, "expires_at", None),
                     "block_expires_at": getattr(runtime, "block_expires_at", None),
                     "next_transition_at": (

@@ -625,6 +625,11 @@ def test_basic_decision_distinguishes_running_and_draft_settings(page):
     expect(decision).to_contain_text('Nočný profil')
     expect(decision).to_contain_text('Jas 20 % · 2700 K')
     assert decision.locator('[data-decision-countdown]').inner_text() in {'4 min','3 min 59 s'}
+    decision.locator('.field-help').click()
+    expect(decision.locator('.help-popover:popover-open')).to_be_visible()
+    page.evaluate('panel._updateClock()')
+    expect(decision.locator('.help-popover:popover-open')).to_be_visible()
+    decision.locator('.field-help').click()
     page.locator('[data-duration-manual="basic.delay_seconds"]').fill('600')
     expect(decision.locator('.draft-preview')).to_contain_text('10 min')
     expect(decision.locator('.decision-metrics')).to_contain_text('Jas 20 % · 2700 K')
@@ -648,6 +653,15 @@ def test_solar_source_and_offset_preview_changes_without_saving(page):
     page.locator('[data-field="constraint_start_source"]').select_option('sunset')
     assert page.locator('[data-field="constraint_start_time"]').input_value() == '1119'
     assert page.evaluate('panel.controllers[0].form.constraints.constraint_start_time') == '12:00'
+    page.evaluate("""async () => {
+      panel._loadHistory=async()=>{};
+      panel.hass.callWS=async()=>({controllers:[{...panel.controllers[0],
+        resolved_schedule:{solar:{sunrise:380,sunset:1110},constraint:{start:720,end:1320}}}]});
+      await panel._refresh();
+    }""")
+    assert page.locator('[data-field="constraint_start_time"]').input_value() == '1125'
+    assert page.evaluate('panel.controllers[0].form.constraints.constraint_start_source') == 'sunset'
+    assert page.evaluate('panel.controllers[0].form.constraints.constraint_start_offset_seconds') == 900
 
 
 def test_native_action_editor_updates_draft_and_scene_selector(page):

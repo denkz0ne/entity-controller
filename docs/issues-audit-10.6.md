@@ -1,4 +1,31 @@
-# Audit otvorených issues pre 10.6
+# Audit issues pre 10.6
+
+## Výsledná implementácia
+
+Stav po implementácii 2026-10-05; finálny GitHub beh a SHA sú evidované
+v release notes v10.6.0 a PR #33. Nasledujúci pôvodný audit je historický
+záznam pred implementáciou, vrátane vtedajších počtov a chýbajúcich funkcií.
+
+| Issue | Implementované | Regresie |
+| --- | --- | --- |
+| #14 | Samostatné presence ON/OFF mapovania, ANY hold, posledné OFF spustí celý delay, priority a hot reconfigure | `test_light_profile_restore.py`, `test_reconfigure.py`, model/config flow |
+| #15 | Manuálne ON/atribúty a OFF samostatne, release po vyprázdnení, fresh trigger, EC kontext medzi entries, metadata bez takeover | Profile tests: manual session, idle ON, two outputs, flags, meaningful attributes |
+| #16 | Restore/Custom, natívne HA sekvencie, scény, snapshot, cancel, izolácia chýb, migrácia OFF hooku, diagnostika | `test_lifecycle.py`, profile restore, migration, diagnostics |
+| #17 | Basic filtre a Full escape hatch, capability intersection, jas/Kelvin/farba/efekt/transition/fan, day/night a legacy dáta | Browser capabilities/legacy/parameters; backend mixed domains/fan/errors |
+| #18 | Basic/Full integruje #14–17; jediný model, explicitný Save/Close, validácia a bezpečný hot apply | Browser save/schema/revisions; config flow/panel/reconfigure |
+| #24 | Prvý klik, live refresh bez odpojenia editora, draft/search/details, × bez zbalenia, error/revision ochrana | Browser pending render, failed save, authoritative response, remove/add |
+| #25 | Kompaktné biele karty, priehľadný canvas, decision live/draft, otázniky pre klik/tap/keyboard; grid ≤550 px pri 1600 px | Browser layout 320/390/768/1600, mobile help, countdown popover |
+| #26 | Vyhľadávanie pri písaní, friendly name/ID, empty result, šípky/Enter/Escape, chips, natívny icon selector a retry | Browser search/keyboard/native loader/icon |
+| #27 | Spoločný interval, HA astral, okamžitý solar/offset preview, presné minúty, ±15 min/±12 h, drag→fixed, live solar refresh | Browser schedule/night/overnight/preview; panel/schedule backend |
+
+Release gate je úspešný finálny commit v oboch GitHub joboch `tests` a
+`panel-browser`. Browser testy používajú izolovaný panel a adapter natívnych HA
+komponentov; nepreukazujú ovládanie fyzických svetiel ani prihlásený používateľov
+HA. Používateľ požaduje testovanie na GH; inštalácia ani reštart jeho HA sa nerobia.
+Obmedzenia OFF restoration sú v `temporary-light-profiles.md`. HACS 2.0.5 stále
+ignoruje lokálnu HA značku; externý brands CDN je samostatné upstream obmedzenie.
+
+## Pôvodný audit pred implementáciou
 
 Audit z 2026-10-05 zahŕňa **všetkých 9 otvorených issues** repozitára
 `denkz0ne/entity-controller`: #14, #15, #16, #17, #18, #24, #25, #26 a #27.
