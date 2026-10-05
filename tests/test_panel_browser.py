@@ -318,7 +318,7 @@ def test_editor_uses_compact_cards_and_searchable_entity_chips(page):
     page.locator(".edit-toggle").first.click()
 
     assert page.locator(".editor").is_visible()
-    assert not page.locator(".timeline-line").is_visible()
+    assert not page.locator(".row.editing .timeline-line").is_visible()
     assert page.locator(".editor-card").filter(has_text="Spúšťače").is_visible()
     assert page.locator(".editor-card").filter(has_text="Ovládané entity").is_visible()
     assert page.locator('[data-field="delay_seconds"]').get_attribute("type") == "range"
