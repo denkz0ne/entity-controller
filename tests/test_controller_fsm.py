@@ -234,3 +234,20 @@ async def test_reconcile_to_idle_does_not_run_enter_idle_action() -> None:
     assert state is ControllerState.IDLE
     assert runtime.state is ControllerState.IDLE
     assert recorder.calls == []
+
+
+@pytest.mark.asyncio
+async def test_explicit_manual_protection_opt_out_preserves_legacy_timer_reset() -> None:
+    """General blocking disabled plus manual opt-out keeps the legacy reset policy."""
+    runtime = ControllerRuntime(ControllerConfig(
+        subentry_id="test", name="Test", blocking_enabled=False,
+        protect_manual_on=False, protect_manual_off=False,
+    ))
+    await runtime.async_handle_sensor_on("binary_sensor.motion")
+    changed = await runtime.async_handle_state_entity_change(
+        "light.hall", is_on=True, is_own_context=False,
+    )
+    assert not changed
+    assert runtime.state is ControllerState.ACTIVE_TIMER
+    assert not runtime.manual_takeover_pending
+    assert runtime.expires_at is not None

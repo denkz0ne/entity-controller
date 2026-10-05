@@ -156,6 +156,10 @@ class ControllerRuntime:
         self.last_action_hook: str | None = None
         self.last_action_result: str | None = None
         self.last_action_error: str | None = None
+        self.last_action_context_is_own = False
+        self.last_action_at: datetime | None = None
+        self.snapshot_generation = 0
+        self.restore_skipped_manual = False
 
         self.enabled = config.enabled_default
         self.constrained = False
@@ -224,6 +228,12 @@ class ControllerRuntime:
         if self._state_persistor is not None:
             await self._state_persistor(self)
         self._notify_updated()
+
+    @property
+    def selected_exit_strategy(self) -> str:
+        """Return the currently configured activity-end policy for diagnostics."""
+
+        return self.config.transition_behaviors.get("on_exit_active", TransitionBehavior.IGNORE).value
 
     def add_update_listener(self, callback: Callable[[], None]) -> Callable[[], None]:
         """Subscribe a native entity to runtime state changes."""
@@ -389,6 +399,7 @@ class ControllerRuntime:
         if behavior is TransitionBehavior.IGNORE or self._behavior_executor is None:
             return
         self.last_action_hook = key
+        self.last_action_at = self._clock()
         self.last_action_result = "running"
         self.last_action_error = None
         try:
@@ -449,7 +460,6 @@ class ControllerRuntime:
         skip_active_off = (
             source_behavior == "active" and target is not ControllerState.IDLE
             and self.config.transition_behaviors.get("on_exit_active") is TransitionBehavior.OFF
-            and not self.config.lifecycle_actions.get("on_exit_active")
         )
         if source_behavior is not None and not stays_active and not skip_active_off and not (source_behavior == "active" and cause is TransitionCause.MANUAL_CONTROL):
             await self._execute_behavior(f"on_exit_{source_behavior}")
@@ -747,6 +757,23 @@ class ControllerRuntime:
         self.state_entities_on = is_on
         if is_own_context:
             return False
+        if (
+            self.state is ControllerState.IDLE and is_on
+            and entity_id in self.config.control_entities and self.config.protect_manual_on
+            and manual_control_kind != "manual_off"
+        ):
+            self.manual_control_kind = manual_control_kind or "manual_on"
+            self.manual_control_entity = entity_id
+            self.manual_control_at = self._clock()
+            self.manual_takeover_pending = True
+            changed = await self.async_transition(
+                ControllerState.BLOCKED, TransitionCause.MANUAL_CONTROL,
+                source_entity_id=entity_id,
+            )
+            self.block_reason = self.manual_control_kind
+            self._cancel_block_timer()
+            self._notify_updated()
+            return changed
         if self._is_active_state(self.state):
             kind = manual_control_kind or ("manual_on" if is_on else "manual_off")
             if kind != "manual_off" and not self.config.protect_manual_on:
@@ -755,7 +782,7 @@ class ControllerRuntime:
             self.manual_control_kind = manual_control_kind or ("manual_on" if is_on else "manual_off")
             self.manual_control_entity = entity_id
             self.manual_control_at = self._clock()
-            self.manual_takeover_pending = self.config.blocking_enabled and (self.config.protect_manual_off if self.manual_control_kind == "manual_off" else self.config.protect_manual_on)
+            self.manual_takeover_pending = self.config.protect_manual_off if self.manual_control_kind == "manual_off" else self.config.protect_manual_on
             await self._finish_session()
 
         if self.state in (ControllerState.ACTIVE_TIMER, ControllerState.ACTIVE_STAY_ON):
@@ -767,7 +794,7 @@ class ControllerRuntime:
                 )
                 await self._release_manual_session_if_clear()
                 return changed
-            if self.config.blocking_enabled:
+            if self.config.protect_manual_on or self.config.blocking_enabled:
                 self.blocked_by = entity_id
                 changed = await self.async_transition(
                     ControllerState.BLOCKED,

@@ -239,7 +239,7 @@ async def test_adding_closed_constraint_while_active_reconciles_safely() -> None
 
 
 @pytest.mark.asyncio
-async def test_removing_constraint_activates_current_trigger_with_normal_behavior() -> None:
+async def test_removing_constraint_reconciles_current_trigger_without_actions() -> None:
     now = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
     hass = FakeHass({"binary_sensor.motion": "on"})
     manager = EntityControllerManager(hass, FakeEntry(), now=lambda: now)
@@ -264,8 +264,7 @@ async def test_removing_constraint_activates_current_trigger_with_normal_behavio
     )
 
     assert runtime.state is ControllerState.ACTIVE_TIMER
-    assert hass.service_calls[-1][1] == "turn_on"
-    assert hass.service_calls[-1][2]["entity_id"] == ["light.hall"]
+    assert hass.service_calls == []
 
 
 @pytest.mark.asyncio

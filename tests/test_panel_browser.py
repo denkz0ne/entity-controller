@@ -673,6 +673,81 @@ def test_native_action_editor_updates_draft_and_scene_selector(page):
     assert page.evaluate('panel.controllers[0].form.basic.icon') == 'mdi:sofa'
 
 
+def test_native_editor_bootstraps_registered_route_without_navigation(page):
+    page.evaluate("""() => {
+      const host=document.createElement('div');const shadow=host.attachShadow({mode:'open'});
+      const resolver=document.createElement('partial-panel-resolver');window.nativeLoads=0;
+      resolver.routerOptions={routes:{dashboard:{tag:'ha-panel-lovelace',load:async()=>{
+        nativeLoads++;window.loadCardHelpers=async()=>({createCardElement:()=>new(class{
+          static async getConfigElement(){customElements.define('ha-form',class extends HTMLElement {});}
+        })()});}}}};shadow.append(resolver);document.body.append(host);
+      panel.controllers[0].form={basic:{name:'Room'},actions:{on_enter_active:'custom'}};
+      panel.hass={...panel.hass,user:{is_admin:true}};
+    }""")
+    page.locator('.edit-toggle').first.click()
+    expect(page.locator('ha-form[data-native-action]')).to_have_attribute('data-native-ready','true')
+    assert page.evaluate('nativeLoads') == 1
+    assert page.url == 'about:blank'
+    expect(page.locator('.native-loading')).not_to_be_visible()
+
+
+def test_native_editor_failure_has_retry_and_recovers(page):
+    page.evaluate("""() => {
+      panel.controllers[0].form={basic:{name:'Room'},actions:{on_enter_active:'custom'}};
+      panel.hass={...panel.hass,user:{is_admin:true}};
+    }""")
+    page.locator('.edit-toggle').first.click()
+    expect(page.locator('[data-native-retry]')).to_be_visible()
+    page.evaluate("""() => {window.loadCardHelpers=async()=>({createCardElement:()=>new(class{
+      static async getConfigElement(){customElements.define('ha-form',class extends HTMLElement {});}
+    })()});}""")
+    page.locator('[data-native-retry]').click()
+    expect(page.locator('ha-form[data-native-action]')).to_have_attribute('data-native-ready','true')
+
+
+def test_light_capabilities_intersection_and_kelvin_alias(page):
+    page.evaluate("""() => {
+      const c=panel.controllers[0];c.form={basic:{name:'Room',control_entities:['light.room','light.second']},
+        actions:{service_data_on:{kelvin:2700,brightness:100,keep:'yes'}}};
+      panel.hass={...panel.hass,user:{is_admin:true},states:{...panel.hass.states,
+        'light.room':{state:'on',attributes:{supported_color_modes:['color_temp'],min_color_temp_kelvin:2000,max_color_temp_kelvin:6500,effect_list:['a','b']}},
+        'light.second':{state:'off',attributes:{supported_color_modes:['color_temp'],min_color_temp_kelvin:2500,max_color_temp_kelvin:5000,effect_list:['b','c']}}}};
+    }""")
+    page.locator('.edit-toggle').first.click()
+    params=page.locator('[data-editor-section="actions-service_data_on"]')
+    params.locator('summary').click()
+    temp=params.locator('input[type="number"][data-service-param="color_temp_kelvin"]')
+    assert temp.input_value() == '2700'
+    assert temp.get_attribute('min') == '2500'
+    assert temp.get_attribute('max') == '5000'
+    assert params.locator('[data-service-param="rgb_color"]').count() == 0
+    assert params.locator('select[data-service-param="effect"] option').all_text_contents() == ['Pôvodný efekt','b']
+    temp.fill('3000')
+    assert page.evaluate('panel.controllers[0].form.actions.service_data_on') == {'brightness':100,'color_temp_kelvin':3000,'keep':'yes'}
+
+
+def test_entity_picker_keyboard_empty_result_and_presence(page):
+    page.evaluate("""() => {
+      panel.controllers[0].form={basic:{name:'Room',trigger_entities:[],presence_entities:[]}};
+      panel.hass={...panel.hass,user:{is_admin:true}};
+    }""")
+    page.locator('.edit-toggle').first.click()
+    page.locator('.presence-editor>summary').click()
+    page.locator('[data-picker-toggle="basic.presence_entities"]').click()
+    search=page.locator('[data-entity-search="basic.presence_entities"]')
+    search.fill('nobody')
+    expect(page.locator('.search-empty')).to_be_visible()
+    search.fill('motion')
+    search.press('ArrowDown')
+    expect(page.locator('.entity-option:not([hidden])')).to_be_focused()
+    page.locator('.entity-option:not([hidden])').press('Enter')
+    assert page.evaluate('panel.controllers[0].form.basic.presence_entities') == ['binary_sensor.motion']
+    expect(page.locator('.presence-editor')).to_have_attribute('open','')
+    page.locator('.entity-search').press('Escape')
+    expect(page.locator('.entity-picker')).to_have_count(0)
+    expect(page.locator('[data-picker-toggle="basic.presence_entities"]')).to_be_focused()
+
+
 @pytest.mark.parametrize("edit_while_saving", [False, True])
 def test_save_response_preserves_new_edits_and_updates_current_controller(page, edit_while_saving):
     page.evaluate("""() => {

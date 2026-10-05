@@ -197,6 +197,8 @@ class EntityControllerPanel extends HTMLElement {
       });
       this.error = null;
       this._render(Boolean(this._editing));
+      const editing = this.controllers.find(item => item.id === this._editing?.id);
+      if (editing) this._updateEditorStatus(editing);
       await this._loadHistory();
     } catch (error) {
       this.error = error?.message || "Nepodarilo sa načítať ovládače.";
@@ -516,7 +518,7 @@ class EntityControllerPanel extends HTMLElement {
         '<input type="number" min="' + min + '" max="' + max + '" step="' + step + '" value="' + esc(value) +
         '" aria-label="' + label + ' presná hodnota"' + attr(name) + (active ? '' : ' disabled') + ' required><small>' + unit + '</small></div></div>';
       const brightness = data.brightness_pct ?? Math.round(Number(data.brightness ?? 255) / 255 * 100);
-      const kelvin = data.color_temp_kelvin ?? (data.color_temp ? Math.round(1000000 / data.color_temp) : 3000);
+      const kelvin = data.color_temp_kelvin ?? data.kelvin ?? (data.color_temp ? Math.round(1000000 / data.color_temp) : 3000);
       const effects = [...new Set(attrs[0]?.effect_list || [])].filter(effect => attrs.every(a => (a.effect_list || []).includes(effect)));
       const rgb = data.rgb_color || [255, 255, 255];
       const color = '#' + rgb.slice(0, 3).map(v => Number(v).toString(16).padStart(2, '0')).join('');
@@ -527,7 +529,7 @@ class EntityControllerPanel extends HTMLElement {
         '<div class="section-title parameter-help"><span>' + (nightProfile ? 'Nočné parametre' : 'Parametre zariadení') + '</span>' +
         help(key, 'Zaškrtni iba hodnoty, ktoré má automatika meniť. Prázdny nočný profil preberá denné hodnoty. Pôvodné hodnoty sa obnovia pri skončení riadenia; vypnuté svetlo sa kvôli obnove nezapne. Ručne zmenené hodnoty majú prednosť.') + '</div>' +
         (!off && lights.length ? (brightnessSupported ? control('brightness_pct', 'Jas', brightness, 0, 100, 1, '%', data.brightness_pct != null || data.brightness != null) : '') +
-          (temperatureSupported && minimum <= maximum ? control('color_temp_kelvin', 'Teplota', kelvin, minimum, maximum, 1, 'K', data.color_temp_kelvin != null || data.color_temp != null,
+          (temperatureSupported && minimum <= maximum ? control('color_temp_kelvin', 'Teplota', kelvin, minimum, maximum, 1, 'K', data.color_temp_kelvin != null || data.kelvin != null || data.color_temp != null,
             'background:linear-gradient(90deg,#ffb35c,#f6f4ee,#9fcaff)') : '') +
           (colorSupported ? '<div class="parameter-setting"><label class="parameter-label"><input type="checkbox"' + attr('rgb_color') +
           ' data-param-enable="true"' + (data.rgb_color ? ' checked' : '') + '><span>Farba</span></label><input type="color" value="' + esc(color) +
@@ -720,7 +722,7 @@ class EntityControllerPanel extends HTMLElement {
     const diagnosticEntities = [...new Set([
       ...(controller.active_triggers || []), ...(controller.active_state_entities || []),
       ...(controller.active_overrides || []), ...(controller.active_interlocks || []),
-      ...(controller.blocked_by ? [controller.blocked_by] : []),
+      ...(Array.isArray(controller.blocked_by) ? controller.blocked_by : controller.blocked_by ? [controller.blocked_by] : []),
     ])];
     const diagnosticMarkup = mode === "full"
       ? '<details class="editor-section editor-card" data-editor-section="decision"><summary><span>Rozhodnutie teraz</span><ha-icon icon="mdi:chevron-down"></ha-icon></summary>' +
@@ -800,8 +802,8 @@ class EntityControllerPanel extends HTMLElement {
     const parts = [];
     if (data.brightness_pct != null || data.brightness != null) parts.push('Jas ' +
       (data.brightness_pct ?? Math.round(data.brightness / 255 * 100)) + ' %');
-    if (data.color_temp_kelvin != null || data.color_temp != null) parts.push(
-      (data.color_temp_kelvin ?? Math.round(1000000 / data.color_temp)) + ' K');
+    if (data.color_temp_kelvin != null || data.kelvin != null || data.color_temp != null) parts.push(
+      (data.color_temp_kelvin ?? data.kelvin ?? Math.round(1000000 / data.color_temp)) + ' K');
     if (data.rgb_color) parts.push('Vlastná farba');
     if (data.effect) parts.push(data.effect);
     if (data.percentage != null) parts.push('Výkon ' + data.percentage + ' %');
@@ -811,18 +813,39 @@ class EntityControllerPanel extends HTMLElement {
 
   async _ensureNativeEditors() {
     if (customElements.get('ha-form')) {this._bindNativeEditors(); return;}
-    if (this._nativeLoading || !window.loadCardHelpers) return;
+    if (this._nativeLoadFailed) {this._showNativeLoadFailure(); return;}
+    if (this._nativeLoading) return;
     this._nativeLoading = true;
     try {
+      if (!window.loadCardHelpers) {
+        // A direct sidebar visit may precede Lovelace. Load its registered HA
+        // route module without navigation, dashboard rendering or guessed URLs.
+        const roots = [document];
+        let resolver;
+        while (roots.length && !resolver) {
+          const root = roots.shift();
+          resolver = root.querySelector('partial-panel-resolver');
+          if (!resolver) root.querySelectorAll('*').forEach(el => {if (el.shadowRoot) roots.push(el.shadowRoot);});
+        }
+        const route = Object.values(resolver?.routerOptions?.routes || {}).find(item => item.tag === 'ha-panel-lovelace');
+        if (!route?.load) throw new Error('HA neposkytol načítanie editora');
+        await route.load();
+      }
       const helpers = await window.loadCardHelpers();
       const card = helpers.createCardElement({type: 'entities', entities: []});
       await card.constructor.getConfigElement?.();
+      if (!customElements.get('ha-form')) throw new Error('Editor HA sa nenačítal');
       this._bindNativeEditors();
     } catch (error) {
-      this.shadowRoot.querySelectorAll('.native-loading').forEach(el => {
-        el.textContent = 'Grafický editor sa nepodarilo načítať. Skús znovu otvoriť nastavenia.';
-      });
+      this._nativeLoadFailed = true;
+      this._showNativeLoadFailure();
     } finally {this._nativeLoading = false;}
+  }
+
+  _showNativeLoadFailure() {
+    this.shadowRoot.querySelectorAll('.native-loading').forEach(el => {
+      el.innerHTML = 'Grafický editor sa nepodarilo načítať. <button type="button" data-native-retry>Skúsiť znova</button>';
+    });
   }
 
   _bindNativeEditors() {
@@ -916,7 +939,7 @@ class EntityControllerPanel extends HTMLElement {
       return;
     }
     const aliases = param === 'brightness_pct' ? ['brightness', 'brightness_pct'] :
-      ['color_temp_kelvin', 'rgb_color'].includes(param) ? ['color_temp','color_temp_kelvin','rgb_color','rgbw_color','rgbww_color','hs_color','xy_color'] : [param];
+      ['color_temp_kelvin', 'rgb_color'].includes(param) ? ['kelvin','color_temp','color_temp_kelvin','rgb_color','rgbw_color','rgbww_color','hs_color','xy_color'] : [param];
     aliases.forEach(alias => delete data[alias]);
     if (!(enabling && !field.checked) && valueField.value !== '') {
       data[param] = param === 'rgb_color' ? valueField.value.slice(1).match(/../g).map(hex => parseInt(hex,16)) :
@@ -933,7 +956,7 @@ class EntityControllerPanel extends HTMLElement {
     });
     this._markControllerDirty(controller);
     // Colour and white temperature are exclusive; rebuild only after enabling.
-    if (enabling) {this._rowMarkup.clear(); this._render();}
+    if (enabling) {field.blur(); this._rowMarkup.clear(); this._render();}
     else {
       const summary = group.querySelector('summary small');
       if (summary) summary.textContent = this._parameterText(data);
@@ -1140,8 +1163,9 @@ class EntityControllerPanel extends HTMLElement {
     const button = event.composedPath().find((element) =>
       element.matches?.(".chip[data-entity], button[data-toggle], button[data-edit], button[data-mode], " +
         "button[data-picker-toggle], button[data-entity-option], button[data-remove-entity], button[data-save], button[data-close], " +
-        "button[data-icon-toggle], button[data-icon-value], button[data-offset-step], button[data-help]"));
+        "button[data-icon-toggle], button[data-icon-value], button[data-offset-step], button[data-help], button[data-native-retry]"));
     if (!button) return;
+    if (button.hasAttribute('data-native-retry')) {this._nativeLoadFailed = false; this._ensureNativeEditors(); return;}
     if (button.dataset.help) {
       const popover = this.shadowRoot.getElementById(button.dataset.help);
       if (!popover) return;
@@ -1302,6 +1326,7 @@ class EntityControllerPanel extends HTMLElement {
     if (event.key === 'Escape') {
       event.preventDefault();
       const key = this._pickerOpen;
+      event.target.blur();
       this._pickerOpen = null; this._iconPickerOpen = false;
       this._rowMarkup.clear(); this._render();
       const toggle = [...this.shadowRoot.querySelectorAll('[data-picker-toggle]')].find(el => el.dataset.pickerToggle === key);
@@ -1536,8 +1561,12 @@ class EntityControllerPanel extends HTMLElement {
       if (label) label.textContent = status.label;
       if (countdown) countdown.textContent = status.countdown;
       if (this._editing?.id === controller.id) {
-        const decision = row?.querySelector('.live-decision');
-        if (decision) decision.innerHTML = this._decisionSummary(controller);
+        const countdown = row?.querySelector('[data-decision-countdown]');
+        if (countdown && controller.state === 'active_timer') {
+          const remaining = Math.max(0, (new Date(controller.expires_at) - Date.now()) / 1000);
+          countdown.textContent = controller.presence_active ? 'Drží prítomnosť' :
+            controller.expires_at ? this._formatDuration(remaining) : 'Odpočet nebeží';
+        }
       }
     });
   }

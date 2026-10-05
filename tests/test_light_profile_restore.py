@@ -280,7 +280,7 @@ async def test_custom_enter_replaces_basic_turn_on_and_keeps_own_context():
     async def sequence_executor(hass, sequence, **kwargs):
         captured.append(kwargs["context"])
     with patch.dict(sys.modules, {"custom_components.entity_controller.lifecycle": SimpleNamespace(async_execute_sequence=sequence_executor)}):
-        hass, manager, runtime = await setup_light(lifecycle_actions={"on_enter_active": [{"action": "scene.turn_on", "target": {"entity_id": "scene.evening"}}]})
+        hass, manager, runtime = await setup_light(transition_behaviors={"on_enter_active": "custom"}, lifecycle_actions={"on_enter_active": [{"action": "scene.turn_on", "target": {"entity_id": "scene.evening"}}]})
     assert runtime.state is ControllerState.ACTIVE_TIMER
     assert len(captured) == 1
     assert manager.contexts.is_own_context(captured[0])
@@ -301,7 +301,7 @@ async def test_manual_takeover_cancels_custom_sequence_before_later_steps():
         later_steps.append("ran")
     hass = Lights()
     manager = EntityControllerManager(hass, SimpleNamespace(data={}), now=lambda: datetime.now(UTC))
-    runtime = await manager.async_add_controller(SimpleNamespace(subentry_id="a", data={"name": "A", "control_entities": ["light.room"], "lifecycle_actions": {"on_enter_active": [{"delay": 10}]}}))
+    runtime = await manager.async_add_controller(SimpleNamespace(subentry_id="a", data={"name": "A", "control_entities": ["light.room"], "transition_behaviors": {"on_enter_active": "custom"}, "lifecycle_actions": {"on_enter_active": [{"delay": 10}]}}))
     with patch.dict(sys.modules, {"custom_components.entity_controller.lifecycle": SimpleNamespace(async_execute_sequence=sequence_executor)}):
         activation = asyncio.create_task(runtime.async_handle_sensor_on("binary_sensor.motion"))
         await started.wait()
@@ -321,7 +321,7 @@ async def test_failed_custom_hook_reports_error_without_fallback_action():
     async def sequence_executor(hass, sequence, **kwargs):
         raise ValueError("bad action")
     with patch.dict(sys.modules, {"custom_components.entity_controller.lifecycle": SimpleNamespace(async_execute_sequence=sequence_executor)}):
-        hass, manager, runtime = await setup_light(lifecycle_actions={"on_enter_active": [{"action": "scene.turn_on"}]})
+        hass, manager, runtime = await setup_light(transition_behaviors={"on_enter_active": "custom"}, lifecycle_actions={"on_enter_active": [{"action": "scene.turn_on"}]})
     assert runtime.state is ControllerState.ACTIVE_TIMER
     assert "bad action" in manager.controller_errors["a"]
     assert hass.calls == []
@@ -335,7 +335,7 @@ async def test_custom_activity_exit_does_not_run_on_manual_takeover():
     async def sequence_executor(hass, sequence, **kwargs):
         ran.append("exit")
     with patch.dict(sys.modules, {"custom_components.entity_controller.lifecycle": SimpleNamespace(async_execute_sequence=sequence_executor)}):
-        hass, _, runtime = await setup_light(lifecycle_actions={"on_exit_active": [{"action": "light.turn_off"}]})
+        hass, _, runtime = await setup_light(transition_behaviors={"on_exit_active": "custom"}, lifecycle_actions={"on_exit_active": [{"action": "light.turn_off"}]})
         await runtime.async_handle_state_entity_change("light.room", is_on=True, is_own_context=False)
     assert hass.values["light.room"].state == "on"
     assert ran == []
@@ -423,7 +423,7 @@ async def test_unload_cancels_custom_enter_without_rearming_timer():
         later_steps.append("ran")
     hass = Lights()
     manager = EntityControllerManager(hass, SimpleNamespace(data={}), now=lambda: datetime.now(UTC))
-    runtime = await manager.async_add_controller(SimpleNamespace(subentry_id="a", data={"name": "A", "control_entities": ["light.room"], "lifecycle_actions": {"on_enter_active": [{"delay": 10}]}}))
+    runtime = await manager.async_add_controller(SimpleNamespace(subentry_id="a", data={"name": "A", "control_entities": ["light.room"], "transition_behaviors": {"on_enter_active": "custom"}, "lifecycle_actions": {"on_enter_active": [{"delay": 10}]}}))
     with patch.dict(sys.modules, {"custom_components.entity_controller.lifecycle": SimpleNamespace(async_execute_sequence=sequence_executor)}):
         activation = asyncio.create_task(runtime.async_handle_sensor_on("binary_sensor.motion"))
         await started.wait()
@@ -433,3 +433,154 @@ async def test_unload_cancels_custom_enter_without_rearming_timer():
     assert runtime.expires_at is None
     assert later_steps == []
     assert manager.controllers == {}
+
+
+@pytest.mark.asyncio
+async def test_stored_custom_enter_does_not_override_selected_on():
+    import sys
+    from unittest.mock import patch
+    ran = []
+    async def sequence_executor(hass, sequence, **kwargs):
+        ran.append("scene")
+    with patch.dict(sys.modules, {"custom_components.entity_controller.lifecycle": SimpleNamespace(async_execute_sequence=sequence_executor)}):
+        hass, _, runtime = await setup_light(transition_behaviors={"on_enter_active": "on"}, lifecycle_actions={"on_enter_active": [{"action": "scene.turn_on"}]})
+    assert ran == []
+    assert hass.calls[0][1] == "turn_on"
+    assert runtime.snapshot_held
+
+
+@pytest.mark.asyncio
+async def test_stored_custom_exit_does_not_override_selected_restore():
+    import sys
+    from unittest.mock import patch
+    ran = []
+    async def sequence_executor(hass, sequence, **kwargs):
+        ran.append("scene")
+    with patch.dict(sys.modules, {"custom_components.entity_controller.lifecycle": SimpleNamespace(async_execute_sequence=sequence_executor)}):
+        hass, _, runtime = await setup_light(transition_behaviors={"on_exit_active": "restore", "on_enter_idle": "ignore"}, lifecycle_actions={"on_exit_active": [{"action": "scene.turn_on"}]})
+        await runtime.async_transition(ControllerState.IDLE, TransitionCause.TIMER_EXPIRED)
+    assert ran == []
+    assert hass.values["light.room"].state == "off"
+
+
+@pytest.mark.asyncio
+async def test_stored_custom_enter_does_not_capture_snapshot_when_selected_ignore():
+    import sys
+    from unittest.mock import patch
+    ran = []
+    async def sequence_executor(hass, sequence, **kwargs):
+        ran.append("scene")
+    with patch.dict(sys.modules, {"custom_components.entity_controller.lifecycle": SimpleNamespace(async_execute_sequence=sequence_executor)}):
+        hass, _, runtime = await setup_light(transition_behaviors={"on_enter_active": "ignore"}, lifecycle_actions={"on_enter_active": [{"action": "scene.turn_on"}]})
+    assert ran == []
+    assert hass.calls == []
+    assert not runtime.snapshot_held
+
+
+@pytest.mark.asyncio
+async def test_light_metadata_change_is_not_manual_takeover():
+    hass, manager, runtime = await setup_light()
+    state = hass.values["light.room"]
+    previous = dict(state.attributes)
+    state.attributes.update(friendly_name="New name", battery_level=80)
+    await manager._state_listener(runtime)({"entity_id": "light.room", "old_state": SimpleNamespace(state="on", attributes=previous), "new_state": state})
+    assert runtime.state is ControllerState.ACTIVE_TIMER
+    assert runtime.manual_control_kind is None
+
+
+@pytest.mark.asyncio
+async def test_meaningful_light_brightness_change_is_manual_takeover():
+    hass, manager, runtime = await setup_light()
+    state = hass.values["light.room"]
+    previous = dict(state.attributes)
+    state.attributes["brightness"] = 90
+    await manager._state_listener(runtime)({"entity_id": "light.room", "old_state": SimpleNamespace(state="on", attributes=previous), "new_state": state})
+    assert runtime.state is ControllerState.BLOCKED
+    assert runtime.manual_control_kind == "manual_attribute_change"
+    assert state.attributes["brightness"] == 90
+
+
+@pytest.mark.asyncio
+async def test_other_ec_manager_context_is_not_manual_takeover():
+    hass, manager, runtime = await setup_light()
+    other = EntityControllerManager(hass, SimpleNamespace(data={}), now=lambda: datetime.now(UTC))
+    hass.data = {"entity_controller": {"a": manager, "b": other}}
+    context = other.contexts.new_action_context(None)
+    state = hass.values["light.room"]
+    previous = dict(state.attributes)
+    state.attributes["brightness"] = 90
+    await manager._state_listener(runtime)({"entity_id": "light.room", "context": context, "old_state": SimpleNamespace(state="on", attributes=previous), "new_state": state})
+    assert runtime.state is ControllerState.ACTIVE_TIMER
+    assert runtime.manual_control_kind is None
+
+
+@pytest.mark.asyncio
+async def test_idle_manual_on_preserves_light_and_waits_for_fresh_room_session():
+    hass = Lights()
+    manager = EntityControllerManager(hass, SimpleNamespace(data={}), now=lambda: datetime.now(UTC))
+    runtime = await manager.async_add_controller(SimpleNamespace(subentry_id="a", data={"name": "A", "control_entities": ["light.room"], "service_data_on": {"brightness": 40}}))
+    hass.values["light.room"].state = "on"
+    await runtime.async_handle_state_entity_change("light.room", is_on=True, is_own_context=False)
+    assert runtime.manual_control_kind == "manual_on"
+    assert runtime.manual_takeover_pending
+    assert hass.calls == []
+    await runtime.async_handle_sensor_on("binary_sensor.motion")
+    assert hass.calls == []
+    await runtime.async_handle_sensor_off("binary_sensor.motion")
+    await runtime.async_handle_sensor_on("binary_sensor.motion")
+    assert hass.values["light.room"].attributes["brightness"] == 40
+
+
+@pytest.mark.asyncio
+async def test_manual_protection_operates_independently_of_legacy_blocking():
+    _, _, runtime = await setup_light(blocking_enabled=False)
+    assert runtime.config.protect_manual_on
+    assert runtime.config.protect_manual_off
+    await runtime.async_handle_state_entity_change("light.room", is_on=True, is_own_context=False)
+    assert runtime.state is ControllerState.BLOCKED
+    assert runtime.manual_takeover_pending
+
+
+@pytest.mark.asyncio
+async def test_lifecycle_diagnostics_record_time_generation_and_strategy():
+    _, _, runtime = await setup_light(transition_behaviors={"on_exit_active": "restore", "on_enter_idle": "ignore"})
+    assert runtime.last_action_at is not None
+    assert runtime.snapshot_generation == 1
+    assert runtime.snapshot_held
+    assert runtime.selected_exit_strategy == "restore"
+    assert runtime.last_action_context_is_own
+    await runtime.async_handle_state_entity_change("light.room", is_on=True, is_own_context=False)
+    assert runtime.restore_skipped_manual
+    assert not runtime.snapshot_held
+
+
+@pytest.mark.asyncio
+async def test_fan_metadata_is_ignored_and_speed_direction_changes_are_manual():
+    for field, value in (("percentage", 75), ("speed", "high"), ("direction", "reverse")):
+        hass = Lights()
+        hass.values["fan.room"] = SimpleNamespace(state="off", attributes={"percentage": 30, "speed": "low", "direction": "forward"})
+        manager = EntityControllerManager(hass, SimpleNamespace(data={}), now=lambda: datetime.now(UTC))
+        runtime = await manager.async_add_controller(SimpleNamespace(subentry_id="a", data={"name": "A", "control_entities": ["fan.room"], "service_data_on": {"percentage": 40}}))
+        await runtime.async_handle_sensor_on("binary_sensor.motion")
+        state = hass.values["fan.room"]
+        previous = dict(state.attributes)
+        state.attributes["friendly_name"] = "New fan name"
+        await manager._state_listener(runtime)({"entity_id": "fan.room", "old_state": SimpleNamespace(state="on", attributes=previous), "new_state": state})
+        assert runtime.state is ControllerState.ACTIVE_TIMER
+        previous = dict(state.attributes)
+        state.attributes[field] = value
+        await manager._state_listener(runtime)({"entity_id": "fan.room", "old_state": SimpleNamespace(state="on", attributes=previous), "new_state": state})
+        assert runtime.state is ControllerState.BLOCKED
+        assert runtime.manual_control_kind == "manual_attribute_change"
+
+
+@pytest.mark.asyncio
+async def test_default_manual_off_protection_holds_with_legacy_blocking_disabled():
+    hass, _, runtime = await setup_light(blocking_enabled=False)
+    hass.values["light.room"].state = "off"
+    await runtime.async_handle_state_entity_change("light.room", is_on=False, is_own_context=False)
+    before = len(hass.calls)
+    await runtime.async_handle_sensor_on("binary_sensor.motion")
+    assert runtime.state is ControllerState.IDLE
+    assert runtime.manual_takeover_pending
+    assert len(hass.calls) == before

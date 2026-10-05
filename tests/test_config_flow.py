@@ -18,6 +18,7 @@ from custom_components.entity_controller.config_flow import (
     normalize_controller_user_input,
 )
 from custom_components.entity_controller.const import DOMAIN
+from custom_components.entity_controller.model import DEFAULT_TRANSITION_BEHAVIORS
 
 
 def _prepare_config_flow(
@@ -232,7 +233,7 @@ async def test_device_settings_opens_edit_controller_form() -> None:
             "constraints": {"constraint_enabled": False},
             "night": {"night_mode_enabled": False},
             "initial_state": {},
-            "actions": {},
+            "actions": {key: value.value for key, value in DEFAULT_TRANSITION_BEHAVIORS.items()},
             "advanced": {},
         }
     ]

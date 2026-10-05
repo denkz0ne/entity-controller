@@ -47,7 +47,7 @@ def _resolved_schedule(hass: Any, data: dict[str, Any]) -> dict[str, dict[str, i
     for source, event in (("sunrise", SUN_EVENT_SUNRISE), ("sunset", SUN_EVENT_SUNSET)):
         try:
             events[source] = get_astral_event_date(hass, event, now.date())
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, AttributeError, KeyError):
             pass
     solar = {
         source: dt_util.as_local(at).hour * 60 + dt_util.as_local(at).minute
@@ -194,11 +194,13 @@ def serialize_controllers(hass: Any) -> list[dict[str, Any]]:
                     ),
                     "inputs": list(dict.fromkeys((
                         *config.trigger_entities,
+                        *getattr(config, "presence_entities", ()),
                         *config.state_entities,
                         *config.override_entities,
                         *config.interlock_entities,
                     ))),
                     "triggers": list(config.trigger_entities),
+                    "presence": list(getattr(config, "presence_entities", ())),
                     "outputs": list(config.control_entities),
                     "overrides": list(config.override_entities),
                     "interlocks": list(config.interlock_entities),
@@ -215,6 +217,15 @@ def serialize_controllers(hass: Any) -> list[dict[str, Any]]:
                     "presence_active": getattr(runtime, "presence_active", False),
                     "active_presence_entities": list(getattr(runtime, "active_presence_entities", ()) or ()),
                     "timer_expired_pending_sensor": getattr(runtime, "timer_expired_pending_sensor", False),
+                    "timer_expired_pending_presence": getattr(runtime, "timer_expired_pending_presence", False),
+                    "manual_control_kind": getattr(runtime, "manual_control_kind", None),
+                    "manual_control_entity": getattr(runtime, "manual_control_entity", None),
+                    "manual_control_at": getattr(runtime, "manual_control_at", None),
+                    "manual_takeover_pending": getattr(runtime, "manual_takeover_pending", False),
+                    "snapshot_held": getattr(runtime, "snapshot_held", False),
+                    "last_action_hook": getattr(runtime, "last_action_hook", None),
+                    "last_action_result": getattr(runtime, "last_action_result", None),
+                    "last_action_error": getattr(runtime, "last_action_error", None),
                     "expires_at": getattr(runtime, "expires_at", None),
                     "block_expires_at": getattr(runtime, "block_expires_at", None),
                     "next_transition_at": (
@@ -223,7 +234,10 @@ def serialize_controllers(hass: Any) -> list[dict[str, Any]]:
                     "next_transition_label": (
                         next_change[1] if next_change else None
                     ),
-                    "blocked_by": list(getattr(runtime, "blocked_by", ()) or ()),
+                    "blocked_by": (
+                        [runtime.blocked_by] if isinstance(getattr(runtime, "blocked_by", None), str)
+                        else list(getattr(runtime, "blocked_by", ()) or ())
+                    ),
                     "block_reason": getattr(runtime, "block_reason", None),
                     "active_triggers": list(getattr(runtime, "active_triggers", ()) or ()),
                     "active_state_entities": list(
@@ -375,4 +389,3 @@ def async_unsetup_panel(hass: Any) -> None:
     if not data or not data.pop("registered", False):
         return
     frontend.async_remove_panel(hass, PANEL_URL, warn_if_unknown=False)
-

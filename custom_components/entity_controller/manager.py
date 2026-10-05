@@ -11,6 +11,7 @@ from functools import partial
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
+from .const import DOMAIN
 from .context import ContextTracker
 from .controller import ControllerRuntime, ReconcileSnapshot
 from .entry_migration import CONTROLLER_ID_KEY, ENTITY_UNIQUE_ID_PREFIX_KEY
@@ -294,6 +295,7 @@ class EntityControllerManager:
             if domain:
                 by_domain[domain].append(entity_id)
         context = self.contexts.new_action_context(None)
+        runtime.last_action_context_is_own = self.contexts.is_own_context(context)
         for domain, entity_ids in by_domain.items():
             domain_data = {
                 key: value for key, value in service_data.items()
@@ -334,8 +336,8 @@ class EntityControllerManager:
         runtime = self.controllers.get(subentry_id)
         if runtime is None:
             return False
-        sequence = runtime.config.lifecycle_actions.get(key)
         behavior = runtime.config.transition_behaviors.get(key, TransitionBehavior.IGNORE)
+        sequence = runtime.config.lifecycle_actions.get(key) if behavior is TransitionBehavior.CUSTOM else None
         if key == "on_enter_active" and (sequence or behavior is TransitionBehavior.ON):
             self._original_output_states[subentry_id] = {
                 entity_id: (state.state, dict(state.attributes or {}))
@@ -345,7 +347,9 @@ class EntityControllerManager:
             self._output_session_open.add(subentry_id)
             self._output_session_started[subentry_id] = runtime.last_transition_at
             self._manual_output_sessions.discard(subentry_id)
-            runtime.snapshot_held = True
+            runtime.snapshot_held = bool(self._original_output_states[subentry_id])
+            runtime.snapshot_generation += 1
+            runtime.restore_skipped_manual = False
         elif key.startswith("on_enter_") and key != "on_enter_active":
             self._original_output_states.pop(subentry_id, None)
             runtime.snapshot_held = False
@@ -353,13 +357,16 @@ class EntityControllerManager:
             return False
         from .lifecycle import async_execute_sequence
 
+        context = self.contexts.new_action_context(None)
+        runtime.last_action_context_is_own = self.contexts.is_own_context(context)
         task = asyncio.create_task(async_execute_sequence(
             self.hass, sequence, name=f"EC {runtime.config.name}: {key}",
-            context=self.contexts.new_action_context(None),
+            context=context,
             variables={"controller_id": subentry_id, "controller_name": runtime.config.name, "night_active": runtime.night_active},
         ))
         self._lifecycle_tasks[subentry_id] = task
         runtime.last_action_hook = key
+        runtime.last_action_at = runtime._clock()
         runtime.last_action_result = "running"
         runtime.last_action_error = None
         try:
@@ -384,6 +391,7 @@ class EntityControllerManager:
             self._original_output_states.pop(subentry_id, None)
             if runtime is not None:
                 runtime.snapshot_held = False
+                runtime.restore_skipped_manual = True
             return
         runtime.snapshot_held = False
         originals = self._original_output_states.pop(subentry_id, {})
@@ -487,6 +495,8 @@ class EntityControllerManager:
             self._manual_output_sessions.add(subentry_id)
             self._original_output_states.pop(subentry_id, None)
             runtime.snapshot_held = False
+            if runtime.selected_exit_strategy == "restore":
+                runtime.restore_skipped_manual = True
         task = self._lifecycle_tasks.pop(subentry_id, None)
         if task is not None and not task.done():
             task.cancel()
@@ -718,13 +728,13 @@ class EntityControllerManager:
         async def _handle(event: Any) -> None:
             entity_id = self._event_entity_id(event)
             context = self._event_context(event)
-            if not self.contexts.is_own_context(context):
+            if not self._is_ec_context(context):
                 self._relinquish_changed_light_fields(runtime.config.subentry_id, entity_id, event)
             if (runtime.config.subentry_id, entity_id) in self._pending_light_restore:
                 await self._async_restore_light(runtime.config.subentry_id, entity_id)
             if self._only_ignored_attributes_changed(
                 event, runtime.config.state_attributes_ignore
-            ):
+            ) or not self._is_significant_output_change(event, runtime):
                 return
             context = self._event_context(event)
             entity_id = self._event_entity_id(event)
@@ -753,11 +763,47 @@ class EntityControllerManager:
             await runtime.async_handle_state_entity_change(
                 entity_id,
                 is_on=is_on or other_is_on,
-                is_own_context=self.contexts.is_own_context(context),
+                is_own_context=self._is_ec_context(context),
                 manual_control_kind=self._manual_event_kind(event),
             )
 
         return _handle
+
+    def _is_ec_context(self, context: Any) -> bool:
+        """Recognize contexts of every loaded EC entry on this HA instance."""
+
+        if self.contexts.is_own_context(context):
+            return True
+        managers = getattr(self.hass, "data", {}).get(DOMAIN, {})
+        if not isinstance(managers, dict):
+            return False
+        return any(
+            getattr(manager, "contexts", None) is not None
+            and manager.contexts.is_own_context(context)
+            for manager in managers.values()
+        )
+
+    @staticmethod
+    def _is_significant_output_change(event: Any, runtime: ControllerRuntime) -> bool:
+        data = event if isinstance(event, dict) else event.data
+        entity_id = data.get("entity_id", "")
+        if entity_id not in runtime.config.control_entities:
+            return True
+        old, new = data.get("old_state"), data.get("new_state")
+        if old is None or new is None or old.state != new.state:
+            return True
+        fields = {
+            "light": {"brightness", "color_temp", "color_temp_kelvin", "color_mode", "hs_color", "rgb_color", "rgbw_color", "rgbww_color", "xy_color", "effect", "white"},
+            "fan": {"percentage", "speed", "preset_mode", "direction", "oscillating"},
+            "switch": set(),
+            "input_boolean": set(),
+        }.get(entity_id.partition(".")[0])
+        if fields is None:
+            return True
+        fields -= set(runtime.config.state_attributes_ignore)
+        old_attributes = dict(getattr(old, "attributes", {}) or {})
+        new_attributes = dict(getattr(new, "attributes", {}) or {})
+        return any(old_attributes.get(key) != new_attributes.get(key) for key in fields)
 
     @staticmethod
     def _manual_event_kind(event: Any) -> str:
