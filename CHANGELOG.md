@@ -2,6 +2,17 @@
 
 All notable changes to Entity Controller v10 are documented here.
 
+<a name="10.1.0"></a>
+## 10.1.0 (2026-10-05)
+
+### Features
+
+* add a configuration panel for editing controller settings in Home Assistant
+
+### Fixes
+
+* fix the rolling 24-hour controller timeline and Recorder history loading
+
 <a name="10.0.1"></a>
 ## 10.0.1 (2026-10-05)
 
