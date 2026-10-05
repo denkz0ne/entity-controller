@@ -31,3 +31,22 @@ and Stay Mode state is stored in the controller config entry. The allowed window
 prevents activation outside its bounds. The night window changes the active
 profile without creating another controller. All controller fields can be
 edited later from the controller device in the Entity Controller integration.
+
+## Sidebar editor
+
+The sidebar panel shows a bordered controller overview above the settings.
+The settings use the Home Assistant page background with separate cards for:
+
+- name and icon;
+- inputs (triggers and monitored entities);
+- controlled entities, timer, and activation/end actions;
+- allowed operating time and the night profile.
+
+Priority and blocking rules are collapsed until opened. Full settings also
+expose advanced options. On narrow screens the cards stack in reading order with larger touch controls.
+Question-mark buttons open helper explanations by click, tap, or keyboard;
+Escape or a click outside closes the explanation. Layout follows the available
+panel width, including the space taken by the Home Assistant sidebar.
+Changes remain a draft until **Save** is pressed. **Close** hides the editor
+while retaining the draft for the current panel session. Timer values can be
+entered manually as well as adjusted with the slider.

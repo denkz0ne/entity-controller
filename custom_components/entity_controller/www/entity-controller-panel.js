@@ -92,7 +92,15 @@ class EntityControllerPanel extends HTMLElement {
         requestAnimationFrame(() => this._render());
       }
     };
+    this._helpResizeHandler = () => this._dismissHelp();
+    this.shadowRoot.addEventListener("scroll", () => this._dismissHelp(), {capture: true, passive: true});
     this.shadowRoot.addEventListener("click", (event) => this._handleClick(event));
+    this.shadowRoot.addEventListener("toggle", (event) => {
+      if (!event.target.matches?.(".help-popover")) return;
+      const button = [...this.shadowRoot.querySelectorAll("button[data-help]")]
+        .find((item) => item.dataset.help === event.target.id);
+      button?.setAttribute("aria-expanded", String(event.newState === "open"));
+    }, true);
     this.shadowRoot.addEventListener("change", (event) => this._handleEditorChange(event));
     this.shadowRoot.addEventListener("input", (event) => this._handleEditorInput(event));
     this.shadowRoot.addEventListener("focusout", (event) => {
@@ -114,6 +122,7 @@ class EntityControllerPanel extends HTMLElement {
   get hass() { return this._hass; }
 
   connectedCallback() {
+    window.addEventListener("resize", this._helpResizeHandler, {passive: true});
     this.addEventListener("touchstart", this._touchStartHandler, { passive: true });
     window.addEventListener("touchend", this._touchEndHandler, { capture: true, passive: true });
     window.addEventListener("touchcancel", this._touchEndHandler, { capture: true, passive: true });
@@ -121,6 +130,7 @@ class EntityControllerPanel extends HTMLElement {
   }
 
   disconnectedCallback() {
+    window.removeEventListener("resize", this._helpResizeHandler);
     this.removeEventListener("touchstart", this._touchStartHandler);
     window.removeEventListener("touchend", this._touchEndHandler, { capture: true });
     window.removeEventListener("touchcancel", this._touchEndHandler, { capture: true });
@@ -423,7 +433,7 @@ class EntityControllerPanel extends HTMLElement {
     const toggle = '<button class="toggle ' + (controller.enabled ? "on" : "") +
       '" data-toggle="' + esc(controller.enabled_entity_id || "") + '" aria-label="' +
       (controller.enabled ? "Vypnúť " : "Zapnúť ") + esc(title) + '"><span></span></button>';
-    const editButton = this._hass?.user?.is_admin
+    const editButton = this._hass?.user?.is_admin && this._editing?.id !== controller.id
       ? '<button class="edit-toggle" data-edit="' + esc(controller.id) + '" aria-expanded="' +
         (this._editing?.id === controller.id) + '" title="Upraviť nastavenia">' +
         (this._editing?.id === controller.id ? 'Zavrieť' : '<ha-icon icon="mdi:cog-outline"></ha-icon>') + '</button>' : '';
@@ -433,6 +443,7 @@ class EntityControllerPanel extends HTMLElement {
     const avatarEnd = this._editing?.id === controller.id ? '</button>' : '</div>';
     return '<article class="row ' + status.color + (this._editing?.id === controller.id ? ' editing' : '') +
       '" data-controller-id="' + esc(controller.id) + '">' +
+      '<div class="controller-summary">' +
       '<div class="identity">' +
         '<div class="controller-control">' + avatar + '<ha-icon class="controller-icon" data-controller-icon="' +
           esc(controller.icon || "mdi:home-automation") + '" icon="' +
@@ -446,6 +457,7 @@ class EntityControllerPanel extends HTMLElement {
       '</div>' +
       '<div class="chips entities">' + groupedChips + '</div>' +
       '<div class="timeline-line">' + this._timeline(controller) + '</div>' +
+      '</div>' +
       (this._editing?.id === controller.id ? this._editor(controller) : '') +
       '</article>';
   }
@@ -469,6 +481,14 @@ class EntityControllerPanel extends HTMLElement {
         '<button type="button" class="remove-entity" data-remove-entity="' + esc(key) + '"' +
         ' data-section="' + esc(key.split(".")[0]) + '" data-field="' + esc(key.split(".")[1]) + '"' +
         ' data-value="' + esc(entityId) + '" aria-label="Odstrániť ' + esc(name) + '">×</button></span>';
+    };
+    let helpIndex = 0;
+    const help = (label, text) => {
+      const id = "help-" + controller.id + "-" + (++helpIndex);
+      return '<button type="button" class="field-help" data-help="' + esc(id) +
+        '" aria-label="Pomoc: ' + esc(label) + '" aria-controls="' + esc(id) +
+        '" aria-expanded="false">?</button><div id="' + esc(id) +
+        '" class="help-popover" popover role="note">' + esc(text) + '</div>';
     };
     const entityPicker = (section, key, title, hint, domains, extraMarkup = "") => {
       const pickerKey = section + "." + key;
@@ -498,9 +518,9 @@ class EntityControllerPanel extends HTMLElement {
               '<ha-state-icon data-entity="' + esc(id) + '"></ha-state-icon><span>' + esc(name) +
               '</span><small>' + esc(id) + '</small></button>';
           }).join("") : '<p class="empty-selection">Nenašli sa žiadne dostupné entity.</p>') + '</div></div>' : '';
-      return '<section class="editor-card entity-card"><div class="card-heading"><div class="card-heading-icon"><ha-icon icon="mdi:home-import-outline"></ha-icon></div>' +
-        '<div class="card-heading-copy"><h3>' + esc(title) +
-        '</h3><p>' + esc(hint) + '</p></div></div>' + chips + extraMarkup +
+      return '<section class="entity-card"><div class="card-heading"><div class="card-heading-icon"><ha-icon icon="mdi:home-import-outline"></ha-icon></div>' +
+        '<div class="card-heading-copy section-title"><h3>' + esc(title) +
+        '</h3>' + help(title, hint) + '</div></div>' + chips + extraMarkup +
         '<button type="button" class="add-entity" data-picker-toggle="' + esc(pickerKey) + '" aria-expanded="' +
         Boolean(isOpen) + '"><ha-icon icon="mdi:plus"></ha-icon> Pridať entitu</button>' + picker + '</section>';
     };
@@ -651,18 +671,18 @@ class EntityControllerPanel extends HTMLElement {
     const resetTimer = '<label class="switch-setting"><span>Nový pohyb vynuluje odpočet</span><input type="checkbox" data-section="timer"' +
       ' data-field="sensor_resets_timer"' + (timer.sensor_resets_timer ? ' checked' : '') + '><i></i></label>';
     const behaviorOptions = [["on", "Zapnúť entity"], ["off", "Vypnúť entity"], ["ignore", "Nič nerobiť"]];
-    return '<section class="editor"><header class="editor-header"><div><h2>Nastavenia controllera</h2>' +
-      '<p>Ulož zmeny tlačidlom Uložiť.</p></div><div class="edit-modes" role="group" aria-label="Rozsah nastavení">' +
-      '<button type="button" data-mode="basic" class="' + (mode === "basic" ? "selected" : "") + '">Základné</button>' +
-      '<button type="button" data-mode="full" class="' + (mode === "full" ? "selected" : "") + '">Všetky nastavenia</button></div></header>' +
-      '<div class="editor-status" role="status"><span class="save-state">' + esc(this._savingControllers.has(controller.id)
+    return '<section class="editor"><header class="editor-header"><div class="editor-heading"><h2>Nastavenia controllera</h2>' +
+      '<span class="save-state" role="status">' + esc(this._savingControllers.has(controller.id)
         ? "Ukladám…" : this._saveErrors.get(controller.id) ||
           (this._dirtyControllers.has(controller.id) ? "Neuložené zmeny" : "Uložené")) +
-      '</span><div class="editor-buttons"><button type="button" class="editor-save" data-save="' + esc(controller.id) + '"' +
+      '</span></div><div class="editor-toolbar"><div class="edit-modes" role="group" aria-label="Rozsah nastavení">' +
+      '<button type="button" data-mode="basic" class="' + (mode === "basic" ? "selected" : "") + '">Základné</button>' +
+      '<button type="button" data-mode="full" class="' + (mode === "full" ? "selected" : "") + '">Všetky nastavenia</button></div>' +
+      '<div class="editor-buttons"><button type="button" class="editor-save" data-save="' + esc(controller.id) + '"' +
       (this._dirtyControllers.has(controller.id) && !this._savingControllers.has(controller.id) ? '' : ' disabled') +
-      '>Uložiť</button><button type="button" class="editor-close" data-close="' + esc(controller.id) + '">Zavrieť</button></div></div>' +
+      '>Uložiť</button><button type="button" class="editor-close" data-close="' + esc(controller.id) + '">Zavrieť</button></div></div></header>' +
       '<div class="editor-grid"><section class="editor-card identity-card"><div class="card-heading"><div class="card-heading-icon"><ha-icon icon="mdi:tune-variant"></ha-icon></div>' +
-      '<div class="card-heading-copy"><h3>Základné nastavenia</h3><p>Rozpoznateľný názov a riadenie controllera.</p></div></div>' +
+      '<div class="card-heading-copy"><h3>Názov a ikona</h3></div></div>' +
       '<div class="card-fields">' + renderField("basic", "name", basic.name || controller.name) +
       '<div class="icon-picker"><button type="button" class="add-entity" data-icon-toggle="editor"><ha-icon icon="' +
       esc(basic.icon || controller.icon || "mdi:home-automation") + '"></ha-icon> Vybrať ikonu</button>' +
@@ -670,26 +690,27 @@ class EntityControllerPanel extends HTMLElement {
         '<div class="icon-options">' + ["home-automation", "lightbulb", "motion-sensor", "door", "door-open", "window-open", "weather-sunset", "weather-sunset-up", "clock-outline", "timer-outline", "account", "account-group", "shield-check", "shield-lock", "gesture-tap-button", "power", "toggle-switch", "fan", "air-conditioner", "thermostat", "water", "smoke-detector", "bell", "robot", "tune-variant"].map((name) =>
           '<button type="button" class="icon-option" data-icon-value="mdi:' + name + '" aria-label="mdi:' + name + '"><ha-icon icon="mdi:' + name + '"></ha-icon><span>' + name.replaceAll("-", " ") + '</span></button>').join("") + '</div>' : '') + '</div></div>' +
       '</section>' +
+      '<div class="editor-column inputs-column"><section class="editor-card inputs-card"><h3 class="group-title">Vstupy</h3>' +
       entityPicker("basic", "trigger_entities", "Spúšťače", "Čo aktivuje miestnosť?", ["binary_sensor", "sensor", "input_boolean", "switch", "light", "fan", "event", "device_tracker"]) +
-      entityPicker("monitoring", "state_entities", "Sledované entity", "Ručne zapnutý stav sa rešpektuje a môže zablokovať automatiku.",
+      entityPicker("monitoring", "state_entities", "Sledované entity", "Ich zapnutý stav môže pozastaviť automatiku.",
         ["binary_sensor", "sensor", "input_boolean", "device_tracker"],
         '<label class="switch-setting"><span>Povoliť blokovanie</span><input type="checkbox" data-section="monitoring" data-field="blocking_enabled"' +
-        (monitoring.blocking_enabled !== false ? ' checked' : '') + '><i></i></label>') +
+        (monitoring.blocking_enabled !== false ? ' checked' : '') + '><i></i></label>') + '</section>' +
+      schedule("constraints", "Povolený čas", "constraint", Boolean(constraints.constraint_enabled), "06:00", "23:00") + '</div>' +
+      '<div class="editor-column behavior-column"><section class="editor-card behavior-card"><h3 class="group-title">Ovládanie a časovanie</h3>' +
       entityPicker("basic", "control_entities", "Ovládané entity", "Zariadenia, ktoré sa zapnú alebo vypnú pri zmene stavu.", ["light", "switch", "fan"]) +
-      '<section class="editor-card timing-card"><div class="card-heading"><div class="card-heading-icon"><ha-icon icon="mdi:timer-outline"></ha-icon></div>' +
-      '<div class="card-heading-copy"><h3>Časovanie</h3><p>Po poslednej aktivite sa spustí odpočet.</p></div></div>' +
+      '<section class="settings-group timing-card"><div class="card-heading"><div class="card-heading-icon"><ha-icon icon="mdi:timer-outline"></ha-icon></div>' +
+      '<div class="card-heading-copy section-title"><h3>Časovanie</h3>' + help("Časovanie", "Po poslednej aktivite sa spustí odpočet. Čas môžeš nastaviť posuvníkom alebo vpísať v sekundách.") + '</div></div>' +
       '<div class="duration-setting">' + duration + '</div>' + resetTimer + '</section>' +
-      schedule("constraints", "Povolený čas", "constraint", Boolean(constraints.constraint_enabled), "06:00", "23:00") +
-      schedule("night", "Nočný profil", "night", Boolean(night.night_mode_enabled), "20:00", "06:00") +
-      '<section class="editor-card editor-actions"><div class="card-heading"><div class="card-heading-icon"><ha-icon icon="mdi:gesture-tap-button"></ha-icon></div>' +
-      '<div class="card-heading-copy"><h3>Akcia controllera</h3><p>Čo sa stane pri aktivite a po nej?</p></div></div><div class="card-fields">' +
+      '<section class="settings-group editor-actions"><div class="card-heading"><div class="card-heading-icon"><ha-icon icon="mdi:gesture-tap-button"></ha-icon></div>' +
+      '<div class="card-heading-copy section-title"><h3>Akcia controllera</h3>' + help("Akcia controllera", "Vyber, čo sa má stať pri aktivácii a po skončení aktivity.") + '</div></div><div class="card-fields">' +
       behaviorField("actions", "on_enter_active", actions.on_enter_active || "on", "Pri aktivácii", behaviorOptions) +
-      behaviorField("actions", "on_exit_active", actions.on_exit_active || "ignore", "Po skončení aktivity", behaviorOptions) + '</div></section>' +
-      '<section class="editor-card rules-card"><div class="card-heading"><div class="card-heading-icon"><ha-icon icon="mdi:shield-outline"></ha-icon></div>' +
-      '<div class="card-heading-copy"><h3>Pravidlá riadenia</h3><p>Vstupy, ktoré menia prioritu alebo pozastavia automatiku.</p></div></div>' +
+      behaviorField("actions", "on_exit_active", actions.on_exit_active || "ignore", "Po skončení aktivity", behaviorOptions) + '</div></section></section>' +
+      schedule("night", "Nočný profil", "night", Boolean(night.night_mode_enabled), "20:00", "06:00") + '</div>' +
+      '<details class="editor-card rules-card"><summary>Priorita a blokovanie<ha-icon icon="mdi:chevron-down"></ha-icon></summary><div class="rule-groups">' +
       entityPicker("rules", "override_entities", "Override", "Prevezme prioritu podľa vstupného stavu.", ["binary_sensor", "sensor", "input_boolean", "switch", "light", "device_tracker"]) +
       entityPicker("rules", "interlock_entities", "Interlock", "Blokuje automatické riadenie, kým je vstup aktívny.", ["binary_sensor", "sensor", "input_boolean", "switch", "light", "device_tracker"]) +
-      '</section>' + advancedMarkup + diagnosticMarkup + '</div></section>';
+      '</div></details>' + advancedMarkup + diagnosticMarkup + '</div></section>';
   }
 
   _formatDuration(seconds) {
@@ -751,7 +772,60 @@ class EntityControllerPanel extends HTMLElement {
       const interactionStyles = '.duration-input{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px}.duration-value{min-width:56px;color:var(--primary-text-color);font-size:12px;font-weight:600;text-align:right;font-variant-numeric:tabular-nums}.duration-setting{display:block}.duration-setting .duration-control{display:flex;flex-direction:column;gap:6px}.duration-setting .duration-control>span{color:var(--secondary-text-color);font-size:11px}.duration-setting .duration-control input{width:100%;accent-color:var(--primary-color)}.editor-grid{grid-template-columns:repeat(12,minmax(0,1fr));gap:10px}.editor-card{padding:10px;border-color:color-mix(in srgb,var(--divider-color) 65%,transparent);background:color-mix(in srgb,var(--secondary-background-color,var(--card-background-color)) 72%,transparent);box-shadow:none}.editor-grid>.identity-card{grid-column:span 4}.editor-grid>.entity-card:nth-child(2),.editor-grid>.entity-card:nth-child(4){grid-column:span 6}.editor-grid>.entity-card:nth-child(3),.editor-grid>.timing-card{grid-column:span 3}.editor-grid>.schedule-card,.editor-grid>.editor-actions{grid-column:span 6}.editor-grid>.rules-card,.editor-grid>.editor-section{grid-column:1/-1}.icon-options{display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:4px;max-height:190px;overflow:auto;margin-top:6px}.icon-option{display:flex;align-items:center;gap:6px;min-height:34px;padding:4px 7px;border:0;border-radius:7px;background:var(--primary-background-color,var(--card-background-color));color:var(--primary-text-color);text-align:left;cursor:pointer}.icon-option ha-icon{--mdc-icon-size:18px;color:var(--primary-color)}.icon-option span{font-size:11px;text-transform:capitalize}.icon-picker{min-width:0}@media(max-width:1000px){.editor-grid{grid-template-columns:repeat(6,minmax(0,1fr))}.editor-grid>.identity-card{grid-column:span 3}.editor-grid>.entity-card:nth-child(2),.editor-grid>.entity-card:nth-child(4),.editor-grid>.schedule-card,.editor-grid>.editor-actions{grid-column:span 3}.editor-grid>.entity-card:nth-child(3),.editor-grid>.timing-card{grid-column:span 3}}@media(max-width:760px){.editor-grid{grid-template-columns:minmax(0,1fr)}.editor-grid>.identity-card,.editor-grid>.entity-card,.editor-grid>.timing-card,.editor-grid>.schedule-card,.editor-grid>.editor-actions,.editor-grid>.rules-card,.editor-grid>.editor-section{grid-column:1}}';
       const scheduleStyles = '.offset-control{justify-content:flex-start}.offset-control button{width:27px;height:27px;padding:0;border:1px solid var(--divider-color);border-radius:7px;background:var(--primary-background-color,var(--card-background-color));color:var(--primary-color);font-size:17px;cursor:pointer}.offset-control output{min-width:70px;text-align:center;font-size:11px;font-weight:600;font-variant-numeric:tabular-nums}';
       const manualSaveStyles = '.editor{padding:12px;border:0;border-radius:12px;background:var(--secondary-background-color,var(--card-background-color))}.editor-grid{padding:8px;border-radius:10px;background:var(--secondary-background-color,var(--card-background-color))}.editor-card{border:0;border-radius:0;background:transparent;box-shadow:none}.editor-section{background:transparent}.editor-status{justify-content:space-between;flex-wrap:wrap}.editor-buttons{display:flex;align-items:center;gap:7px}.editor-buttons button{min-height:32px;padding:5px 12px;border:1px solid var(--divider-color);border-radius:8px;background:transparent;color:var(--primary-text-color);font:inherit;font-size:12px;cursor:pointer}.editor-buttons .editor-save{border-color:var(--primary-color);background:var(--primary-color);color:var(--text-primary-color,#fff);font-weight:600}.editor-buttons button:disabled{opacity:.45;cursor:not-allowed}.duration-manual{display:flex;align-items:center;gap:5px}.duration-setting .duration-control .duration-manual input{box-sizing:border-box;width:76px;min-height:30px;padding:4px 6px;border:1px solid var(--divider-color);border-radius:7px;background:var(--primary-background-color,var(--card-background-color));color:var(--primary-text-color);font:inherit;font-size:12px}.duration-manual span{color:var(--secondary-text-color);font-size:11px}';
-      this.shadowRoot.innerHTML = '<style>' + styles + editorStyles + interactionStyles + scheduleStyles + manualSaveStyles + '</style>' +
+      const layoutStyles = `
+        .wrap{container-type:inline-size;container-name:ec-panel}
+        .row{display:block;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
+        .controller-summary{position:relative;box-sizing:border-box;display:grid;grid-template-columns:minmax(320px,34%) minmax(0,1fr);gap:6px 12px;padding:12px;background:var(--card-background-color,#fff);border:1px solid var(--divider-color,#e0e0e0);border-radius:14px}
+        .row.editing .controller-summary{grid-template-columns:minmax(0,1fr);gap:6px}
+        .row.editing .controller-summary .identity{grid-row:1}
+        .row.editing .controller-summary .chips{grid-row:2}
+        .editor{margin-top:12px;padding:0;border:0;border-radius:0;background:transparent}
+        .editor-header{margin:0 0 10px;align-items:center;gap:12px}
+        .editor-heading{min-width:0;display:flex;align-items:center;flex-wrap:wrap;gap:4px}.editor-heading h2{margin:0;font-size:16px;font-weight:600}
+        .save-state{display:inline;margin:0 0 0 12px;font-size:12px}
+        .editor-toolbar{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+        .edit-modes{background:transparent;padding:0;gap:4px}
+        .edit-modes button{min-height:32px;padding:6px 10px;font-size:12px}
+        .edit-modes button.selected{background:var(--card-background-color,#fff);box-shadow:none}
+        .editor-buttons{gap:8px}.editor-buttons button{min-height:32px;padding:6px 12px}
+        .editor-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:0;border-radius:0;background:transparent;align-items:start}
+        .editor-grid>.editor-card,.editor-column>.editor-card{box-sizing:border-box;min-width:0;grid-column:auto;padding:12px;border:0;border-radius:12px;background:var(--card-background-color,#fff);box-shadow:none;margin:0}
+        .editor-grid>.identity-card{grid-column:1/-1;display:grid;grid-template-columns:110px minmax(0,1fr);align-items:center;gap:12px}
+        .identity-card .card-heading{margin:0}.identity-card .card-heading-icon{display:none}
+        .identity-card .card-fields{display:grid;grid-template-columns:minmax(0,480px) auto;justify-content:start;align-items:center;gap:10px}.identity-card .field{flex-direction:row;align-items:center}.identity-card .field>span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+        .identity-card .icon-picker{min-width:140px}.identity-card .icon-picker>.add-entity{min-height:32px;margin:0}
+        .section-title{display:flex;align-items:center;gap:6px;min-width:0}.section-title h3{min-width:0}
+        .field-help{flex:none;display:inline-grid;place-items:center;width:24px;height:24px;padding:0;border:1px solid var(--divider-color,#ddd);border-radius:50%;background:transparent;color:var(--secondary-text-color,#666);font:inherit;font-size:12px;cursor:pointer}
+        .help-popover{box-sizing:border-box;position:fixed;inset:auto;margin:0;width:max-content;max-width:min(300px,calc(100vw - 24px));padding:12px;border:1px solid var(--divider-color,#ddd);border-radius:10px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#222);font:inherit;font-size:13px;line-height:1.5;box-shadow:0 4px 16px #0002;overflow-wrap:anywhere}
+        .editor-column{display:flex;flex-direction:column;gap:10px;min-width:0}
+        .group-title{grid-column:1/-1;margin:0;font-size:16px;font-weight:600;color:var(--primary-text-color)}
+        .inputs-card,.behavior-card{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.inputs-card>.entity-card+.entity-card,.behavior-card>.settings-group{margin-top:0}.behavior-card>.editor-actions{grid-column:1/-1}
+        .entity-card,.settings-group,.rules-card .entity-card{min-width:0;padding:0;background:transparent;border:0}
+        .inputs-card .card-heading-icon,.behavior-card .card-heading-icon{display:none}
+        .card-heading{margin-bottom:12px;gap:6px}.card-heading-copy h3{font-size:14px;line-height:20px}
+        .card-heading-copy p{font-size:12px;line-height:16px;margin-top:2px}
+        .card-heading-icon{width:32px;height:32px;border-radius:9px}
+        .selected-entities{gap:4px;margin:0 0 6px}.selected-entity{min-height:30px}
+        .add-entity{border:0;border-radius:8px;padding:5px 8px;background:color-mix(in srgb,var(--primary-color) 8%,var(--card-background-color,#fff));color:var(--primary-color)}
+        .switch-setting{justify-content:space-between;gap:10px;margin-top:6px;font-size:12px;line-height:18px}
+        .card-fields{gap:8px}.field{gap:4px;font-size:12px}
+        .field input:not([type=checkbox]),.field select,.field textarea,.schedule-endpoint select{min-height:32px;padding:5px 8px;border:1px solid transparent;background:var(--primary-background-color);border-radius:8px}
+        .field input:focus-visible,.field select:focus-visible,.field textarea:focus-visible,.editor button:focus-visible{outline:2px solid var(--primary-color);outline-offset:2px}
+        .duration-setting .duration-control{gap:6px}.duration-input{gap:12px}
+        .duration-setting .duration-control .duration-manual input{width:72px;min-height:32px;background:var(--primary-background-color);border-color:transparent}
+        .duration-value{margin-top:0}.schedule-heading{align-items:center}.schedule-heading .switch-setting{margin:0}
+        .schedule-content{margin-top:2px;padding-top:0}.schedule-track{margin:2px 0 0}.schedule-labels{margin-bottom:3px}.schedule-endpoints{gap:10px;margin-top:6px}
+        .schedule-endpoint{gap:7px}.schedule-endpoint select{width:100%;min-width:0;font-size:12px}
+        .editor-grid>.rules-card,.editor-grid>.editor-section{grid-column:1/-1;padding:0;display:block}
+        .rules-card summary,.editor-section summary{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;font-size:14px;font-weight:500;cursor:pointer;list-style:none}
+        .rules-card summary::-webkit-details-marker,.editor-section summary::-webkit-details-marker{display:none}
+        .rules-card summary ha-icon{--mdc-icon-size:20px;color:var(--secondary-text-color)}
+        .rule-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:2px 12px 12px}
+        .advanced-fields,.decision-summary{padding:2px 12px 12px}
+        @container ec-panel (max-width:950px){.controller-summary{grid-template-columns:minmax(0,1fr)}.controller-summary .identity{grid-row:1}.controller-summary .chips{grid-column:1;grid-row:2}.controller-summary .timeline-line{grid-row:3}.editor-header{align-items:flex-start}.editor-toolbar{gap:10px}.editor-grid{grid-template-columns:minmax(0,1fr)}.editor-grid>.editor-card{grid-column:1}.editor-column{display:contents}.inputs-card{grid-row:2}.behavior-card{grid-row:3}.schedule-card-constraint{grid-row:4}.schedule-card-night{grid-row:5}.editor-grid>.identity-card{grid-template-columns:110px minmax(0,1fr)}.rule-groups{grid-template-columns:1fr}}
+        @container ec-panel (max-width:620px){.editor-grid>.editor-card,.editor-column>.editor-card{padding:14px}.editor-grid>.rules-card,.editor-grid>.editor-section{padding:0}.editor-header{flex-direction:column;align-items:stretch;gap:10px}.editor-toolbar{width:100%;justify-content:space-between;gap:8px}.edit-modes{width:auto}.field-help{width:36px;height:36px}.edit-modes button,.editor-buttons button{min-height:44px;padding:8px 10px}.editor-grid>.identity-card{grid-template-columns:minmax(0,1fr);gap:8px}.identity-card .card-fields{grid-template-columns:minmax(0,1fr) auto}.identity-card .icon-picker{min-width:0}.identity-card .icon-picker>.add-entity{min-height:44px}.inputs-card,.behavior-card{grid-template-columns:minmax(0,1fr);gap:16px}.schedule-endpoints{grid-template-columns:1fr}.rule-groups{padding:4px 14px 14px}.field input:not([type=checkbox]),.field select,.field textarea,.schedule-endpoint select,.entity-search{min-height:44px;font-size:16px}.add-entity,.entity-option,.icon-option{min-height:44px}.selected-entity{min-height:36px}.remove-entity{width:36px;height:36px}.switch-setting{min-height:44px}.schedule-heading .switch-setting{min-height:44px}.offset-control button{min-width:44px;min-height:44px}.schedule-track{height:40px}.duration-setting .duration-control .duration-manual input{min-height:44px;font-size:16px}.rules-card summary,.editor-section summary{min-height:44px}.editor-actions .card-fields{grid-template-columns:minmax(0,1fr)}}
+      `;
+      this.shadowRoot.innerHTML = '<style>' + styles + editorStyles + interactionStyles + scheduleStyles + manualSaveStyles + layoutStyles + '</style>' +
         '<main class="wrap"><header class="heading"><h1>Entity Controller</h1>' +
         '<p>Rýchly prehľad controllerov</p></header><div class="error" hidden></div>' +
         '<section class="list"></section><footer class="legend"><div class="legend-items"><span class="legend-title">Legenda časovej osi:</span>' +
@@ -815,12 +889,32 @@ class EntityControllerPanel extends HTMLElement {
     requestAnimationFrame(() => this._updateVisibleCount());
   }
 
+  _dismissHelp() {
+    this.shadowRoot.querySelectorAll(".help-popover:popover-open").forEach((item) => item.hidePopover());
+  }
+
   async _handleClick(event) {
     const button = event.composedPath().find((element) =>
       element.matches?.(".chip[data-entity], button[data-toggle], button[data-edit], button[data-mode], " +
         "button[data-picker-toggle], button[data-entity-option], button[data-remove-entity], button[data-save], button[data-close], " +
-        "button[data-icon-toggle], button[data-icon-value], button[data-offset-step]"));
+        "button[data-icon-toggle], button[data-icon-value], button[data-offset-step], button[data-help]"));
     if (!button) return;
+    if (button.dataset.help) {
+      const popover = this.shadowRoot.getElementById(button.dataset.help);
+      if (!popover) return;
+      const wasOpen = popover.matches(":popover-open");
+      this._dismissHelp();
+      if (!wasOpen) {
+        popover.showPopover();
+        const anchor = button.getBoundingClientRect();
+        const box = popover.getBoundingClientRect();
+        popover.style.left = Math.max(12, Math.min(window.innerWidth - box.width - 12, anchor.left)) + "px";
+        const top = anchor.bottom + 6;
+        popover.style.top = Math.max(12, top + box.height <= window.innerHeight - 12
+          ? top : anchor.top - box.height - 6) + "px";
+      }
+      return;
+    }
     if (button.dataset.save) {
       const controller = this.controllers.find((item) => item.id === button.dataset.save);
       if (controller) await this._saveController(controller);

@@ -10,5 +10,5 @@ Entity Controller v10 is a Home Assistant helper integration for reusable finite
 
 ## Status
 
-The current stable release is 10.4.2. Back up Home Assistant before testing migration from an older YAML configuration.
+The current stable release is 10.5.0. Back up Home Assistant before testing migration from an older YAML configuration.
 

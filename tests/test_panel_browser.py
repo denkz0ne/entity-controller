@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import pytest
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import expect, sync_playwright
 
 PANEL_JS = Path(
     "custom_components/entity_controller/www/entity-controller-panel.js"
@@ -763,6 +763,7 @@ def test_close_reopen_is_single_click_and_preserves_unsaved_draft(page):
           };
           window.wsCalls = [];
           panel.style.setProperty("--secondary-background-color", "rgb(20, 30, 40)");
+          panel.style.setProperty("--card-background-color", "white");
           panel.hass = {...panel.hass, user: {is_admin: true},
             callWS: async (message) => {
               wsCalls.push(message);
@@ -774,10 +775,16 @@ def test_close_reopen_is_single_click_and_preserves_unsaved_draft(page):
 
     page.locator(".edit-toggle").first.click()
     assert page.locator(".editor").is_visible()
-    assert page.locator(".editor").evaluate("element => getComputedStyle(element).backgroundColor") == "rgb(20, 30, 40)"
+    assert page.locator(".editor").evaluate("element => getComputedStyle(element).backgroundColor") == "rgba(0, 0, 0, 0)"
     assert page.locator(".editor-card").first.evaluate(
         "element => getComputedStyle(element).backgroundColor"
-    ) == "rgba(0, 0, 0, 0)"
+    ) == "rgb(255, 255, 255)"
+    assert page.locator(".controller-summary").first.evaluate(
+        "element => getComputedStyle(element).borderTopWidth"
+    ) == "1px"
+    assert page.locator(".row.editing").evaluate(
+        "element => getComputedStyle(element).borderTopWidth"
+    ) == "0px"
     page.locator('[data-field="name"]').first.fill("Draft room")
     page.locator(".editor-close").click()
     assert page.locator(".editor").count() == 0
@@ -790,3 +797,73 @@ def test_close_reopen_is_single_click_and_preserves_unsaved_draft(page):
     assert page.locator('[data-field="name"]').first.input_value() == "Draft room"
     assert page.locator(".save-state").inner_text() == "Neuložené zmeny"
 
+
+
+@pytest.mark.parametrize("width", [320, 390, 768, 1600])
+def test_compact_editor_and_help_fit_panel_width(page, width):
+    page.set_viewport_size({"width": width, "height": 900})
+    page.evaluate("""() => {
+      const c = panel.controllers[0];
+      c.entry_id = "entry-1";
+      c.form = {
+        basic: {name: c.name, trigger_entities: ["binary_sensor.motion"],
+          control_entities: ["light.room"], delay_seconds: {minutes: 4}},
+        timer: {sensor_resets_timer: true},
+        monitoring: {state_entities: [], blocking_enabled: true},
+        constraints: {constraint_enabled: true, constraint_start_source: "sunset",
+          constraint_end_source: "sunrise", constraint_start_time: "18:24:00",
+          constraint_end_time: "06:53:00"},
+        night: {night_mode_enabled: false},
+        actions: {on_enter_active: "on", on_exit_active: "off"},
+        rules: {override_entities: [], interlock_entities: []},
+      };
+      panel.hass = {...panel.hass, user: {is_admin: true}};
+    }""")
+    page.locator(".edit-toggle").first.click()
+    if width < 620:
+        assert page.locator(".inputs-card").evaluate("""el => {
+          const groups = el.querySelectorAll('.entity-card');
+          const a = groups[0].getBoundingClientRect(), b = groups[1].getBoundingClientRect();
+          return Math.abs(a.left - b.left) < 1 && b.top > a.bottom;
+        }""")
+    if width == 1600:
+        assert page.locator(".editor-grid").evaluate("el => el.getBoundingClientRect().height") <= 550
+    page.locator('.edit-modes button[data-mode="full"]').click()
+    page.locator(".rules-card summary").click()
+    page.locator(".inputs-card .add-entity").first.click()
+    assert page.locator(".editor").evaluate("""el => [...el.querySelectorAll('input,select,button,section,details')]
+      .filter(n => n.getBoundingClientRect().width > 0)
+      .every(n => n.getBoundingClientRect().left >= 0 && n.getBoundingClientRect().right <= innerWidth + 1)""")
+    help_button = page.locator(".inputs-card .field-help").first
+    help_button.click()
+    expect(help_button).to_have_attribute("aria-expanded", "true")
+    popover = page.locator(".help-popover:popover-open")
+    assert popover.is_visible()
+    assert popover.evaluate("""el => {
+      const r = el.getBoundingClientRect();
+      return r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight;
+    }""")
+    page.keyboard.press("Escape")
+    assert page.locator(".help-popover:popover-open").count() == 0
+    expect(help_button).to_have_attribute("aria-expanded", "false")
+    help_button.click()
+    page.evaluate("scroller.scrollTop += 100")
+    expect(page.locator(".help-popover:popover-open")).to_have_count(0)
+    help_button.click()
+    page.set_viewport_size({"width": width + 10, "height": 900})
+    expect(page.locator(".help-popover:popover-open")).to_have_count(0)
+
+
+def test_mobile_help_opens_by_tap_without_changing_draft(mobile_page):
+    mobile_page.evaluate("""() => {
+      const c = panel.controllers[0];
+      c.entry_id = "entry-1";
+      c.form = {basic: {name: c.name, trigger_entities: [], control_entities: [], delay_seconds: 240}};
+      panel.hass = {...panel.hass, user: {is_admin: true}};
+    }""")
+    mobile_page.locator(".edit-toggle").first.tap()
+    mobile_page.locator(".field-help").first.tap()
+    assert mobile_page.locator(".help-popover:popover-open").is_visible()
+    assert mobile_page.locator(".editor-save").is_disabled()
+    mobile_page.locator(".editor-heading").tap()
+    assert mobile_page.locator(".help-popover:popover-open").count() == 0
