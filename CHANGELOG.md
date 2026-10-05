@@ -2,6 +2,13 @@
 
 All notable changes to Entity Controller v10 are documented here.
 
+<a name="10.4.1"></a>
+## 10.4.1 (2026-10-05)
+
+### Fixes
+
+* convert disabled optional durations to selector mappings so saving other settings succeeds
+
 <a name="10.4.0"></a>
 ## 10.4.0 (2026-10-05)
 

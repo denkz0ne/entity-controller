@@ -410,8 +410,10 @@ def controller_form_values(stored_data: dict[str, Any]) -> dict[str, dict[str, A
         "block_timeout_seconds",
         "night_delay_seconds",
     ):
-        if key in flat and flat[key] is not None:
-            flat[key] = _duration(float(flat[key]))
+        if key in flat:
+            # HA's DurationSelector requires a mapping even when the stored
+            # optional timeout is disabled (persisted as None).
+            flat[key] = _duration(float(flat[key] or 0))
     for key in _SECTION_FIELDS["advanced"]:
         if key in flat and not isinstance(flat[key], str):
             flat[key] = ", ".join(str(value) for value in flat[key])
