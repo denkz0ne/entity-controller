@@ -43,7 +43,10 @@ The settings use the Home Assistant page background with separate cards for:
 - allowed operating time and the night profile.
 
 Priority and blocking rules are collapsed until opened. Full settings also
-expose advanced options. On narrow screens the cards stack in reading order.
+expose advanced options. On narrow screens the cards stack in reading order with larger touch controls.
+Question-mark buttons open helper explanations by click, tap, or keyboard;
+Escape or a click outside closes the explanation. Layout follows the available
+panel width, including the space taken by the Home Assistant sidebar.
 Changes remain a draft until **Save** is pressed. **Close** hides the editor
 while retaining the draft for the current panel session. Timer values can be
 entered manually as well as adjusted with the slider.

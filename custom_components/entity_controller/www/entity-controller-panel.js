@@ -92,7 +92,15 @@ class EntityControllerPanel extends HTMLElement {
         requestAnimationFrame(() => this._render());
       }
     };
+    this._helpResizeHandler = () => this._dismissHelp();
+    this.shadowRoot.addEventListener("scroll", () => this._dismissHelp(), {capture: true, passive: true});
     this.shadowRoot.addEventListener("click", (event) => this._handleClick(event));
+    this.shadowRoot.addEventListener("toggle", (event) => {
+      if (!event.target.matches?.(".help-popover")) return;
+      const button = [...this.shadowRoot.querySelectorAll("button[data-help]")]
+        .find((item) => item.dataset.help === event.target.id);
+      button?.setAttribute("aria-expanded", String(event.newState === "open"));
+    }, true);
     this.shadowRoot.addEventListener("change", (event) => this._handleEditorChange(event));
     this.shadowRoot.addEventListener("input", (event) => this._handleEditorInput(event));
     this.shadowRoot.addEventListener("focusout", (event) => {
@@ -114,6 +122,7 @@ class EntityControllerPanel extends HTMLElement {
   get hass() { return this._hass; }
 
   connectedCallback() {
+    window.addEventListener("resize", this._helpResizeHandler, {passive: true});
     this.addEventListener("touchstart", this._touchStartHandler, { passive: true });
     window.addEventListener("touchend", this._touchEndHandler, { capture: true, passive: true });
     window.addEventListener("touchcancel", this._touchEndHandler, { capture: true, passive: true });
@@ -121,6 +130,7 @@ class EntityControllerPanel extends HTMLElement {
   }
 
   disconnectedCallback() {
+    window.removeEventListener("resize", this._helpResizeHandler);
     this.removeEventListener("touchstart", this._touchStartHandler);
     window.removeEventListener("touchend", this._touchEndHandler, { capture: true });
     window.removeEventListener("touchcancel", this._touchEndHandler, { capture: true });
@@ -472,6 +482,14 @@ class EntityControllerPanel extends HTMLElement {
         ' data-section="' + esc(key.split(".")[0]) + '" data-field="' + esc(key.split(".")[1]) + '"' +
         ' data-value="' + esc(entityId) + '" aria-label="Odstrániť ' + esc(name) + '">×</button></span>';
     };
+    let helpIndex = 0;
+    const help = (label, text) => {
+      const id = "help-" + controller.id + "-" + (++helpIndex);
+      return '<button type="button" class="field-help" data-help="' + esc(id) +
+        '" aria-label="Pomoc: ' + esc(label) + '" aria-controls="' + esc(id) +
+        '" aria-expanded="false">?</button><div id="' + esc(id) +
+        '" class="help-popover" popover role="note">' + esc(text) + '</div>';
+    };
     const entityPicker = (section, key, title, hint, domains, extraMarkup = "") => {
       const pickerKey = section + "." + key;
       const entities = Array.isArray(form[section]?.[key]) ? form[section][key] : [];
@@ -501,8 +519,8 @@ class EntityControllerPanel extends HTMLElement {
               '</span><small>' + esc(id) + '</small></button>';
           }).join("") : '<p class="empty-selection">Nenašli sa žiadne dostupné entity.</p>') + '</div></div>' : '';
       return '<section class="entity-card"><div class="card-heading"><div class="card-heading-icon"><ha-icon icon="mdi:home-import-outline"></ha-icon></div>' +
-        '<div class="card-heading-copy"><h3>' + esc(title) +
-        '</h3><p>' + esc(hint) + '</p></div></div>' + chips + extraMarkup +
+        '<div class="card-heading-copy section-title"><h3>' + esc(title) +
+        '</h3>' + help(title, hint) + '</div></div>' + chips + extraMarkup +
         '<button type="button" class="add-entity" data-picker-toggle="' + esc(pickerKey) + '" aria-expanded="' +
         Boolean(isOpen) + '"><ha-icon icon="mdi:plus"></ha-icon> Pridať entitu</button>' + picker + '</section>';
     };
@@ -672,23 +690,23 @@ class EntityControllerPanel extends HTMLElement {
         '<div class="icon-options">' + ["home-automation", "lightbulb", "motion-sensor", "door", "door-open", "window-open", "weather-sunset", "weather-sunset-up", "clock-outline", "timer-outline", "account", "account-group", "shield-check", "shield-lock", "gesture-tap-button", "power", "toggle-switch", "fan", "air-conditioner", "thermostat", "water", "smoke-detector", "bell", "robot", "tune-variant"].map((name) =>
           '<button type="button" class="icon-option" data-icon-value="mdi:' + name + '" aria-label="mdi:' + name + '"><ha-icon icon="mdi:' + name + '"></ha-icon><span>' + name.replaceAll("-", " ") + '</span></button>').join("") + '</div>' : '') + '</div></div>' +
       '</section>' +
-      '<section class="editor-card inputs-card"><h3 class="group-title">Vstupy</h3>' +
+      '<div class="editor-column inputs-column"><section class="editor-card inputs-card"><h3 class="group-title">Vstupy</h3>' +
       entityPicker("basic", "trigger_entities", "Spúšťače", "Čo aktivuje miestnosť?", ["binary_sensor", "sensor", "input_boolean", "switch", "light", "fan", "event", "device_tracker"]) +
       entityPicker("monitoring", "state_entities", "Sledované entity", "Ich zapnutý stav môže pozastaviť automatiku.",
         ["binary_sensor", "sensor", "input_boolean", "device_tracker"],
         '<label class="switch-setting"><span>Povoliť blokovanie</span><input type="checkbox" data-section="monitoring" data-field="blocking_enabled"' +
         (monitoring.blocking_enabled !== false ? ' checked' : '') + '><i></i></label>') + '</section>' +
-      '<section class="editor-card behavior-card"><h3 class="group-title">Ovládanie a časovanie</h3>' +
+      schedule("constraints", "Povolený čas", "constraint", Boolean(constraints.constraint_enabled), "06:00", "23:00") + '</div>' +
+      '<div class="editor-column behavior-column"><section class="editor-card behavior-card"><h3 class="group-title">Ovládanie a časovanie</h3>' +
       entityPicker("basic", "control_entities", "Ovládané entity", "Zariadenia, ktoré sa zapnú alebo vypnú pri zmene stavu.", ["light", "switch", "fan"]) +
       '<section class="settings-group timing-card"><div class="card-heading"><div class="card-heading-icon"><ha-icon icon="mdi:timer-outline"></ha-icon></div>' +
-      '<div class="card-heading-copy"><h3>Časovanie</h3><p>Po poslednej aktivite sa spustí odpočet.</p></div></div>' +
+      '<div class="card-heading-copy section-title"><h3>Časovanie</h3>' + help("Časovanie", "Po poslednej aktivite sa spustí odpočet. Čas môžeš nastaviť posuvníkom alebo vpísať v sekundách.") + '</div></div>' +
       '<div class="duration-setting">' + duration + '</div>' + resetTimer + '</section>' +
       '<section class="settings-group editor-actions"><div class="card-heading"><div class="card-heading-icon"><ha-icon icon="mdi:gesture-tap-button"></ha-icon></div>' +
-      '<div class="card-heading-copy"><h3>Akcia controllera</h3><p>Čo sa stane pri aktivite a po nej?</p></div></div><div class="card-fields">' +
+      '<div class="card-heading-copy section-title"><h3>Akcia controllera</h3>' + help("Akcia controllera", "Vyber, čo sa má stať pri aktivácii a po skončení aktivity.") + '</div></div><div class="card-fields">' +
       behaviorField("actions", "on_enter_active", actions.on_enter_active || "on", "Pri aktivácii", behaviorOptions) +
       behaviorField("actions", "on_exit_active", actions.on_exit_active || "ignore", "Po skončení aktivity", behaviorOptions) + '</div></section></section>' +
-      schedule("constraints", "Povolený čas", "constraint", Boolean(constraints.constraint_enabled), "06:00", "23:00") +
-      schedule("night", "Nočný profil", "night", Boolean(night.night_mode_enabled), "20:00", "06:00") +
+      schedule("night", "Nočný profil", "night", Boolean(night.night_mode_enabled), "20:00", "06:00") + '</div>' +
       '<details class="editor-card rules-card"><summary>Priorita a blokovanie<ha-icon icon="mdi:chevron-down"></ha-icon></summary><div class="rule-groups">' +
       entityPicker("rules", "override_entities", "Override", "Prevezme prioritu podľa vstupného stavu.", ["binary_sensor", "sensor", "input_boolean", "switch", "light", "device_tracker"]) +
       entityPicker("rules", "interlock_entities", "Interlock", "Blokuje automatické riadenie, kým je vstup aktívny.", ["binary_sensor", "sensor", "input_boolean", "switch", "light", "device_tracker"]) +
@@ -755,52 +773,57 @@ class EntityControllerPanel extends HTMLElement {
       const scheduleStyles = '.offset-control{justify-content:flex-start}.offset-control button{width:27px;height:27px;padding:0;border:1px solid var(--divider-color);border-radius:7px;background:var(--primary-background-color,var(--card-background-color));color:var(--primary-color);font-size:17px;cursor:pointer}.offset-control output{min-width:70px;text-align:center;font-size:11px;font-weight:600;font-variant-numeric:tabular-nums}';
       const manualSaveStyles = '.editor{padding:12px;border:0;border-radius:12px;background:var(--secondary-background-color,var(--card-background-color))}.editor-grid{padding:8px;border-radius:10px;background:var(--secondary-background-color,var(--card-background-color))}.editor-card{border:0;border-radius:0;background:transparent;box-shadow:none}.editor-section{background:transparent}.editor-status{justify-content:space-between;flex-wrap:wrap}.editor-buttons{display:flex;align-items:center;gap:7px}.editor-buttons button{min-height:32px;padding:5px 12px;border:1px solid var(--divider-color);border-radius:8px;background:transparent;color:var(--primary-text-color);font:inherit;font-size:12px;cursor:pointer}.editor-buttons .editor-save{border-color:var(--primary-color);background:var(--primary-color);color:var(--text-primary-color,#fff);font-weight:600}.editor-buttons button:disabled{opacity:.45;cursor:not-allowed}.duration-manual{display:flex;align-items:center;gap:5px}.duration-setting .duration-control .duration-manual input{box-sizing:border-box;width:76px;min-height:30px;padding:4px 6px;border:1px solid var(--divider-color);border-radius:7px;background:var(--primary-background-color,var(--card-background-color));color:var(--primary-text-color);font:inherit;font-size:12px}.duration-manual span{color:var(--secondary-text-color);font-size:11px}';
       const layoutStyles = `
+        .wrap{container-type:inline-size;container-name:ec-panel}
         .row{display:block;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
-        .controller-summary{position:relative;box-sizing:border-box;display:grid;grid-template-columns:minmax(320px,34%) minmax(0,1fr);gap:10px 16px;padding:16px;background:var(--card-background-color,#fff);border:1px solid var(--divider-color,#e0e0e0);border-radius:14px}
-        .row.editing .controller-summary{grid-template-columns:minmax(0,1fr);gap:10px}
+        .controller-summary{position:relative;box-sizing:border-box;display:grid;grid-template-columns:minmax(320px,34%) minmax(0,1fr);gap:6px 12px;padding:12px;background:var(--card-background-color,#fff);border:1px solid var(--divider-color,#e0e0e0);border-radius:14px}
+        .row.editing .controller-summary{grid-template-columns:minmax(0,1fr);gap:6px}
         .row.editing .controller-summary .identity{grid-row:1}
         .row.editing .controller-summary .chips{grid-row:2}
-        .editor{margin-top:20px;padding:0;border:0;border-radius:0;background:transparent}
-        .editor-header{margin:0 0 16px;align-items:center;gap:16px}
-        .editor-heading{min-width:0}.editor-heading h2{margin:0;font-size:18px;font-weight:600}
-        .save-state{display:block;margin:5px 0 0;font-size:12px}
+        .editor{margin-top:12px;padding:0;border:0;border-radius:0;background:transparent}
+        .editor-header{margin:0 0 10px;align-items:center;gap:12px}
+        .editor-heading{min-width:0;display:flex;align-items:center;flex-wrap:wrap;gap:4px}.editor-heading h2{margin:0;font-size:16px;font-weight:600}
+        .save-state{display:inline;margin:0 0 0 12px;font-size:12px}
         .editor-toolbar{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
         .edit-modes{background:transparent;padding:0;gap:4px}
-        .edit-modes button{min-height:36px;padding:8px 12px;font-size:12px}
+        .edit-modes button{min-height:32px;padding:6px 10px;font-size:12px}
         .edit-modes button.selected{background:var(--card-background-color,#fff);box-shadow:none}
-        .editor-buttons{gap:8px}.editor-buttons button{min-height:36px;padding:8px 16px}
-        .editor-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;padding:0;border-radius:0;background:transparent;align-items:start}
-        .editor-grid>.editor-card{box-sizing:border-box;min-width:0;grid-column:auto;padding:20px;border:0;border-radius:12px;background:var(--card-background-color,#fff);box-shadow:none;margin:0}
-        .editor-grid>.identity-card{grid-column:1/-1;display:grid;grid-template-columns:160px minmax(0,1fr);align-items:center;gap:20px}
+        .editor-buttons{gap:8px}.editor-buttons button{min-height:32px;padding:6px 12px}
+        .editor-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:0;border-radius:0;background:transparent;align-items:start}
+        .editor-grid>.editor-card,.editor-column>.editor-card{box-sizing:border-box;min-width:0;grid-column:auto;padding:12px;border:0;border-radius:12px;background:var(--card-background-color,#fff);box-shadow:none;margin:0}
+        .editor-grid>.identity-card{grid-column:1/-1;display:grid;grid-template-columns:110px minmax(0,1fr);align-items:center;gap:12px}
         .identity-card .card-heading{margin:0}.identity-card .card-heading-icon{display:none}
-        .identity-card .card-fields{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:12px}
-        .identity-card .icon-picker{min-width:140px}.identity-card .icon-picker>.add-entity{min-height:40px;margin:0}
-        .group-title{margin:0 0 20px;font-size:16px;font-weight:600;color:var(--primary-text-color)}
-        .inputs-card>.entity-card+.entity-card,.behavior-card>.settings-group{margin-top:24px}
+        .identity-card .card-fields{display:grid;grid-template-columns:minmax(0,480px) auto;justify-content:start;align-items:center;gap:10px}.identity-card .field{flex-direction:row;align-items:center}.identity-card .field>span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+        .identity-card .icon-picker{min-width:140px}.identity-card .icon-picker>.add-entity{min-height:32px;margin:0}
+        .section-title{display:flex;align-items:center;gap:6px;min-width:0}.section-title h3{min-width:0}
+        .field-help{flex:none;display:inline-grid;place-items:center;width:24px;height:24px;padding:0;border:1px solid var(--divider-color,#ddd);border-radius:50%;background:transparent;color:var(--secondary-text-color,#666);font:inherit;font-size:12px;cursor:pointer}
+        .help-popover{box-sizing:border-box;position:fixed;inset:auto;margin:0;width:max-content;max-width:min(300px,calc(100vw - 24px));padding:12px;border:1px solid var(--divider-color,#ddd);border-radius:10px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#222);font:inherit;font-size:13px;line-height:1.5;box-shadow:0 4px 16px #0002;overflow-wrap:anywhere}
+        .editor-column{display:flex;flex-direction:column;gap:10px;min-width:0}
+        .group-title{grid-column:1/-1;margin:0;font-size:16px;font-weight:600;color:var(--primary-text-color)}
+        .inputs-card,.behavior-card{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.inputs-card>.entity-card+.entity-card,.behavior-card>.settings-group{margin-top:0}.behavior-card>.editor-actions{grid-column:1/-1}
         .entity-card,.settings-group,.rules-card .entity-card{min-width:0;padding:0;background:transparent;border:0}
         .inputs-card .card-heading-icon,.behavior-card .card-heading-icon{display:none}
-        .card-heading{margin-bottom:12px;gap:10px}.card-heading-copy h3{font-size:14px;line-height:20px}
-        .card-heading-copy p{font-size:12px;line-height:18px;margin-top:3px}
+        .card-heading{margin-bottom:12px;gap:6px}.card-heading-copy h3{font-size:14px;line-height:20px}
+        .card-heading-copy p{font-size:12px;line-height:16px;margin-top:2px}
         .card-heading-icon{width:32px;height:32px;border-radius:9px}
-        .selected-entities{gap:6px;margin:0 0 10px}.selected-entity{min-height:30px}
-        .add-entity{border:0;border-radius:8px;padding:7px 10px;background:color-mix(in srgb,var(--primary-color) 8%,var(--card-background-color,#fff));color:var(--primary-color)}
-        .switch-setting{justify-content:space-between;gap:12px;margin-top:12px;font-size:12px;line-height:18px}
-        .card-fields{gap:12px}.field{gap:6px;font-size:12px}
-        .field input:not([type=checkbox]),.field select,.field textarea,.schedule-endpoint select{min-height:40px;padding:9px 11px;border:1px solid transparent;background:var(--primary-background-color);border-radius:8px}
+        .selected-entities{gap:4px;margin:0 0 6px}.selected-entity{min-height:30px}
+        .add-entity{border:0;border-radius:8px;padding:5px 8px;background:color-mix(in srgb,var(--primary-color) 8%,var(--card-background-color,#fff));color:var(--primary-color)}
+        .switch-setting{justify-content:space-between;gap:10px;margin-top:6px;font-size:12px;line-height:18px}
+        .card-fields{gap:8px}.field{gap:4px;font-size:12px}
+        .field input:not([type=checkbox]),.field select,.field textarea,.schedule-endpoint select{min-height:32px;padding:5px 8px;border:1px solid transparent;background:var(--primary-background-color);border-radius:8px}
         .field input:focus-visible,.field select:focus-visible,.field textarea:focus-visible,.editor button:focus-visible{outline:2px solid var(--primary-color);outline-offset:2px}
-        .duration-setting .duration-control{gap:10px}.duration-input{gap:12px}
-        .duration-setting .duration-control .duration-manual input{width:84px;min-height:36px;background:var(--primary-background-color);border-color:transparent}
+        .duration-setting .duration-control{gap:6px}.duration-input{gap:12px}
+        .duration-setting .duration-control .duration-manual input{width:72px;min-height:32px;background:var(--primary-background-color);border-color:transparent}
         .duration-value{margin-top:0}.schedule-heading{align-items:center}.schedule-heading .switch-setting{margin:0}
-        .schedule-content{margin-top:16px}.schedule-track{margin:8px 0 0}.schedule-endpoints{gap:16px;margin-top:12px}
+        .schedule-content{margin-top:2px;padding-top:0}.schedule-track{margin:2px 0 0}.schedule-labels{margin-bottom:3px}.schedule-endpoints{gap:10px;margin-top:6px}
         .schedule-endpoint{gap:7px}.schedule-endpoint select{width:100%;min-width:0;font-size:12px}
         .editor-grid>.rules-card,.editor-grid>.editor-section{grid-column:1/-1;padding:0;display:block}
-        .rules-card summary,.editor-section summary{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;font-size:14px;font-weight:500;cursor:pointer;list-style:none}
+        .rules-card summary,.editor-section summary{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;font-size:14px;font-weight:500;cursor:pointer;list-style:none}
         .rules-card summary::-webkit-details-marker,.editor-section summary::-webkit-details-marker{display:none}
         .rules-card summary ha-icon{--mdc-icon-size:20px;color:var(--secondary-text-color)}
-        .rule-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;padding:4px 20px 20px}
-        .advanced-fields,.decision-summary{padding:4px 20px 20px}
-        @media(max-width:950px){.controller-summary{grid-template-columns:minmax(0,1fr)}.controller-summary .identity{grid-row:1}.controller-summary .chips{grid-column:1;grid-row:2}.controller-summary .timeline-line{grid-row:3}.editor-header{align-items:flex-start}.editor-toolbar{gap:10px}.editor-grid{grid-template-columns:minmax(0,1fr)}.editor-grid>.editor-card{grid-column:1}.editor-grid>.identity-card{grid-template-columns:1fr;gap:12px}.rule-groups{grid-template-columns:1fr}}
-        @media(max-width:620px){.editor-grid>.editor-card{padding:16px}.editor-grid>.rules-card,.editor-grid>.editor-section{padding:0}.editor-header{flex-direction:column;align-items:stretch;gap:12px}.editor-toolbar{width:100%;justify-content:space-between}.edit-modes{width:auto}.edit-modes button{padding:8px}.editor-buttons button{padding:8px 12px}.identity-card .card-fields{grid-template-columns:minmax(0,1fr)}.identity-card .icon-picker{min-width:0}.schedule-endpoints{grid-template-columns:1fr}.rule-groups{padding:4px 16px 16px}}
+        .rule-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:2px 12px 12px}
+        .advanced-fields,.decision-summary{padding:2px 12px 12px}
+        @container ec-panel (max-width:950px){.controller-summary{grid-template-columns:minmax(0,1fr)}.controller-summary .identity{grid-row:1}.controller-summary .chips{grid-column:1;grid-row:2}.controller-summary .timeline-line{grid-row:3}.editor-header{align-items:flex-start}.editor-toolbar{gap:10px}.editor-grid{grid-template-columns:minmax(0,1fr)}.editor-grid>.editor-card{grid-column:1}.editor-column{display:contents}.inputs-card{grid-row:2}.behavior-card{grid-row:3}.schedule-card-constraint{grid-row:4}.schedule-card-night{grid-row:5}.editor-grid>.identity-card{grid-template-columns:110px minmax(0,1fr)}.rule-groups{grid-template-columns:1fr}}
+        @container ec-panel (max-width:620px){.editor-grid>.editor-card,.editor-column>.editor-card{padding:14px}.editor-grid>.rules-card,.editor-grid>.editor-section{padding:0}.editor-header{flex-direction:column;align-items:stretch;gap:10px}.editor-toolbar{width:100%;justify-content:space-between;gap:8px}.edit-modes{width:auto}.field-help{width:36px;height:36px}.edit-modes button,.editor-buttons button{min-height:44px;padding:8px 10px}.editor-grid>.identity-card{grid-template-columns:minmax(0,1fr);gap:8px}.identity-card .card-fields{grid-template-columns:minmax(0,1fr) auto}.identity-card .icon-picker{min-width:0}.identity-card .icon-picker>.add-entity{min-height:44px}.inputs-card,.behavior-card{grid-template-columns:minmax(0,1fr);gap:16px}.schedule-endpoints{grid-template-columns:1fr}.rule-groups{padding:4px 14px 14px}.field input:not([type=checkbox]),.field select,.field textarea,.schedule-endpoint select,.entity-search{min-height:44px;font-size:16px}.add-entity,.entity-option,.icon-option{min-height:44px}.selected-entity{min-height:36px}.remove-entity{width:36px;height:36px}.switch-setting{min-height:44px}.schedule-heading .switch-setting{min-height:44px}.offset-control button{min-width:44px;min-height:44px}.schedule-track{height:40px}.duration-setting .duration-control .duration-manual input{min-height:44px;font-size:16px}.rules-card summary,.editor-section summary{min-height:44px}.editor-actions .card-fields{grid-template-columns:minmax(0,1fr)}}
       `;
       this.shadowRoot.innerHTML = '<style>' + styles + editorStyles + interactionStyles + scheduleStyles + manualSaveStyles + layoutStyles + '</style>' +
         '<main class="wrap"><header class="heading"><h1>Entity Controller</h1>' +
@@ -866,12 +889,32 @@ class EntityControllerPanel extends HTMLElement {
     requestAnimationFrame(() => this._updateVisibleCount());
   }
 
+  _dismissHelp() {
+    this.shadowRoot.querySelectorAll(".help-popover:popover-open").forEach((item) => item.hidePopover());
+  }
+
   async _handleClick(event) {
     const button = event.composedPath().find((element) =>
       element.matches?.(".chip[data-entity], button[data-toggle], button[data-edit], button[data-mode], " +
         "button[data-picker-toggle], button[data-entity-option], button[data-remove-entity], button[data-save], button[data-close], " +
-        "button[data-icon-toggle], button[data-icon-value], button[data-offset-step]"));
+        "button[data-icon-toggle], button[data-icon-value], button[data-offset-step], button[data-help]"));
     if (!button) return;
+    if (button.dataset.help) {
+      const popover = this.shadowRoot.getElementById(button.dataset.help);
+      if (!popover) return;
+      const wasOpen = popover.matches(":popover-open");
+      this._dismissHelp();
+      if (!wasOpen) {
+        popover.showPopover();
+        const anchor = button.getBoundingClientRect();
+        const box = popover.getBoundingClientRect();
+        popover.style.left = Math.max(12, Math.min(window.innerWidth - box.width - 12, anchor.left)) + "px";
+        const top = anchor.bottom + 6;
+        popover.style.top = Math.max(12, top + box.height <= window.innerHeight - 12
+          ? top : anchor.top - box.height - 6) + "px";
+      }
+      return;
+    }
     if (button.dataset.save) {
       const controller = this.controllers.find((item) => item.id === button.dataset.save);
       if (controller) await this._saveController(controller);

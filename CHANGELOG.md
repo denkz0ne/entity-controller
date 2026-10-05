@@ -9,7 +9,9 @@ All notable changes to Entity Controller v10 are documented here.
 
 * separate the bordered controller overview from settings on the Home Assistant page background
 * arrange inputs and control/timer behavior into two clearly labelled white groups
-* place allowed-time and night-profile cards together below the primary settings
+* pack time profiles below their related settings without leaving gaps between columns
+* move helper explanations into keyboard/touch accessible question-mark popovers
+* adapt to the actual panel width and provide larger mobile controls
 * collapse priority/blocking rules until needed
 * use one settings toolbar for mode selection, save status, Save, and Close
 * align fields and simplify section headings, entity controls, and mobile layout
