@@ -496,6 +496,145 @@ def test_schedule_range_displays_and_saves_an_overnight_window(page):
     assert save["form"]["constraints"]["constraint_start_time"] == "22:15:00"
 
 
+@pytest.mark.parametrize("mode", ["basic", "full"])
+@pytest.mark.parametrize("night_enabled", [False, True])
+def test_saved_editor_payload_passes_ha_schema_without_changing_other_settings(
+    page, mode, night_enabled
+):
+    from custom_components.entity_controller.config_flow import (
+        CONTROLLER_SCHEMA,
+        controller_form_values,
+        normalize_controller_user_input,
+    )
+
+    stored = {
+        "name": "Hall", "icon": "mdi:timer",
+        "trigger_entities": ["binary_sensor.motion"],
+        "control_entities": ["light.room"],
+        "delay_seconds": 181, "block_timeout_seconds": None,
+        "constraint_window": {
+            "start": {"source": "sunrise", "time": "06:07:30", "offset_seconds": 900},
+            "end": {"source": "fixed", "time": "22:07:30", "offset_seconds": 0},
+        },
+        "night_mode": {
+            "start": {"source": "sunset", "time": "20:07:30", "offset_seconds": -900},
+            "end": {"source": "sunrise", "time": "06:07:30", "offset_seconds": 0},
+            "delay_seconds": 61, "service_data_on": {"brightness": 10},
+            "service_data_off": {},
+        } if night_enabled else None,
+        "trigger_on_states": ["on", "playing"],
+        "service_data_on": {"brightness": 100},
+    }
+    baseline = normalize_controller_user_input(CONTROLLER_SCHEMA(controller_form_values(stored)))
+    page.evaluate(
+        """form => {
+          const controller = panel.controllers[0];
+          controller.entry_id = "entry-1";
+          controller.form = form;
+          controller.resolved_schedule = {constraint: {start: 390, end: 1327},
+            night: {start: 1185, end: 375}};
+          window.wsCalls = [];
+          panel.hass = {...panel.hass, user: {is_admin: true}, callWS: async message => {
+            wsCalls.push(message);
+            return {success: true, form: message.form};
+          }};
+        }""", controller_form_values(baseline),
+    )
+    page.locator(".edit-toggle").first.click()
+    if mode == "full":
+        page.locator('button[data-mode="full"]').click()
+    page.locator('[data-field="name"]').first.fill("Renamed room")
+    page.locator(".editor-save").click()
+    page.wait_for_function('wsCalls.some(call => call.type === "entity_controller/panel/save")')
+    saved = page.evaluate('wsCalls.find(call => call.type === "entity_controller/panel/save")')
+    normalized = normalize_controller_user_input(CONTROLLER_SCHEMA(saved["form"]))
+    assert normalized == {**baseline, "name": "Renamed room"}
+
+
+def test_invalid_json_stops_save_before_websocket_submission(page):
+    page.evaluate("""() => {
+      const controller = panel.controllers[0];
+      controller.entry_id = "entry-1";
+      controller.form = {basic: {name: "Hall", delay_seconds: 180},
+        actions: {service_data_on: {brightness: 100}}};
+      window.wsCalls = [];
+      panel.hass = {...panel.hass, user: {is_admin: true}, callWS: async message => {
+        wsCalls.push(message); return {success: true, form: message.form};
+      }};
+    }""")
+    page.locator(".edit-toggle").first.click()
+    page.locator('button[data-mode="full"]').click()
+    section = page.locator(".editor-section").filter(has_text="Akcie pri ďalších stavoch")
+    section.locator("summary").click()
+    section.locator('[data-field="service_data_on"]').fill('{"brightness":')
+    page.locator('[data-field="name"]').first.fill("Renamed room")
+    page.locator(".editor-save").click()
+    assert page.evaluate('wsCalls.filter(call => call.type === "entity_controller/panel/save").length') == 0
+    assert "Uloženie zlyhalo" in page.locator(".save-state").inner_text()
+    assert page.locator('[data-field="service_data_on"]').input_value() == '{"brightness":'
+
+
+@pytest.mark.parametrize("edit_while_saving", [False, True])
+def test_save_response_preserves_new_edits_and_updates_current_controller(page, edit_while_saving):
+    page.evaluate("""() => {
+      const controller = panel.controllers[0];
+      controller.entry_id = "entry-1";
+      controller.form = {basic: {name: "Hall", delay_seconds: 180}};
+      panel._loadHistory = async () => {};
+      panel.hass = {...panel.hass, user: {is_admin: true}, callWS: message => {
+        if (message.type === "entity_controller/panel") return Promise.resolve({controllers:
+          panel.controllers.map(item => {const fresh = {...item}; delete fresh._draftRevision; return fresh;})});
+        return new Promise(resolve => {window.resolveSave = () => resolve({success: true,
+          form: {...message.form, basic: {...message.form.basic, name: "Saved name"}}, name: "Saved name"});});
+      }};
+    }""")
+    page.locator(".edit-toggle").first.click()
+    page.locator('[data-field="name"]').first.fill("First name")
+    page.locator(".editor-save").click()
+    page.wait_for_function('typeof resolveSave === "function"')
+    page.evaluate('panel._refresh()')
+    if edit_while_saving:
+        page.locator('[data-field="name"]').first.fill("Newer name")
+    page.evaluate('resolveSave()')
+    page.wait_for_function('!panel._savingControllers.has("controller-0")')
+    assert page.evaluate('panel.controllers[0].form.basic.name') == ("Newer name" if edit_while_saving else "Saved name")
+    assert page.evaluate('panel._dirtyControllers.has("controller-0")') == edit_while_saving
+
+
+def test_first_save_click_survives_pending_render_from_live_update(page):
+    page.evaluate("""() => {
+      panel.controllers[0].entry_id = "entry-1";
+      panel.controllers[0].form = {basic: {name: "Hall", delay_seconds: 180}};
+      window.wsCalls = [];
+      panel.hass = {...panel.hass, user: {is_admin: true}, callWS: async message => {
+        wsCalls.push(message); return {success: true, form: message.form};
+      }};
+    }""")
+    page.locator(".edit-toggle").first.click()
+    page.locator('[data-field="name"]').first.fill("Renamed room")
+    page.evaluate('panel.hass = {...panel.hass}')
+    button = page.locator(".editor-save").bounding_box()
+    page.mouse.move(button["x"] + button["width"] / 2, button["y"] + button["height"] / 2)
+    page.mouse.down()
+    page.wait_for_timeout(50)
+    page.mouse.up()
+    assert page.evaluate('wsCalls.filter(call => call.type === "entity_controller/panel/save").length') == 1
+
+
+def test_enabling_night_profile_reveals_valid_controls_and_keeps_duration(page):
+    page.evaluate("""() => {
+      panel.controllers[0].form = {basic: {name: "Hall"},
+        night: {night_mode_enabled: false, night_delay_seconds: {minutes: 2, seconds: 1}}};
+      panel.hass = {...panel.hass, user: {is_admin: true}};
+    }""")
+    page.locator(".edit-toggle").first.click()
+    assert page.locator('[data-field="night_enabled"]').count() == 0
+    page.locator('[data-field="night_mode_enabled"]').check()
+    manual = page.locator('[data-duration-manual="night.night_delay_seconds"]')
+    assert manual.input_value() == "121"
+    assert page.locator('.schedule-extra .duration-control > span').inner_text() == "Nočný časovač"
+
+
 def test_dragging_solar_schedule_endpoint_switches_to_fixed_time(page):
     page.evaluate(
         """() => {
@@ -504,6 +643,7 @@ def test_dragging_solar_schedule_endpoint_switches_to_fixed_time(page):
           controller.form = {
             basic: {name: controller.name, trigger_entities: [], control_entities: [], delay_seconds: 180},
             constraints: {constraint_enabled: true, constraint_start_source: "sunrise",
+              constraint_start_offset_seconds: 900,
               constraint_start_time: "06:00:00", constraint_end_source: "fixed",
               constraint_end_time: "22:00:00"},
           };
@@ -532,6 +672,7 @@ def test_dragging_solar_schedule_endpoint_switches_to_fixed_time(page):
         'wsCalls.find((call) => call.type === "entity_controller/panel/save")'
     )
     assert save["form"]["constraints"]["constraint_start_source"] == "fixed"
+    assert save["form"]["constraints"]["constraint_start_offset_seconds"] == 0
 
 
 def test_solar_offset_uses_fifteen_minute_steps_once_in_basic_mode(page):
