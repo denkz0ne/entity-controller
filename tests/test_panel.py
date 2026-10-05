@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 from homeassistant.helpers import entity_registry
@@ -33,7 +34,7 @@ def test_panel_payload_is_dynamic_and_resolves_registered_entities(monkeypatch):
         last_transition_at="2026-10-01T10:00:00+00:00",
         last_transition_cause=SimpleNamespace(value="trigger_on"),
         last_triggered_at="2026-10-01T10:00:00+00:00",
-        expires_at="2026-10-01T10:03:00+00:00",
+        expires_at=datetime(2026, 10, 1, 10, 3, tzinfo=UTC),
         blocked_by=(),
         block_reason=None,
         active_triggers=("binary_sensor.hall_motion",),

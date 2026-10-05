@@ -268,6 +268,7 @@ def test_admin_config_panel_switches_modes_and_saves_inline(page):
     assert page.locator(".editor").is_visible()
     assert page.locator('[data-field="state_on_states"]').count() == 0
     page.locator('button[data-mode="full"]').click()
+    page.locator(".editor-section").filter(has_text="Pokročilé stavy").locator("summary").click()
     assert page.locator('[data-field="state_on_states"]').is_visible()
     page.locator('[data-field="name"]').first.fill("Updated room")
     page.wait_for_function(
