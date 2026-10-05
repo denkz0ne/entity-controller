@@ -223,7 +223,7 @@ def test_timeline_loads_recorder_states_on_a_rolling_offset_axis(page):
           window.timelineCalls = calls;
         }"""
     )
-    assert page.locator(".timeline-axis span").all_text_contents() == [
+    assert page.locator(".timeline-axis").first.locator("span").all_text_contents() == [
         "-24h", "-22h", "-20h", "-18h", "-16h", "-14h", "-12h",
         "-10h", "-8h", "-6h", "-4h", "-2h", "0",
     ]
