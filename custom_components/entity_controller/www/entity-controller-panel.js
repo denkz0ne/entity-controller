@@ -97,7 +97,8 @@ class EntityControllerPanel extends HTMLElement {
     this.shadowRoot.addEventListener("input", (event) => this._handleEditorInput(event));
     this.shadowRoot.addEventListener("focusout", (event) => {
       if (event.target.matches?.(".editor [data-field]") && this._editorRenderPending) {
-        setTimeout(() => this._render(), 0);
+        // Keep the clicked button and draft inputs alive across focusout.
+        setTimeout(() => this._render(true), 0);
       }
     });
   }
@@ -178,7 +179,8 @@ class EntityControllerPanel extends HTMLElement {
       this.controllers = (response.controllers || []).map((item) => {
         const previous = previousControllers.get(item.id);
         if ((this._editing?.id !== item.id && !this._dirtyControllers.has(item.id)) || !previous) return item;
-        return { ...item, form: previous.form, name: previous.name, icon: previous.icon };
+        return { ...item, form: previous.form, name: previous.name, icon: previous.icon,
+          _draftRevision: previous._draftRevision };
       });
       this.error = null;
       this._render(Boolean(this._editing));
@@ -509,6 +511,7 @@ class EntityControllerPanel extends HTMLElement {
     const timeText = (minutes) => String(Math.floor(minutes / 60)).padStart(2, "0") + ":" +
       String(minutes % 60).padStart(2, "0");
     const schedule = (section, title, prefix, enabled, startDefault, endDefault) => {
+      const enabledKey = prefix === "night" ? "night_mode_enabled" : "constraint_enabled";
       const startKey = prefix + "_start_time";
       const endKey = prefix + "_end_time";
       const startSourceKey = prefix + "_start_source";
@@ -550,7 +553,7 @@ class EntityControllerPanel extends HTMLElement {
         '<div class="card-heading-copy"><h3>' + esc(title) + '</h3><p>' +
         esc(enabled ? timeText(start) + ' – ' + timeText(end) + ' každý deň' : 'Neaktívne') + '</p></div>' +
         '<label class="switch-setting"><span>' + (enabled ? 'Zapnuté' : 'Vypnuté') + '</span><input type="checkbox"' +
-        ' data-section="' + esc(section) + '" data-field="' + esc(prefix + "_enabled") + '"' +
+        ' data-section="' + esc(section) + '" data-field="' + esc(enabledKey) + '"' +
         (enabled ? ' checked' : '') + '><i></i></label></div>' +
         (enabled ? '<div class="schedule-content"><div class="schedule-track" aria-label="' + esc(title) + '">' +
           '<div class="schedule-fill" style="background:' + esc(scheduleStyle) + '"></div>' +
@@ -563,7 +566,7 @@ class EntityControllerPanel extends HTMLElement {
           '<div class="schedule-labels"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>' +
           '<div class="schedule-endpoints">' + endpoint("start", "Od", start, startSource, startKey, startSourceKey) +
           endpoint("end", "Do", end, endSource, endKey, endSourceKey) + '</div>' +
-          (prefix === "night" ? '<div class="schedule-extra">' + this._durationField(section, "night_delay_seconds",'Nočný časovač', form[section]?.night_delay_seconds || 0) + '</div>' : '') +
+          (prefix === "night" ? '<div class="schedule-extra">' + this._durationField(section, "night_delay_seconds", form[section]?.night_delay_seconds || 0, "Nočný časovač") + '</div>' : '') +
           '</div>' : '') + '</section>';
     };
     const behaviorField = (section, key, value, label, options) =>
@@ -585,6 +588,9 @@ class EntityControllerPanel extends HTMLElement {
         '" data-field="' + esc(key) + '"' + (Boolean(value) ? ' checked' : '') + '><span>' + esc(label) + '</span></label>';
       if (key.endsWith("_offset_seconds")) return '<label class="field"><span>' + esc(label) + '</span><div class="offset-control"><input type="number" step="5" data-kind="offset-minutes" data-section="' +
         esc(section) + '" data-field="' + esc(key) + '" value="' + esc(Number(value || 0) / 60) + '"><small>minút</small></div></label>';
+      if (["delay_seconds", "block_timeout_seconds", "backoff_max_seconds", "night_delay_seconds"].includes(key)) {
+        return this._durationField(section, key, value, label);
+      }
       if (isObject) return '<label class="field"><span>' + esc(label) + '</span><textarea rows="3" data-kind="json" data-section="' +
         esc(section) + '" data-field="' + esc(key) + '">' + esc(JSON.stringify(value, null, 2)) + '</textarea></label>';
       if (isArray) value = value.join(", ");
@@ -785,8 +791,14 @@ class EntityControllerPanel extends HTMLElement {
           const editor = preserveEditor && this._editing?.id === controller.id
             ? row.querySelector(".editor") : null;
           row.className = updated.className;
-          row.innerHTML = updated.innerHTML;
-          if (editor) row.querySelector(".editor")?.replaceWith(editor);
+          if (editor) {
+            // Detaching and reattaching the editor cancels a button click that
+            // is between pointerdown and pointerup during a live HA update.
+            for (const child of [...row.children]) if (child !== editor) child.remove();
+            for (const child of [...updated.children]) {
+              if (!child.matches(".editor")) row.insertBefore(child, editor);
+            }
+          } else row.innerHTML = updated.innerHTML;
         } else row = updated;
         this._rowMarkup.set(controller.id, markup);
         this._refreshControllerIcons(row);
@@ -926,7 +938,7 @@ class EntityControllerPanel extends HTMLElement {
         String(minutes % 60).padStart(2, "0") + ":00";
     }
     if (kind === "offset-minutes") return Math.max(-720, Math.min(720, Number(element.value) || 0)) * 60;
-    if (kind === "states") return element.value.split(",").map((item) => item.trim()).filter(Boolean);
+    if (kind === "states") return element.value;
     if (kind === "duration") {
       const seconds = Math.max(0, Number(element.value) || 0);
       const days = Math.floor(seconds / 86400);
@@ -999,10 +1011,15 @@ class EntityControllerPanel extends HTMLElement {
   _handleEditorChange(event) {
     const field = event.target;
     if (!field.matches?.(".editor [data-field]")) return;
-    this._updateDraftField(field);
+    if (this._updateDraftField(field) &&
+        (["constraint_enabled", "night_mode_enabled"].includes(field.dataset.field) || field.dataset.kind === "schedule-source")) {
+      field.blur();
+      this._rowMarkup.clear();
+      this._render();
+    }
   }
 
-  _updateDraftField(field) {
+  _updateDraftField(field, strict = false) {
     const controller = this.controllers.find((item) => item.id === this._editing?.id);
     if (!controller || !field.isConnected) return;
     const section = field.dataset.section;
@@ -1021,15 +1038,19 @@ class EntityControllerPanel extends HTMLElement {
         if (source) source.value = "fixed";
       }
     } catch (error) {
+      if (strict) throw error;
+      this._markControllerDirty(controller);
       this._saveErrors.set(controller.id, "Neplatná hodnota: " + (error?.message || "skontroluj JSON."));
       this._updateEditorStatus(controller);
       return;
     }
     controller.form = nextForm;
     this._markControllerDirty(controller);
+    return true;
   }
 
   _markControllerDirty(controller) {
+    controller._draftRevision = (controller._draftRevision || 0) + 1;
     this._dirtyControllers.add(controller.id);
     this._saveErrors.delete(controller.id);
     this._updateEditorStatus(controller);
@@ -1049,33 +1070,42 @@ class EntityControllerPanel extends HTMLElement {
     this._savingControllers.add(controller.id);
     this._saveErrors.delete(controller.id);
     this._updateEditorStatus(controller);
+    let preserveDraft = true;
     try {
       for (const field of this.shadowRoot.querySelectorAll(".editor input[data-field], .editor select[data-field], .editor textarea[data-field]")) {
+        // Schedule sliders display resolved/snap-rounded times. Only an actual
+        // input/change event may replace the persisted time or solar source.
+        if (field.dataset.kind === "schedule-time") continue;
         if (!field.checkValidity()) {
           field.reportValidity();
           throw new Error("Skontroluj zvýraznenú hodnotu.");
         }
-        this._updateDraftField(field);
+        this._updateDraftField(field, true);
       }
+      const revision = controller._draftRevision || 0;
       const response = await this._hass.callWS({
         type: SAVE_COMMAND,
         entry_id: controller.entry_id,
         controller_id: controller.id,
         form: structuredClone(controller.form || {}),
       });
-      if (response?.form) controller.form = response.form;
-      if (response?.name) controller.name = response.name;
-      if (response?.icon !== undefined) controller.icon = response.icon;
-      if (response?.resolved_schedule) controller.resolved_schedule = response.resolved_schedule;
-      this._dirtyControllers.delete(controller.id);
-      this._saveErrors.delete(controller.id);
+      const current = this.controllers.find((item) => item.id === controller.id);
+      if (current && (current._draftRevision || 0) === revision) {
+        if (response?.form) current.form = response.form;
+        if (response?.name) current.name = response.name;
+        if (response?.icon !== undefined) current.icon = response.icon;
+        if (response?.resolved_schedule) current.resolved_schedule = response.resolved_schedule;
+        this._dirtyControllers.delete(controller.id);
+        this._saveErrors.delete(controller.id);
+        preserveDraft = false;
+      }
     } catch (error) {
       this._saveErrors.set(controller.id, "Uloženie zlyhalo: " + (error?.message || "skús to znova."));
     } finally {
       this._savingControllers.delete(controller.id);
       this._updateEditorStatus(controller);
       this._rowMarkup.clear();
-      this._render();
+      this._render(preserveDraft);
     }
   }
 

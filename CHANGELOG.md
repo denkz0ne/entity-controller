@@ -2,6 +2,24 @@
 
 All notable changes to Entity Controller v10 are documented here.
 
+<a name="10.4.2"></a>
+## 10.4.2 (2026-10-05)
+
+### Fixes
+
+* use the valid night profile enable field when saving settings
+* preserve solar schedule sources and exact fixed times during unrelated edits
+* keep advanced state fields compatible with the Home Assistant form schema
+* stop saving on invalid JSON instead of silently retaining an older object
+* preserve newer drafts and update the current controller after an asynchronous save
+* keep editor buttons attached during live updates so the first click works
+* refresh schedule controls after changing their enable switch or time source
+* display duration mappings as slider/manual inputs and retain the night timer value
+
+### Validation
+
+* validate real browser save payloads against the Home Assistant controller schema in both editor modes
+
 <a name="10.4.1"></a>
 ## 10.4.1 (2026-10-05)
 
