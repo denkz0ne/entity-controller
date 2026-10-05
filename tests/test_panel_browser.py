@@ -643,6 +643,7 @@ def test_dragging_solar_schedule_endpoint_switches_to_fixed_time(page):
           controller.form = {
             basic: {name: controller.name, trigger_entities: [], control_entities: [], delay_seconds: 180},
             constraints: {constraint_enabled: true, constraint_start_source: "sunrise",
+              constraint_start_offset_seconds: 900,
               constraint_start_time: "06:00:00", constraint_end_source: "fixed",
               constraint_end_time: "22:00:00"},
           };
@@ -671,6 +672,7 @@ def test_dragging_solar_schedule_endpoint_switches_to_fixed_time(page):
         'wsCalls.find((call) => call.type === "entity_controller/panel/save")'
     )
     assert save["form"]["constraints"]["constraint_start_source"] == "fixed"
+    assert save["form"]["constraints"]["constraint_start_offset_seconds"] == 0
 
 
 def test_solar_offset_uses_fifteen_minute_steps_once_in_basic_mode(page):

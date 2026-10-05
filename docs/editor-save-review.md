@@ -15,6 +15,7 @@ file byte for byte.
 | P1 | A refresh replaced the controller object while a save was awaiting a response; newer edits could also be overwritten. | Preserve draft revisions across refresh and update the current controller only for the submitted revision. |
 | P1 | A pending focusout render detached the save button between pointerdown and pointerup. | Preserve the attached editor while updating the surrounding row. |
 | P2 | Untouched fixed schedule times lost their seconds or were snapped to 15-minute slider values. | Preserve the stored time unless the user moves the slider. |
+| P2 | Moving a solar slider to a fixed time retained the old solar offset, shifting the runtime away from the selected time. | Clear the endpoint offset on intentional slider interaction. |
 | P2 | Changing a schedule enable switch/source did not reveal the matching controls. | Rerender after the deliberate change. |
 | P2 | Native duration mappings appeared as JSON; the night timer value and label arguments were reversed. | Render duration controls before generic objects and pass the correct arguments. |
 | P2 | Failed JSON validation replaced the user's invalid text with the previous valid object. | Preserve draft controls on failure. |

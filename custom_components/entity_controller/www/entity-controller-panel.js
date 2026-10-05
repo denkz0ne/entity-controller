@@ -1032,6 +1032,7 @@ class EntityControllerPanel extends HTMLElement {
         const prefix = section === "constraints" ? "constraint" : "night";
         const side = key.includes("_start_") ? "start" : "end";
         nextForm[section][prefix + "_" + side + "_source"] = "fixed";
+        nextForm[section][prefix + "_" + side + "_offset_seconds"] = 0;
         const source = this.shadowRoot.querySelector(
           '.schedule-card-' + prefix + ' [data-field="' + prefix + '_' + side + '_source"]'
         );
