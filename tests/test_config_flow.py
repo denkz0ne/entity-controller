@@ -478,8 +478,8 @@ def test_stored_disabled_block_timeout_is_a_duration_mapping() -> None:
     values = controller_form_values(
         {
             "name": "Hall",
-            "trigger_entities": ("binary_sensor.hall",),
-            "control_entities": ("light.hall",),
+            "trigger_entities": ["binary_sensor.hall"],
+            "control_entities": ["light.hall"],
             "block_timeout_seconds": None,
         }
     )
