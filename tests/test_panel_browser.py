@@ -334,6 +334,115 @@ def test_editor_uses_compact_cards_and_searchable_entity_chips(page):
     ).is_visible()
 
 
+def test_editor_picker_survives_runtime_refresh_and_normalizes_search(page):
+    page.evaluate(
+        """() => {
+          const controller = panel.controllers[0];
+          controller.entry_id = "entry-1";
+          controller.form = {
+            basic: {name: controller.name, icon: controller.icon,
+              trigger_entities: [], control_entities: [], delay_seconds: 180},
+          };
+          panel.hass = {
+            ...panel.hass, user: {is_admin: true},
+            states: {...panel.hass.states,
+              "binary_sensor.living_room_motion": {
+                state: "off", attributes: {friendly_name: "Obývačka pohyb"}
+              }},
+            callWS: async (message) => message.type === "entity_controller/panel"
+              ? {controllers: panel.controllers}
+              : message.type === "history/history_during_period" ? [[]] : {success: true},
+          };
+        }"""
+    )
+    page.locator(".edit-toggle").first.click()
+    page.locator('[data-picker-toggle="basic.trigger_entities"]').click()
+    search = page.locator('[data-entity-search="basic.trigger_entities"]')
+    search.fill("obyvacka poh")
+    assert page.locator('[data-entity-option="binary_sensor.living_room_motion"]').is_visible()
+
+    page.evaluate("panel._refresh()")
+    page.wait_for_timeout(50)
+
+    assert page.locator('[data-picker-toggle="basic.trigger_entities"]').get_attribute("aria-expanded") == "true"
+    assert search.input_value() == "obyvacka poh"
+
+
+def test_controller_icon_is_selected_from_searchable_visual_picker(page):
+    page.evaluate(
+        """() => {
+          const controller = panel.controllers[0];
+          controller.entry_id = "entry-1";
+          controller.form = {basic: {name: controller.name, icon: "mdi:home-automation",
+            trigger_entities: [], control_entities: [], delay_seconds: 180}};
+          panel.hass = {...panel.hass, user: {is_admin: true},
+            callWS: async (message) => message.type === "entity_controller/panel/save"
+              ? {success: true, form: message.form} : {controllers: panel.controllers}};
+        }"""
+    )
+    page.locator(".edit-toggle").first.click()
+    assert page.locator('[data-field="icon"]').count() == 0
+    page.locator("button.controller-avatar").click()
+    page.locator(".icon-search").fill("sunset")
+    page.locator('[data-icon-value="mdi:weather-sunset"]').click()
+    page.wait_for_function(
+        'panel.controllers[0].form.basic.icon === "mdi:weather-sunset"'
+    )
+    assert page.locator("article").first.locator(".controller-icon").get_attribute("icon") == "mdi:weather-sunset"
+
+
+def test_confirmed_save_uses_authoritative_response_without_full_panel_reload(page):
+    page.evaluate(
+        """() => {
+          const controller = panel.controllers[0];
+          controller.entry_id = "entry-1";
+          controller.form = {basic: {name: controller.name, icon: controller.icon,
+            trigger_entities: [], control_entities: [], delay_seconds: 180}};
+          window.panelRequests = 0;
+          panel.hass = {
+            ...panel.hass, user: {is_admin: true},
+            callWS: async (message) => {
+              if (message.type === "entity_controller/panel") {
+                panelRequests += 1;
+                return {controllers: panel.controllers};
+              }
+              if (message.type === "entity_controller/panel/save")
+                return {success: true, form: message.form};
+              return [[]];
+            },
+          };
+        }"""
+    )
+    page.locator(".edit-toggle").first.click()
+    page.locator('[data-field="name"]').first.fill("Saved room")
+    page.wait_for_function('panel.shadowRoot.querySelector(".save-state")?.textContent === "Uložené"')
+    assert page.evaluate("panelRequests") == 0
+    assert page.locator('[data-field="name"]').first.input_value() == "Saved room"
+
+
+def test_failed_save_restores_last_confirmed_form_with_local_error(page):
+    page.evaluate(
+        """() => {
+          const controller = panel.controllers[0];
+          controller.entry_id = "entry-1";
+          controller.form = {basic: {name: "Confirmed room", icon: controller.icon,
+            trigger_entities: [], control_entities: [], delay_seconds: 180}};
+          panel.hass = {...panel.hass, user: {is_admin: true},
+            callWS: async (message) => {
+              if (message.type === "entity_controller/panel/save")
+                throw new Error("Rejected by backend");
+              return {controllers: panel.controllers};
+            }};
+        }"""
+    )
+    page.locator(".edit-toggle").first.click()
+    field = page.locator('[data-field="name"]').first
+    field.fill("Rejected room")
+    page.wait_for_function('panel._failedSaves.has("controller-0")')
+    assert page.locator(".save-state").inner_text()
+    assert page.locator('[data-field="name"]').first.input_value() == "Confirmed room"
+
+
 def test_schedule_range_displays_and_saves_an_overnight_window(page):
     page.evaluate(
         """() => {
@@ -372,4 +481,73 @@ def test_schedule_range_displays_and_saves_an_overnight_window(page):
         'wsCalls.find((call) => call.type === "entity_controller/panel/save")'
     )
     assert save["form"]["constraints"]["constraint_start_time"] == "22:15:00"
+
+
+def test_dragging_solar_schedule_endpoint_switches_to_fixed_time(page):
+    page.evaluate(
+        """() => {
+          const controller = panel.controllers[0];
+          controller.entry_id = "entry-1";
+          controller.form = {
+            basic: {name: controller.name, trigger_entities: [], control_entities: [], delay_seconds: 180},
+            constraints: {constraint_enabled: true, constraint_start_source: "sunrise",
+              constraint_start_time: "06:00:00", constraint_end_source: "fixed",
+              constraint_end_time: "22:00:00"},
+          };
+          window.wsCalls = [];
+          panel.hass = {
+            ...panel.hass, user: {is_admin: true},
+            callWS: async (message) => {
+              wsCalls.push(message);
+              return message.type === "entity_controller/panel/save"
+                ? {success: true, form: message.form, resolved_schedule: {constraint: {start: 375, end: 1320}}}
+                : {controllers: panel.controllers};
+            },
+          };
+        }"""
+    )
+    page.locator(".edit-toggle").first.click()
+    start = page.locator('[data-field="constraint_start_time"]')
+    assert start.is_enabled()
+    start.focus()
+    start.press("ArrowRight")
+    page.wait_for_function(
+        'wsCalls.some((call) => call.type === "entity_controller/panel/save")'
+    )
+    save = page.evaluate(
+        'wsCalls.find((call) => call.type === "entity_controller/panel/save")'
+    )
+    assert save["form"]["constraints"]["constraint_start_source"] == "fixed"
+
+
+def test_solar_offset_uses_fifteen_minute_steps_once_in_basic_mode(page):
+    page.evaluate(
+        """() => {
+          const controller = panel.controllers[0];
+          controller.entry_id = "entry-1";
+          controller.form = {
+            basic: {name: controller.name, trigger_entities: [], control_entities: [], delay_seconds: 180},
+            constraints: {constraint_enabled: true, constraint_start_source: "sunrise",
+              constraint_start_time: "06:00:00", constraint_start_offset_seconds: 0,
+              constraint_end_source: "fixed", constraint_end_time: "22:00:00"},
+          };
+          window.wsCalls = [];
+          panel.hass = {...panel.hass, user: {is_admin: true},
+            callWS: async (message) => {
+              wsCalls.push(message);
+              return message.type === "entity_controller/panel/save"
+                ? {success: true, form: message.form} : {controllers: panel.controllers};
+            }};
+        }"""
+    )
+    page.locator(".edit-toggle").first.click()
+    page.locator('[aria-label="Zvýšiť posun o 15 minút"]').click()
+    page.wait_for_function(
+        'wsCalls.some((call) => call.type === "entity_controller/panel/save")'
+    )
+    save = page.evaluate(
+        'wsCalls.find((call) => call.type === "entity_controller/panel/save")'
+    )
+    assert save["form"]["constraints"]["constraint_start_offset_seconds"] == 900
+    assert page.locator('.editor-section [data-field="constraint_start_offset_seconds"]').count() == 0
 

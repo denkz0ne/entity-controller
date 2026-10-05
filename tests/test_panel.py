@@ -110,6 +110,35 @@ def test_panel_payload_handles_no_controller_entries_and_missing_entity_registry
     assert serialize_controllers(hass) == []
 
 
+def test_resolved_schedule_uses_home_assistant_sun_time_and_configured_offset(monkeypatch):
+    from homeassistant.const import SUN_EVENT_SUNRISE
+
+    from custom_components.entity_controller.panel import _resolved_schedule
+
+    monkeypatch.setattr(
+        panel.dt_util,
+        "now",
+        lambda: datetime(2026, 10, 5, 0, 0, tzinfo=UTC),
+    )
+    monkeypatch.setattr(
+        "homeassistant.helpers.sun.get_astral_event_date",
+        lambda hass, event, day: datetime(day.year, day.month, day.day, 6, 15, tzinfo=UTC)
+        if event == SUN_EVENT_SUNRISE else None,
+    )
+
+    result = _resolved_schedule(
+        SimpleNamespace(),
+        {
+            "constraint_window": {
+                "start": {"source": "sunrise", "offset_seconds": 900},
+                "end": {"source": "fixed", "time": "22:00:00"},
+            }
+        },
+    )
+
+    assert result == {"constraint": {"start": 390, "end": 1320}}
+
+
 def test_panel_lifecycle_registers_once_and_removes_sidebar(monkeypatch):
     registrations = []
     removals = []

@@ -17,7 +17,7 @@ from .schedule import resolve_schedule_point, schedule_point_from_data
 
 PANEL_URL = "entity-controller"
 PANEL_JS = "/entity_controller/entity-controller-panel.js"
-PANEL_JS_VERSION = "10.2.0-config.1"
+PANEL_JS_VERSION = "10.3.0"
 _PANEL_DATA_KEY = "entity_controller_panel"
 _PANEL_SAVE_SCHEMA = {
     vol.Required("type"): "entity_controller/panel/save",
@@ -31,6 +31,44 @@ def _registered_entity_id(hass: Any, domain: str, unique_id: str) -> str | None:
     """Resolve an entity ID without assuming the user kept the suggested ID."""
 
     return entity_registry.async_get(hass).async_get_entity_id(domain, DOMAIN, unique_id)
+
+
+def _resolved_schedule(hass: Any, data: dict[str, Any]) -> dict[str, dict[str, int]]:
+    """Resolve configured schedule endpoints against Home Assistant's local sun data."""
+
+    from homeassistant.const import SUN_EVENT_SUNRISE, SUN_EVENT_SUNSET
+    from homeassistant.helpers.sun import get_astral_event_date
+
+    from .schedule import resolve_schedule_point, schedule_point_from_data
+
+    now = dt_util.now()
+    result: dict[str, dict[str, int]] = {}
+    for name, window in (
+        ("constraint", data.get("constraint_window")),
+        ("night", data.get("night_mode")),
+    ):
+        if not window:
+            continue
+        points = {side: schedule_point_from_data(dict(window[side])) for side in ("start", "end")}
+        events: dict[str, datetime | None] = {"sunrise": None, "sunset": None}
+        for source, event in (("sunrise", SUN_EVENT_SUNRISE), ("sunset", SUN_EVENT_SUNSET)):
+            if any(point.source.value == source for point in points.values()):
+                try:
+                    events[source] = get_astral_event_date(hass, event, now.date())
+                except (ValueError, TypeError):
+                    pass
+        resolved: dict[str, int] = {}
+        for side, point in points.items():
+            try:
+                at = resolve_schedule_point(
+                    point, now, sunrise=events["sunrise"], sunset=events["sunset"]
+                )
+            except (ValueError, TypeError):
+                continue
+            resolved[side] = (at.hour * 60 + at.minute) % 1440
+        if resolved:
+            result[name] = resolved
+    return result
 
 
 def _next_schedule_change(hass: Any, runtime: Any) -> tuple[datetime, str] | None:
@@ -137,6 +175,7 @@ def serialize_controllers(hass: Any) -> list[dict[str, Any]]:
                     "id": controller_id,
                     "entry_id": entry_id,
                     "form": form,
+                    "resolved_schedule": _resolved_schedule(hass, entry_data),
                     "name": config.name,
                     "icon": config.icon,
                     "state": state,
@@ -250,7 +289,19 @@ async def websocket_save_controller(hass, connection, msg) -> None:
         connection.send_error(msg["id"], "invalid_format", str(err))
         return
 
-    connection.send_result(msg["id"], {"success": True})
+    from .config_flow import controller_form_values
+
+    saved_form = controller_form_values(updated)
+    connection.send_result(
+        msg["id"],
+        {
+            "success": True,
+            "form": saved_form,
+            "name": updated.get("name", ""),
+            "icon": updated.get("icon", ""),
+            "resolved_schedule": _resolved_schedule(hass, updated),
+        },
+    )
 
 
 def _register_websocket(hass: Any) -> None:

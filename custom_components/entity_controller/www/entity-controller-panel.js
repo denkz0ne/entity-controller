@@ -78,8 +78,11 @@ class EntityControllerPanel extends HTMLElement {
     this._renderPending = false;
     this._editing = null;
     this._pickerOpen = null;
+    this._iconPickerOpen = false;
     this._saveTimers = new Map();
     this._saveQueues = new Map();
+    this._saveRevisions = new Map();
+    this._confirmedForms = new Map();
     this._failedSaves = new Map();
     this._editorRenderPending = false;
     this._touchStartHandler = () => { this._touching = true; };
@@ -106,7 +109,7 @@ class EntityControllerPanel extends HTMLElement {
     this._hass = hass;
     if (hass && !previous) this._start();
     if (hass && previous && hass.connection !== previous.connection) this._watchStates();
-    this._render();
+    this._render(Boolean(this._editing));
   }
 
   get hass() { return this._hass; }
@@ -159,8 +162,13 @@ class EntityControllerPanel extends HTMLElement {
   }
 
   _allEntities(controller) {
+    const form = controller.form || {};
+    const hasSolarSchedule = [form.constraints, form.night].some((section) =>
+      section && Object.entries(section).some(([key, value]) =>
+        key.endsWith("_source") && value !== "fixed"));
     return [controller.state_entity_id, controller.enabled_entity_id,
-      ...(controller.inputs || controller.triggers || []), ...controller.outputs].filter(Boolean);
+      ...(controller.inputs || controller.triggers || []), ...controller.outputs,
+      ...(hasSolarSchedule ? ["sun.sun"] : [])].filter(Boolean);
   }
 
   async _refresh() {
@@ -168,13 +176,21 @@ class EntityControllerPanel extends HTMLElement {
     this._refreshing = true;
     try {
       const response = await this._hass.callWS({ type: DATA_COMMAND });
-      this.controllers = response.controllers || [];
+      const previousControllers = new Map(this.controllers.map((item) => [item.id, item]));
+      this.controllers = (response.controllers || []).map((item) => {
+        const previous = previousControllers.get(item.id);
+        if (item.form && this._editing?.id !== item.id) {
+          this._confirmedForms.set(item.id, structuredClone(item.form));
+        }
+        if (this._editing?.id !== item.id || !previous) return item;
+        return { ...item, form: previous.form, name: previous.name, icon: previous.icon };
+      });
       this.error = null;
-      this._render();
+      this._render(Boolean(this._editing));
       await this._loadHistory();
     } catch (error) {
       this.error = error?.message || "Nepodarilo sa načítať ovládače.";
-      this._render();
+      this._render(Boolean(this._editing));
     } finally {
       this._refreshing = false;
     }
@@ -207,7 +223,7 @@ class EntityControllerPanel extends HTMLElement {
         this.historyErrors.set(controller.id, error?.message || "História nie je dostupná.");
       }
     }));
-    this._render();
+    this._render(Boolean(this._editing));
   }
 
   _entityChip(entityId, kind) {
@@ -414,12 +430,16 @@ class EntityControllerPanel extends HTMLElement {
       ? '<button class="edit-toggle" data-edit="' + esc(controller.id) + '" aria-expanded="' +
         (this._editing?.id === controller.id) + '" title="Upraviť nastavenia">' +
         (this._editing?.id === controller.id ? 'Zavrieť' : '<ha-icon icon="mdi:cog-outline"></ha-icon>') + '</button>' : '';
+    const avatar = this._editing?.id === controller.id
+      ? '<button type="button" class="controller-avatar" data-icon-toggle="header" aria-label="Vybrať ikonu">'
+      : '<div class="controller-avatar">';
+    const avatarEnd = this._editing?.id === controller.id ? '</button>' : '</div>';
     return '<article class="row ' + status.color + (this._editing?.id === controller.id ? ' editing' : '') +
       '" data-controller-id="' + esc(controller.id) + '">' +
       '<div class="identity">' +
-        '<div class="controller-control"><div class="controller-avatar"><ha-icon class="controller-icon" data-controller-icon="' +
+        '<div class="controller-control">' + avatar + '<ha-icon class="controller-icon" data-controller-icon="' +
           esc(controller.icon || "mdi:home-automation") + '" icon="' +
-          esc(controller.icon || "mdi:home-automation") + '"></ha-icon></div>' + toggle + '</div>' +
+          esc(controller.icon || "mdi:home-automation") + '"></ha-icon>' + avatarEnd + toggle + '</div>' +
         '<strong class="controller-name">' + esc(title) + '</strong>' + editButton +
         '<div class="status"><div class="status-head"><div class="status-label"><i></i><b>' +
           esc(status.label) + '</b></div>' + (status.countdown
@@ -498,10 +518,13 @@ class EntityControllerPanel extends HTMLElement {
       const endKey = prefix + "_end_time";
       const startSourceKey = prefix + "_start_source";
       const endSourceKey = prefix + "_end_source";
-      const start = timeMinutes(form[section]?.[startKey], startDefault);
-      const end = timeMinutes(form[section]?.[endKey], endDefault);
       const startSource = form[section]?.[startSourceKey] || (prefix === "night" ? "sunset" : "fixed");
       const endSource = form[section]?.[endSourceKey] || (prefix === "night" ? "sunrise" : "fixed");
+      const resolved = controller.resolved_schedule?.[prefix] || {};
+      const storedStart = timeMinutes(form[section]?.[startKey], startDefault);
+      const storedEnd = timeMinutes(form[section]?.[endKey], endDefault);
+      const start = startSource === "fixed" ? storedStart : (resolved.start ?? storedStart);
+      const end = endSource === "fixed" ? storedEnd : (resolved.end ?? storedEnd);
       const left = Math.min(start, end) / 1439 * 100;
       const right = Math.max(start, end) / 1439 * 100;
       const scheduleStyle = start <= end
@@ -515,11 +538,19 @@ class EntityControllerPanel extends HTMLElement {
         [["fixed", "Konkrétny čas"], ["sunrise", "Východ slnka"], ["sunset", "Západ slnka"]].map(([key, label]) =>
           '<option value="' + key + '"' + (source === key ? ' selected' : '') + '>' + label + '</option>').join("") +
         '</select><output data-time-label="' + esc(fieldKey) + '">' + esc(timeText(value)) + '</output>' +
-        (source !== "fixed" && mode === "full"
-          ? '<div class="offset-control">Posun v min<input type="number" step="5" data-kind="offset-minutes"' +
-            ' data-section="' + esc(section) + '" data-field="' + esc(prefix + "_" + side + "_offset_seconds") + '" value="' +
-            esc(Number(form[section]?.[prefix + "_" + side + "_offset_seconds"] || 0) / 60) + '"></div>' : '') + '</label>';
-      return '<section class="editor-card schedule-card ' + (enabled ? 'enabled' : '') + '"><div class="card-heading schedule-heading">' +
+        (source !== "fixed"
+          ? (() => {
+            const offsetKey = prefix + "_" + side + "_offset_seconds";
+            const offset = Number(form[section]?.[offsetKey] || 0) / 60;
+            const abs = Math.abs(offset);
+            const label = offset === 0 ? "0 min" : (offset > 0 ? "+" : "−") +
+              (Math.floor(abs / 60) ? Math.floor(abs / 60) + " h" + (abs % 60 ? " " + abs % 60 + " min" : "") : abs + " min");
+            return '<div class="offset-control"><button type="button" data-offset-step="-15" data-section="' + esc(section) +
+              '" data-field="' + esc(offsetKey) + '" aria-label="Znížiť posun o 15 minút">−</button><output>' + esc(label) +
+              '</output><button type="button" data-offset-step="15" data-section="' + esc(section) + '" data-field="' +
+              esc(offsetKey) + '" aria-label="Zvýšiť posun o 15 minút">+</button></div>';
+          })() : '') + '</label>';
+      return '<section class="editor-card schedule-card schedule-card-' + prefix + ' ' + (enabled ? 'enabled' : '') + '"><div class="card-heading schedule-heading">' +
         '<div class="card-heading-icon"><ha-icon icon="mdi:clock-time-four-outline"></ha-icon></div>' +
         '<div class="card-heading-copy"><h3>' + esc(title) + '</h3><p>' +
         esc(enabled ? timeText(start) + ' – ' + timeText(end) + ' každý deň' : 'Neaktívne') + '</p></div>' +
@@ -530,10 +561,10 @@ class EntityControllerPanel extends HTMLElement {
           '<div class="schedule-fill" style="background:' + esc(scheduleStyle) + '"></div>' +
           '<input class="schedule-range start" type="range" min="0" max="1439" step="15" value="' + start + '"' +
           ' aria-label="Začiatok intervalu" data-kind="schedule-time" data-section="' + esc(section) + '" data-field="' +
-          esc(startKey) + '"' + (startSource !== 'fixed' ? ' disabled' : '') + '>' +
+          esc(startKey) + '">' +
           '<input class="schedule-range end" type="range" min="0" max="1439" step="15" value="' + end + '"' +
           ' aria-label="Koniec intervalu" data-kind="schedule-time" data-section="' + esc(section) + '" data-field="' +
-          esc(endKey) + '"' + (endSource !== 'fixed' ? ' disabled' : '') + '></div>' +
+          esc(endKey) + '"></div>' +
           '<div class="schedule-labels"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>' +
           '<div class="schedule-endpoints">' + endpoint("start", "Od", start, startSource, startKey, startSourceKey) +
           endpoint("end", "Do", end, endSource, endKey, endSourceKey) + '</div>' +
@@ -582,8 +613,7 @@ class EntityControllerPanel extends HTMLElement {
     const advanced = [
       ["timer", "Adaptívne časovanie", ["sensor_type", "backoff_enabled", "backoff_factor", "backoff_max_seconds"]],
       ["monitoring", "Automatické odblokovanie", ["block_timeout_seconds"]],
-      ["constraints", "Posuny časového okna", ["constraint_start_offset_seconds", "constraint_end_offset_seconds"]],
-      ["night", "Podrobnosti nočného profilu", ["night_start_offset_seconds", "night_end_offset_seconds", "night_service_data_on", "night_service_data_off"]],
+      ["night", "Podrobnosti nočného profilu", ["night_service_data_on", "night_service_data_off"]],
       ["initial_state", "Predvolené správanie", null],
       ["actions", "Akcie pri ďalších stavoch", ["service_data_on", "service_data_off", "on_enter_idle", "on_exit_idle", "on_enter_overridden", "on_exit_overridden", "on_enter_constrained", "on_exit_constrained", "on_enter_blocked", "on_exit_blocked"]],
       ["advanced", "Pokročilé stavy a kompatibilita", null],
@@ -628,7 +658,12 @@ class EntityControllerPanel extends HTMLElement {
       '</span>' + (this._failedSaves?.has(controller.id) ? '<button type="button" data-retry-save="' + esc(controller.id) + '">Opakovať</button>' : '') + '</div>' +
       '<div class="editor-grid"><section class="editor-card identity-card"><div class="card-heading"><div class="card-heading-icon"><ha-icon icon="mdi:tune-variant"></ha-icon></div>' +
       '<div class="card-heading-copy"><h3>Základné nastavenia</h3><p>Rozpoznateľný názov a riadenie controllera.</p></div></div>' +
-      '<div class="card-fields">' + renderField("basic", "name", basic.name || controller.name) + renderField("basic", "icon", basic.icon || controller.icon || "") + '</div>' +
+      '<div class="card-fields">' + renderField("basic", "name", basic.name || controller.name) +
+      '<div class="icon-picker"><button type="button" class="add-entity" data-icon-toggle="editor"><ha-icon icon="' +
+      esc(basic.icon || controller.icon || "mdi:home-automation") + '"></ha-icon> Vybrať ikonu</button>' +
+      (this._iconPickerOpen ? '<input class="entity-search icon-search" type="search" placeholder="Hľadať ikonu" aria-label="Hľadať ikonu">' +
+        '<div class="icon-options">' + ["home-automation", "lightbulb", "motion-sensor", "door", "door-open", "window-open", "weather-sunset", "weather-sunset-up", "clock-outline", "timer-outline", "account", "account-group", "shield-check", "shield-lock", "gesture-tap-button", "power", "toggle-switch", "fan", "air-conditioner", "thermostat", "water", "smoke-detector", "bell", "robot", "tune-variant"].map((name) =>
+          '<button type="button" class="icon-option" data-icon-value="mdi:' + name + '" aria-label="mdi:' + name + '"><ha-icon icon="mdi:' + name + '"></ha-icon><span>' + name.replaceAll("-", " ") + '</span></button>').join("") + '</div>' : '') + '</div></div>' +
       '</section>' +
       entityPicker("basic", "trigger_entities", "Spúšťače", "Čo aktivuje miestnosť?", ["binary_sensor", "sensor", "input_boolean", "switch", "light", "fan", "event", "device_tracker"]) +
       entityPicker("monitoring", "state_entities", "Sledované entity", "Ručne zapnutý stav sa rešpektuje a môže zablokovať automatiku.",
@@ -670,7 +705,7 @@ class EntityControllerPanel extends HTMLElement {
       esc(this._formatDuration(seconds)) + '</output></div></label>';
   }
 
-  _render() {
+  _render(preserveEditor = false) {
     if (!this.shadowRoot) return;
     if (this.shadowRoot.activeElement?.matches?.(".editor input, .editor select, .editor textarea")) {
       this._editorRenderPending = true;
@@ -692,7 +727,7 @@ class EntityControllerPanel extends HTMLElement {
         '.row.idle{--ec-row-color:#aab2bd}.row.active_timer{--ec-row-color:#28bd57}.row.active_stay_on{--ec-row-color:#00a896}.row.constrained{--ec-row-color:#1686f5}.row.blocked{--ec-row-color:#f04452}.row.overridden{--ec-row-color:#9b59d0}.row.disabled{--ec-row-color:#667085}.row.unknown{--ec-row-color:#d6dbe0}',
         '.identity{grid-column:1;grid-row:1;min-width:0;display:grid;grid-template-columns:52px minmax(0,1fr);grid-template-rows:36px auto;gap:4px 12px;align-items:start;align-self:start}',
         '.toggle{box-sizing:border-box;border:0;border-radius:14px;width:46px;height:24px;padding:3px;background:#b9bec4;cursor:pointer;touch-action:pan-y pinch-zoom;user-select:none;-webkit-user-select:none}.toggle span{display:block;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .15s;pointer-events:none}.toggle.on{background:#1686f5}.toggle.on span{transform:translateX(22px)}',
-        '.controller-control{grid-column:1;grid-row:1/3;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:4px}.controller-avatar{width:36px;height:36px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--ec-row-color) 18%,var(--ha-card-background,var(--card-background-color)));color:var(--ec-row-color)}.controller-icon{color:var(--ec-row-color);--mdc-icon-size:24px}.controller-name{grid-column:2;grid-row:1;align-self:center;min-width:0;font-size:16px;line-height:20px;font-weight:var(--mush-card-primary-font-weight,500);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+        '.controller-control{grid-column:1;grid-row:1/3;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:4px}.controller-avatar{width:36px;height:36px;flex:none;border:0;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--ec-row-color) 18%,var(--ha-card-background,var(--card-background-color)));color:var(--ec-row-color)}button.controller-avatar{cursor:pointer}.controller-icon{color:var(--ec-row-color);--mdc-icon-size:24px}.controller-name{grid-column:2;grid-row:1;align-self:center;min-width:0;font-size:16px;line-height:20px;font-weight:var(--mush-card-primary-font-weight,500);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
         '.status{grid-column:2;grid-row:2;min-width:0;display:flex;flex-direction:column;gap:3px;font-size:var(--mush-card-secondary-font-size,12px);color:var(--mush-card-secondary-color,var(--secondary-text-color))}.status-head{display:flex;align-items:center;gap:9px;min-width:0}.status-label{display:flex;align-items:center;gap:7px;color:var(--mush-card-primary-color,var(--primary-text-color));white-space:nowrap}.status-label b{font-size:var(--mush-card-primary-font-size,14px);font-weight:var(--mush-card-primary-font-weight,500)}.status-label i{flex:none;width:10px;height:10px;border-radius:50%;background:var(--ec-row-color)}.status-countdown{white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--mush-card-primary-color,var(--primary-text-color));font-size:var(--mush-card-primary-font-size,14px);font-weight:var(--mush-card-primary-font-weight,500)}.status-meta{display:flex;align-items:baseline;justify-content:space-between;gap:8px;min-width:0}.status-detail{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.status-meta small{flex:none;white-space:nowrap;font-size:var(--mush-card-secondary-font-size,12px);color:var(--mush-card-secondary-color,var(--secondary-text-color))}',
         '.chips{grid-column:2;grid-row:1;min-width:0;display:flex;flex-wrap:wrap;align-items:flex-start;align-content:flex-start;align-self:start;gap:4px;overflow:visible;padding:0}',
         '.chip-separator{flex:none;padding:0;margin:0 -1px;align-self:center;color:var(--secondary-text-color);font-size:13px;line-height:1;opacity:.7}.chip{height:28px;box-sizing:border-box;flex:0 1 auto;min-width:70px;max-width:175px;display:flex;align-items:center;justify-content:flex-start;gap:7px;padding:0 9px;border:var(--ha-card-border-width,1px) solid var(--ha-card-border-color,var(--divider-color));border-radius:18px;background:var(--chip-background,var(--ha-card-background,var(--card-background-color)));box-shadow:var(--chip-box-shadow,var(--ha-card-box-shadow,none));color:var(--primary-text-color);cursor:pointer;white-space:nowrap;font:inherit;font-size:12px;touch-action:pan-y pinch-zoom;user-select:none;-webkit-user-select:none} .chip span{min-width:0;overflow:hidden;text-overflow:ellipsis;pointer-events:none}.chip.unavailable{color:var(--disabled-text-color,var(--secondary-text-color));border-color:var(--disabled-text-color,var(--divider-color));background:color-mix(in srgb,var(--ha-card-background,var(--card-background-color)) 78%,var(--secondary-text-color));box-shadow:none;opacity:.62;filter:grayscale(1)}.chip.unavailable .chip-label{text-decoration:line-through;text-decoration-thickness:1px}.chip.unavailable .chip-icon{color:var(--disabled-text-color,var(--secondary-text-color))}.chip-switch{position:relative;width:22px;height:13px;flex:none;box-sizing:border-box;border-radius:8px;background:var(--disabled-text-color,#9e9e9e);opacity:.75;transition:background .15s}.chip-switch i{position:absolute;top:2px;left:2px;width:9px;height:9px;border-radius:50%;background:#fff;transition:transform .15s}.chip-switch.is-on{background:var(--success-color,#43a047);opacity:1}.chip-switch.is-on i{transform:translateX(9px)}.chip-icon{--mdc-icon-size:16px;flex:none;color:var(--secondary-text-color);pointer-events:none}.chip.active-trigger{background:rgba(76,175,80,.18);border-color:#43a047;box-shadow:0 0 0 1px rgba(67,160,71,.14)}.chip.active-output{background:rgba(255,213,79,.22);border-color:#d2a500;box-shadow:0 0 0 1px rgba(210,165,0,.14)}.chip.active-override{background:rgba(156,39,176,.14);border-color:#9c27b0;box-shadow:0 0 0 1px rgba(156,39,176,.12)}.chip.active-interlock{background:rgba(3,169,244,.14);border-color:#039be5;box-shadow:0 0 0 1px rgba(3,155,229,.12)}.chip[data-chip-toggle]{cursor:pointer}.chip-active-dot{width:7px;height:7px;flex:none;border-radius:50%;background:#2e8b3c}.chip.active-output .chip-active-dot{background:#b38b00}',
@@ -705,8 +740,9 @@ class EntityControllerPanel extends HTMLElement {
         '@media(max-width:480px){.timeline-axis{font-size:9px}.timeline-axis span:nth-child(even){display:none}.heading h1{font-size:25px}.row{padding:8px 10px 5px 15px}.identity{grid-template-columns:38px minmax(0,1fr);grid-template-rows:32px auto;gap:4px 6px}.toggle{width:36px}.toggle.on span{transform:translateX(12px)}.controller-avatar{width:30px;height:30px}.controller-icon{--mdc-icon-size:20px}.controller-name{font-size:16px}.status-label b,.status-countdown{font-size:12px}.status{font-size:11px}.status-label i{width:9px;height:9px}.status-meta small{font-size:10px}.chip{font-size:11px;height:27px;min-width:58px;padding:0 7px}.legend-items{font-size:11px;gap:9px 12px}.swatch{width:22px;height:11px}}@media(max-width:360px){.timeline-axis span{display:none}.timeline-axis span:nth-child(3n + 1){display:inline}}',
       ].join("");
       const editorStyles = '.row.editing{grid-template-columns:minmax(0,1fr);gap:6px}.row.editing .identity{grid-row:1}.row.editing .chips{grid-row:2}.row.editing .timeline-line{display:none}.editor{grid-row:3;margin-top:3px;padding-top:10px;border-top:1px solid var(--divider-color)}.editor-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 1px 3px}.editor-header h2{margin:0;font-size:17px;font-weight:600;line-height:1.3}.editor-header p{margin:3px 0 0;color:var(--secondary-text-color);font-size:12px}.edit-modes button{font-size:12px;font-weight:500;white-space:nowrap}.editor-status{display:flex;align-items:center;gap:8px;min-height:26px;margin:0 1px 4px;color:var(--secondary-text-color);font-size:12px}.editor-status button{border:0;border-radius:14px;background:var(--secondary-background-color);color:var(--primary-color);padding:4px 9px;cursor:pointer}.save-state{margin:0}.editor-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:8px}.editor-card{box-sizing:border-box;min-width:0;margin:0;padding:12px;border:1px solid var(--ha-card-border-color,var(--divider-color));border-radius:var(--ha-card-border-radius,12px);background:var(--ha-card-background,var(--card-background-color));box-shadow:var(--ha-card-box-shadow,none)}.card-heading{display:flex;align-items:center;gap:10px;min-width:0;margin-bottom:10px}.card-heading-icon{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:9px;background:color-mix(in srgb,var(--primary-color) 12%,transparent);color:var(--primary-color)}.card-heading-icon ha-icon{--mdc-icon-size:19px}.card-heading-copy{min-width:0;flex:1}.card-heading-copy h3{margin:0;font-size:14px;font-weight:600;line-height:1.3}.card-heading-copy p{margin:2px 0 0;color:var(--secondary-text-color);font-size:11px;line-height:1.35}.card-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.identity-card .card-fields{grid-template-columns:minmax(0,1.4fr) minmax(130px,.8fr)}.field{font-size:12px}.field input:not([type=checkbox]),.field select,.field textarea{min-height:34px;padding:6px 8px;border-radius:8px}.field select[multiple]{height:auto}.field.check{flex-direction:row;align-items:center;min-height:32px}.card-switches{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:9px}.switch-setting{position:relative;display:flex;align-items:center;gap:8px;min-height:29px;color:var(--primary-text-color);font-size:12px;cursor:pointer}.switch-setting input{position:absolute;width:1px;height:1px;opacity:0}.switch-setting i{position:relative;width:32px;height:18px;order:2;flex:none;border-radius:12px;background:var(--disabled-text-color,var(--divider-color));transition:background .15s}.switch-setting i:after{content:"";position:absolute;top:3px;left:3px;width:12px;height:12px;border-radius:50%;background:var(--card-background-color);transition:transform .15s}.switch-setting input:checked+i{background:var(--primary-color)}.switch-setting input:checked+i:after{transform:translateX(14px)}.selected-entities{display:flex;flex-wrap:wrap;gap:5px;margin:2px 0 8px}.selected-entity{display:inline-flex;align-items:center;gap:6px;max-width:100%;min-height:28px;padding:0 5px 0 8px;border:1px solid var(--divider-color);border-radius:16px;background:var(--secondary-background-color,var(--card-background-color));font-size:11px}.selected-entity ha-state-icon{--mdc-icon-size:16px;flex:none}.selected-entity-name{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.remove-entity{width:20px;height:20px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--secondary-text-color);font-size:17px;line-height:18px;cursor:pointer}.remove-entity:hover{background:var(--divider-color)}.empty-selection{margin:2px 0 8px;color:var(--secondary-text-color);font-size:11px}.add-entity{display:inline-flex;align-items:center;gap:5px;min-height:28px;padding:0 9px;border:1px dashed var(--divider-color);border-radius:16px;background:transparent;color:var(--primary-color);font:inherit;font-size:11px;font-weight:500;cursor:pointer}.add-entity ha-icon{--mdc-icon-size:15px}.entity-picker{margin-top:8px;padding:8px;border-radius:9px;background:var(--secondary-background-color,var(--primary-background-color))}.entity-search{box-sizing:border-box;width:100%;height:34px;padding:6px 9px;border:1px solid var(--divider-color);border-radius:8px;background:var(--ha-card-background,var(--card-background-color));color:var(--primary-text-color);font:inherit;font-size:12px}.entity-options{display:flex;flex-direction:column;max-height:190px;overflow:auto;margin-top:5px}.entity-option{display:grid;grid-template-columns:20px minmax(0,1fr) auto;align-items:center;gap:7px;min-height:34px;padding:5px 6px;border:0;border-radius:7px;background:transparent;color:var(--primary-text-color);text-align:left;font:inherit;font-size:12px;cursor:pointer}.entity-option:hover,.entity-option:focus-visible{background:var(--primary-background-color,var(--card-background-color));outline:none}.entity-option ha-state-icon{--mdc-icon-size:17px}.entity-option span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.entity-option small{color:var(--secondary-text-color);font-size:10px}.duration-setting{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px}.duration-control{display:flex;flex-direction:column;gap:8px;min-width:0;color:var(--primary-text-color);font-size:12px}.duration-control input{width:100%;accent-color:var(--primary-color)}.duration-value{min-width:62px;color:var(--primary-text-color);font-size:13px;font-weight:600;text-align:right;font-variant-numeric:tabular-nums}.timing-card>.switch-setting{margin-top:5px}.schedule-heading{margin-bottom:8px}.schedule-heading .card-heading-copy p{font-variant-numeric:tabular-nums}.schedule-content{padding-top:4px}.schedule-track{position:relative;height:22px;display:flex;align-items:center;margin:0 5px}.schedule-track:before{content:"";position:absolute;left:0;right:0;height:5px;border-radius:4px;background:var(--divider-color)}.schedule-fill{position:absolute;left:0;right:0;height:5px;border-radius:4px;opacity:.75;pointer-events:none}.schedule-range{position:absolute;inset:0;width:100%;height:22px;margin:0;background:transparent;appearance:none;-webkit-appearance:none;pointer-events:none}.schedule-range::-webkit-slider-runnable-track{height:5px;background:transparent}.schedule-range::-moz-range-track{height:5px;background:transparent}.schedule-range::-webkit-slider-thumb{width:15px;height:15px;margin-top:-5px;border:2px solid var(--card-background-color);border-radius:50%;appearance:none;-webkit-appearance:none;background:var(--primary-color);box-shadow:0 1px 3px #0003;pointer-events:auto;cursor:grab}.schedule-range::-moz-range-thumb{width:11px;height:11px;border:2px solid var(--card-background-color);border-radius:50%;background:var(--primary-color);box-shadow:0 1px 3px #0003;pointer-events:auto;cursor:grab}.schedule-range:disabled::-webkit-slider-thumb{background:var(--disabled-text-color);cursor:not-allowed}.schedule-labels{display:flex;justify-content:space-between;margin:1px 0 9px;color:var(--secondary-text-color);font-size:9px;font-variant-numeric:tabular-nums}.schedule-endpoints{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.schedule-endpoint{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:6px;min-width:0;color:var(--secondary-text-color);font-size:11px}.schedule-endpoint select{min-width:0;width:100%;height:30px;padding:4px;border:1px solid var(--divider-color);border-radius:7px;background:var(--primary-background-color,var(--card-background-color));color:var(--primary-text-color);font:inherit;font-size:11px}.schedule-endpoint output{min-width:40px;color:var(--primary-text-color);font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}.schedule-extra{margin-top:10px}.offset-control{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:8px}.offset-control input{width:62px;min-height:28px;padding:3px 5px;border:1px solid var(--divider-color);border-radius:7px;background:var(--primary-background-color,var(--card-background-color));color:var(--primary-text-color)}.editor-actions .card-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.rules-card{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:8px}.rules-card>.card-heading{grid-column:1/-1;margin-bottom:0}.rules-card .entity-card{padding:8px;background:var(--secondary-background-color,var(--card-background-color))}.editor-section{grid-column:1/-1;margin:0;padding:0}.editor-section summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;list-style:none;font-size:12px}.editor-section summary::-webkit-details-marker{display:none}.editor-section summary ha-icon{--mdc-icon-size:18px;color:var(--secondary-text-color);transition:transform .15s}.editor-section[open] summary ha-icon{transform:rotate(180deg)}.advanced-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:0 12px 12px}.advanced-fields>.entity-card{grid-column:1/-1}.advanced-fields>.field{align-self:start}.advanced-fields .duration-control{grid-column:span 1}.advanced-fields textarea{min-height:66px}.schedule-card{grid-column:span 1}.identity-card,.timing-card,.editor-actions{grid-column:span 1}@media(max-width:760px){.editor-grid{grid-template-columns:1fr}.rules-card{grid-column:1;grid-template-columns:1fr}.rules-card>.card-heading{grid-column:1}.row.editing .timeline-line{display:none}.schedule-card,.identity-card,.timing-card,.editor-actions{grid-column:1}.advanced-fields{grid-template-columns:1fr}}@media(max-width:620px){.editor-header{align-items:flex-start;flex-direction:column}.edit-modes{width:100%}.edit-modes button{flex:1}.card-fields,.identity-card .card-fields,.editor-actions .card-fields{grid-template-columns:1fr}.schedule-endpoints{grid-template-columns:1fr}.rules-card{grid-template-columns:1fr}.editor-card{padding:10px}}';
-      const interactionStyles = '.duration-input{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px}.duration-value{min-width:56px;color:var(--primary-text-color);font-size:12px;font-weight:600;text-align:right;font-variant-numeric:tabular-nums}.duration-setting{display:block}.duration-setting .duration-control{display:flex;flex-direction:column;gap:6px}.duration-setting .duration-control>span{color:var(--secondary-text-color);font-size:11px}.duration-setting .duration-control input{width:100%;accent-color:var(--primary-color)}';
-      this.shadowRoot.innerHTML = '<style>' + styles + editorStyles + interactionStyles + '</style>' +
+      const interactionStyles = '.duration-input{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px}.duration-value{min-width:56px;color:var(--primary-text-color);font-size:12px;font-weight:600;text-align:right;font-variant-numeric:tabular-nums}.duration-setting{display:block}.duration-setting .duration-control{display:flex;flex-direction:column;gap:6px}.duration-setting .duration-control>span{color:var(--secondary-text-color);font-size:11px}.duration-setting .duration-control input{width:100%;accent-color:var(--primary-color)}.editor-grid{grid-template-columns:repeat(12,minmax(0,1fr));gap:10px}.editor-card{padding:10px;border-color:color-mix(in srgb,var(--divider-color) 65%,transparent);background:color-mix(in srgb,var(--secondary-background-color,var(--card-background-color)) 72%,transparent);box-shadow:none}.editor-grid>.identity-card{grid-column:span 4}.editor-grid>.entity-card:nth-child(2),.editor-grid>.entity-card:nth-child(4){grid-column:span 6}.editor-grid>.entity-card:nth-child(3),.editor-grid>.timing-card{grid-column:span 3}.editor-grid>.schedule-card,.editor-grid>.editor-actions{grid-column:span 6}.editor-grid>.rules-card,.editor-grid>.editor-section{grid-column:1/-1}.icon-options{display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:4px;max-height:190px;overflow:auto;margin-top:6px}.icon-option{display:flex;align-items:center;gap:6px;min-height:34px;padding:4px 7px;border:0;border-radius:7px;background:var(--primary-background-color,var(--card-background-color));color:var(--primary-text-color);text-align:left;cursor:pointer}.icon-option ha-icon{--mdc-icon-size:18px;color:var(--primary-color)}.icon-option span{font-size:11px;text-transform:capitalize}.icon-picker{min-width:0}@media(max-width:1000px){.editor-grid{grid-template-columns:repeat(6,minmax(0,1fr))}.editor-grid>.identity-card{grid-column:span 3}.editor-grid>.entity-card:nth-child(2),.editor-grid>.entity-card:nth-child(4),.editor-grid>.schedule-card,.editor-grid>.editor-actions{grid-column:span 3}.editor-grid>.entity-card:nth-child(3),.editor-grid>.timing-card{grid-column:span 3}}@media(max-width:760px){.editor-grid{grid-template-columns:minmax(0,1fr)}.editor-grid>.identity-card,.editor-grid>.entity-card,.editor-grid>.timing-card,.editor-grid>.schedule-card,.editor-grid>.editor-actions,.editor-grid>.rules-card,.editor-grid>.editor-section{grid-column:1}}';
+      const scheduleStyles = '.offset-control{justify-content:flex-start}.offset-control button{width:27px;height:27px;padding:0;border:1px solid var(--divider-color);border-radius:7px;background:var(--primary-background-color,var(--card-background-color));color:var(--primary-color);font-size:17px;cursor:pointer}.offset-control output{min-width:70px;text-align:center;font-size:11px;font-weight:600;font-variant-numeric:tabular-nums}';
+      this.shadowRoot.innerHTML = '<style>' + styles + editorStyles + interactionStyles + scheduleStyles + '</style>' +
         '<main class="wrap"><header class="heading"><h1>Entity Controller</h1>' +
         '<p>Rýchly prehľad controllerov</p></header><div class="error" hidden></div>' +
         '<section class="list"></section><footer class="legend"><div class="legend-items"><span class="legend-title">Legenda časovej osi:</span>' +
@@ -743,8 +779,11 @@ class EntityControllerPanel extends HTMLElement {
         template.innerHTML = markup;
         const updated = template.content.firstElementChild;
         if (row) {
+          const editor = preserveEditor && this._editing?.id === controller.id
+            ? row.querySelector(".editor") : null;
           row.className = updated.className;
           row.innerHTML = updated.innerHTML;
+          if (editor) row.querySelector(".editor")?.replaceWith(editor);
         } else row = updated;
         this._rowMarkup.set(controller.id, markup);
         this._refreshControllerIcons(row);
@@ -764,8 +803,46 @@ class EntityControllerPanel extends HTMLElement {
   async _handleClick(event) {
     const button = event.composedPath().find((element) =>
       element.matches?.(".chip[data-entity], button[data-toggle], button[data-edit], button[data-mode], " +
-        "button[data-picker-toggle], button[data-entity-option], button[data-remove-entity], button[data-retry-save]"));
+        "button[data-picker-toggle], button[data-entity-option], button[data-remove-entity], button[data-retry-save], " +
+        "button[data-icon-toggle], button[data-icon-value], button[data-offset-step]"));
     if (!button) return;
+    if (button.dataset.iconToggle) {
+      this._iconPickerOpen = !this._iconPickerOpen;
+      this._rowMarkup.clear();
+      this._render();
+      this.shadowRoot.querySelector(".icon-search")?.focus();
+      return;
+    }
+    if (button.dataset.iconValue) {
+      const controller = this.controllers.find((item) => item.id === this._editing?.id);
+      if (!controller) return;
+      const previousForm = structuredClone(controller.form || {});
+      const nextForm = structuredClone(controller.form || {});
+      nextForm.basic = { ...(nextForm.basic || {}), icon: button.dataset.iconValue };
+      controller.form = nextForm;
+      controller.icon = button.dataset.iconValue;
+      this._iconPickerOpen = false;
+      this._rowMarkup.clear();
+      this._render();
+      await this._persistControllerForm(controller, nextForm, previousForm);
+      return;
+    }
+    if (button.dataset.offsetStep) {
+      const controller = this.controllers.find((item) => item.id === this._editing?.id);
+      if (!controller) return;
+      const section = button.dataset.section;
+      const key = button.dataset.field;
+      const previousForm = structuredClone(controller.form || {});
+      const nextForm = structuredClone(controller.form || {});
+      if (!nextForm[section]) nextForm[section] = {};
+      const currentMinutes = Number(nextForm[section][key] || 0) / 60;
+      nextForm[section][key] = Math.max(-720, Math.min(720, currentMinutes + Number(button.dataset.offsetStep))) * 60;
+      controller.form = nextForm;
+      this._rowMarkup.clear();
+      this._render();
+      await this._persistControllerForm(controller, nextForm, previousForm);
+      return;
+    }
     if (button.dataset.pickerToggle) {
       this._pickerOpen = this._pickerOpen === button.dataset.pickerToggle ? null : button.dataset.pickerToggle;
       this._rowMarkup.clear();
@@ -845,7 +922,7 @@ class EntityControllerPanel extends HTMLElement {
       return String(Math.floor(minutes / 60)).padStart(2, "0") + ":" +
         String(minutes % 60).padStart(2, "0") + ":00";
     }
-    if (kind === "offset-minutes") return (Number(element.value) || 0) * 60;
+    if (kind === "offset-minutes") return Math.max(-720, Math.min(720, Number(element.value) || 0)) * 60;
     if (kind === "states") return element.value.split(",").map((item) => item.trim()).filter(Boolean);
     if (kind === "duration") {
       const seconds = Math.max(0, Number(element.value) || 0);
@@ -860,10 +937,20 @@ class EntityControllerPanel extends HTMLElement {
 
   _handleEditorInput(event) {
     const field = event.target;
-    if (field.matches?.(".entity-search")) {
-      const query = field.value.trim().toLocaleLowerCase();
-      field.closest(".entity-picker")?.querySelectorAll(".entity-option").forEach((option) => {
+    if (field.matches?.(".icon-search")) {
+      const query = field.value.toLocaleLowerCase();
+      field.closest(".icon-picker")?.querySelectorAll(".icon-option").forEach((option) => {
         option.hidden = !option.textContent.toLocaleLowerCase().includes(query);
+      });
+      return;
+    }
+    if (field.matches?.(".entity-search")) {
+      const normalize = (value) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .toLocaleLowerCase().trim();
+      const query = normalize(field.value);
+      field.closest(".entity-picker")?.querySelectorAll(".entity-option").forEach((option) => {
+        const text = normalize(option.textContent);
+        option.hidden = !query.split(/\s+/).every((token) => text.includes(token));
       });
       return;
     }
@@ -912,6 +999,15 @@ class EntityControllerPanel extends HTMLElement {
     if (!nextForm[section]) nextForm[section] = {};
     try {
       nextForm[section][key] = this._readEditorValue(field);
+      if (field.dataset.kind === "schedule-time") {
+        const prefix = section === "constraints" ? "constraint" : "night";
+        const side = key.includes("_start_") ? "start" : "end";
+        nextForm[section][prefix + "_" + side + "_source"] = "fixed";
+        const source = this.shadowRoot.querySelector(
+          '.schedule-card-' + prefix + ' [data-field="' + prefix + '_' + side + '_source"]'
+        );
+        if (source) source.value = "fixed";
+      }
     } catch (error) {
       const status = field.closest(".editor")?.querySelector(".save-state");
       if (status) status.textContent = "Neplatná hodnota: " + (error?.message || "skontroluj JSON.");
@@ -924,6 +1020,11 @@ class EntityControllerPanel extends HTMLElement {
   }
 
   async _persistControllerForm(controller, nextForm, previousForm, field = null, snapshot = JSON.stringify(nextForm)) {
+    if (!this._confirmedForms.has(controller.id)) {
+      this._confirmedForms.set(controller.id, structuredClone(previousForm));
+    }
+    const revision = (this._saveRevisions.get(controller.id) || 0) + 1;
+    this._saveRevisions.set(controller.id, revision);
     this._saveMessage = "Ukladám…";
     this._failedSaves.delete(controller.id);
     const status = field?.closest(".editor")?.querySelector(".save-state") ||
@@ -938,17 +1039,69 @@ class EntityControllerPanel extends HTMLElement {
         form: nextForm,
       }));
       this._saveQueues.set(controller.id, save);
-      await save;
+      const response = await save;
+      if (this._saveRevisions.get(controller.id) !== revision) return;
+      if (response?.form) controller.form = response.form;
+      if (response?.name) controller.name = response.name;
+      if (response?.icon !== undefined) controller.icon = response.icon;
+      if (response?.resolved_schedule) controller.resolved_schedule = response.resolved_schedule;
+      if (field?.dataset.field?.includes("_start_") || field?.dataset.field?.includes("_end_")) {
+        const prefix = field.dataset.section === "constraints" ? "constraint" :
+          (field.dataset.section === "night" ? "night" : null);
+        if (prefix) this._syncScheduleEndpoint(controller, prefix,
+          field.dataset.field.includes("_start_") ? "start" : "end");
+      }
+      this._confirmedForms.set(controller.id, structuredClone(controller.form || nextForm));
       if (field) field.dataset.savedSnapshot = snapshot;
       this._saveMessage = "Uložené";
       if (status?.isConnected) status.textContent = this._saveMessage;
-      if (this._saveQueues.get(controller.id) === save) await this._refresh();
     } catch (error) {
-      controller.form = previousForm;
+      if (this._saveRevisions.get(controller.id) !== revision) return;
+      const confirmed = this._confirmedForms.get(controller.id) || previousForm;
+      controller.form = structuredClone(confirmed);
+      controller.name = controller.form?.basic?.name || controller.name;
+      controller.icon = controller.form?.basic?.icon || controller.icon;
+      if (field?.isConnected) {
+        const value = controller.form?.[field.dataset.section]?.[field.dataset.field];
+        if (field.type === "checkbox") field.checked = Boolean(value);
+        else if (field.dataset.kind === "schedule-time") {
+          const [hours, minutes] = String(value || "00:00").split(":").map(Number);
+          field.value = String((hours || 0) * 60 + (minutes || 0));
+        } else if (field.dataset.kind === "duration") field.value = String(durationSeconds(value));
+        else if (field.dataset.kind === "offset-minutes") field.value = String((Number(value) || 0) / 60);
+        else if (value !== undefined) field.value = typeof value === "object" ? JSON.stringify(value) :
+          Array.isArray(value) ? value.join(", ") : String(value);
+        field.dataset.savedSnapshot = JSON.stringify(value);
+      }
       this._failedSaves.set(controller.id, { form: nextForm, previous: previousForm });
       this._saveMessage = "Chyba pri ukladaní; pôvodná hodnota zostala zachovaná.";
       this._rowMarkup.clear();
       this._render();
+    }
+  }
+
+  _syncScheduleEndpoint(controller, prefix, side) {
+    const section = prefix === "constraint" ? "constraints" : "night";
+    const key = prefix + "_" + side + "_time";
+    const sourceKey = prefix + "_" + side + "_source";
+    const source = controller.form?.[section]?.[sourceKey] || "fixed";
+    const rawTime = String(controller.form?.[section]?.[key] || "00:00").split(":");
+    const stored = (Number(rawTime[0]) || 0) * 60 + (Number(rawTime[1]) || 0);
+    const minutes = source === "fixed" ? stored : (controller.resolved_schedule?.[prefix]?.[side] ?? stored);
+    const card = this.shadowRoot.querySelector(".schedule-card-" + prefix);
+    const range = card?.querySelector(".schedule-range." + side);
+    if (range) range.value = String(minutes);
+    const output = card?.querySelector('[data-time-label="' + key + '"]');
+    if (output) output.textContent = String(Math.floor(minutes / 60)).padStart(2, "0") + ":" +
+      String(minutes % 60).padStart(2, "0");
+    const values = [...(card?.querySelectorAll(".schedule-range") || [])].map((item) => Number(item.value) / 1439 * 100);
+    const fill = card?.querySelector(".schedule-fill");
+    if (fill && values.length === 2) {
+      const left = Math.min(...values);
+      const right = Math.max(...values);
+      fill.style.background = values[0] <= values[1]
+        ? "linear-gradient(to right, transparent " + left + "%, var(--primary-color) " + left + "%, var(--primary-color) " + right + "%, transparent " + right + "%)"
+        : "linear-gradient(to right, var(--primary-color) 0%, var(--primary-color) " + right + "%, transparent " + right + "%, transparent " + left + "%, var(--primary-color) " + left + "%, var(--primary-color) 100%)";
     }
   }
 
