@@ -11,7 +11,7 @@ def test_stable_manifest_version_is_published() -> None:
         )
     )
 
-    assert manifest["version"] == "10.0.1"
+    assert manifest["version"] == "10.1.0"
 
 
 def test_release_checklist_covers_migration_smoke_and_validation_gates() -> None:

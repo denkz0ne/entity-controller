@@ -4,7 +4,7 @@
 
 Entity Controller v10 is a Home Assistant device integration for reusable "when this happens, keep that active for a while" automations. Each controller is one Home Assistant config entry and one device, so the integration page lists controllers directly.
 
-Current stable release: `10.0.1`
+Current stable release: `10.1.0`
 
 The setup flow immediately opens the first controller form. Entity Controller
 appears once on the Integrations page; each configured controller appears below
@@ -16,7 +16,7 @@ override/interlock inputs, transition behavior, and custom state mappings.
 
 Entity Controller uses Home Assistant's stock device integration UI. The top
 right `+` adds a controller; each controller's settings edit that controller.
-No frontend patch is used.
+The configuration panel also provides direct controller configuration.
 
 ## Status
 
