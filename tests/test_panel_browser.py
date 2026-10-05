@@ -763,6 +763,7 @@ def test_close_reopen_is_single_click_and_preserves_unsaved_draft(page):
           };
           window.wsCalls = [];
           panel.style.setProperty("--secondary-background-color", "rgb(20, 30, 40)");
+          panel.style.setProperty("--card-background-color", "white");
           panel.hass = {...panel.hass, user: {is_admin: true},
             callWS: async (message) => {
               wsCalls.push(message);
@@ -774,10 +775,16 @@ def test_close_reopen_is_single_click_and_preserves_unsaved_draft(page):
 
     page.locator(".edit-toggle").first.click()
     assert page.locator(".editor").is_visible()
-    assert page.locator(".editor").evaluate("element => getComputedStyle(element).backgroundColor") == "rgb(20, 30, 40)"
+    assert page.locator(".editor").evaluate("element => getComputedStyle(element).backgroundColor") == "rgba(0, 0, 0, 0)"
     assert page.locator(".editor-card").first.evaluate(
         "element => getComputedStyle(element).backgroundColor"
-    ) == "rgba(0, 0, 0, 0)"
+    ) == "rgb(255, 255, 255)"
+    assert page.locator(".controller-summary").first.evaluate(
+        "element => getComputedStyle(element).borderTopWidth"
+    ) == "1px"
+    assert page.locator(".row.editing").evaluate(
+        "element => getComputedStyle(element).borderTopWidth"
+    ) == "0px"
     page.locator('[data-field="name"]').first.fill("Draft room")
     page.locator(".editor-close").click()
     assert page.locator(".editor").count() == 0

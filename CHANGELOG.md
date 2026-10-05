@@ -2,6 +2,19 @@
 
 All notable changes to Entity Controller v10 are documented here.
 
+<a name="10.5.0"></a>
+## 10.5.0 (2026-10-05)
+
+### Sidebar editor
+
+* separate the bordered controller overview from settings on the Home Assistant page background
+* arrange inputs and control/timer behavior into two clearly labelled white groups
+* place allowed-time and night-profile cards together below the primary settings
+* collapse priority/blocking rules until needed
+* use one settings toolbar for mode selection, save status, Save, and Close
+* align fields and simplify section headings, entity controls, and mobile layout
+* preserve explicit saving, manual timer entry, and drafts during live updates
+
 <a name="10.4.2"></a>
 ## 10.4.2 (2026-10-05)
 
