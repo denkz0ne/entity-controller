@@ -2,6 +2,21 @@
 
 All notable changes to Entity Controller v10 are documented here.
 
+<a name="10.3.0"></a>
+## 10.3.0 (2026-10-05)
+
+### Features
+
+* add a searchable visual MDI icon picker and solar-aware interactive schedule ranges
+* compact and regroup the inline editor with responsive layouts and 15-minute schedule offsets
+
+### Fixes
+
+* return the confirmed normalized configuration after save and avoid unnecessary panel reloads
+* preserve editor, picker, search and open sections during Home Assistant runtime refreshes
+* prevent older save responses from overwriting newer edits and restore the last confirmed form on errors
+* resolve sunrise and sunset schedule positions using Home Assistant local sun data
+
 <a name="10.2.0"></a>
 ## 10.2.0 (2026-10-05)
 
