@@ -279,3 +279,97 @@ def test_admin_config_panel_switches_modes_and_saves_inline(page):
     )
     assert save["entry_id"] == "entry-1"
     assert save["form"]["basic"]["name"] == "Updated room"
+
+
+def test_editor_uses_compact_cards_and_searchable_entity_chips(page):
+    page.evaluate(
+        """() => {
+          const controller = panel.controllers[0];
+          controller.entry_id = "entry-1";
+          controller.form = {
+            basic: {
+              name: controller.name,
+              icon: controller.icon,
+              trigger_entities: ["binary_sensor.motion"],
+              control_entities: ["light.room"],
+              delay_seconds: {days: 0, hours: 0, minutes: 3, seconds: 0},
+            },
+            timer: {sensor_type: "event", sensor_resets_timer: true},
+            monitoring: {state_entities: [], blocking_enabled: true},
+            constraints: {constraint_enabled: true, constraint_start_source: "fixed",
+              constraint_start_time: "06:00:00", constraint_end_source: "fixed",
+              constraint_end_time: "22:00:00"},
+          };
+          panel.hass = {
+            ...panel.hass,
+            user: {is_admin: true},
+            states: {
+              ...panel.hass.states,
+              "binary_sensor.front_door": {
+                state: "off", attributes: {friendly_name: "Front door"}
+              },
+            },
+            callWS: async (message) => message.type === "entity_controller/panel/save"
+              ? {success: true} : {controllers: panel.controllers},
+          };
+        }"""
+    )
+
+    page.locator(".edit-toggle").first.click()
+
+    assert page.locator(".editor").is_visible()
+    assert not page.locator(".row.editing .timeline-line").is_visible()
+    assert page.locator(".editor-card").filter(has_text="Spúšťače").is_visible()
+    assert page.locator(".editor-card").filter(has_text="Ovládané entity").is_visible()
+    assert page.locator('[data-field="delay_seconds"]').get_attribute("type") == "range"
+    assert page.locator('[data-picker-toggle="basic.trigger_entities"]').is_visible()
+
+    page.locator('[data-picker-toggle="basic.trigger_entities"]').click()
+    search = page.locator('[data-entity-search="basic.trigger_entities"]')
+    search.fill("front door")
+    page.locator('[data-entity-option="binary_sensor.front_door"]').click()
+
+    assert page.locator(
+        '.selected-entity[data-entity-id="binary_sensor.front_door"]'
+    ).is_visible()
+
+
+def test_schedule_range_displays_and_saves_an_overnight_window(page):
+    page.evaluate(
+        """() => {
+          const controller = panel.controllers[0];
+          controller.entry_id = "entry-1";
+          controller.form = {
+            basic: {name: controller.name, trigger_entities: [], control_entities: [], delay_seconds: 180},
+            constraints: {constraint_enabled: true, constraint_start_source: "fixed",
+              constraint_start_time: "22:00:00", constraint_end_source: "fixed",
+              constraint_end_time: "06:00:00"},
+          };
+          window.wsCalls = [];
+          panel.hass = {
+            ...panel.hass,
+            user: {is_admin: true},
+            callWS: async (message) => {
+              wsCalls.push(message);
+              return message.type === "entity_controller/panel/save"
+                ? {success: true} : {controllers: panel.controllers};
+            },
+          };
+        }"""
+    )
+
+    page.locator(".edit-toggle").first.click()
+    schedule = page.locator(".schedule-card").filter(has_text="Povolený čas")
+    assert schedule.locator(".card-heading-copy p").inner_text() == "22:00 – 06:00 každý deň"
+    start = page.locator('[data-field="constraint_start_time"]')
+    assert start.get_attribute("type") == "range"
+    start.focus()
+    start.press("ArrowRight")
+    page.wait_for_function(
+        'wsCalls.some((call) => call.type === "entity_controller/panel/save")'
+    )
+    save = page.evaluate(
+        'wsCalls.find((call) => call.type === "entity_controller/panel/save")'
+    )
+    assert save["form"]["constraints"]["constraint_start_time"] == "22:15:00"
+

@@ -11,7 +11,7 @@ def test_stable_manifest_version_is_published() -> None:
         )
     )
 
-    assert manifest["version"] == "10.1.0"
+    assert manifest["version"] == "10.2.0"
 
 
 def test_release_checklist_covers_migration_smoke_and_validation_gates() -> None:
@@ -36,3 +36,4 @@ def test_release_checklist_covers_migration_smoke_and_validation_gates() -> None
         "known limitations",
     ):
         assert required in checklist
+
