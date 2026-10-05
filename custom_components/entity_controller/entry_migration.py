@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from .model import normalize_transition_behaviors
+
 CONTROLLER_ID_KEY = "_ec_controller_id"
 ENTITY_UNIQUE_ID_PREFIX_KEY = "_ec_entity_unique_id_prefix"
 
@@ -24,6 +26,10 @@ def migrated_controller_data(
 
     return {
         **dict(data),
+        "transition_behaviors": {
+            key: behavior.value
+            for key, behavior in normalize_transition_behaviors(data.get("transition_behaviors")).items()
+        },
         CONTROLLER_ID_KEY: subentry_id,
         ENTITY_UNIQUE_ID_PREFIX_KEY: f"{root_entry_id}_{subentry_id}",
     }

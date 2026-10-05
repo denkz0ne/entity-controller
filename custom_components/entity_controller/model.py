@@ -48,6 +48,7 @@ class TransitionBehavior(StrEnum):
     OFF = "off"
     IGNORE = "ignore"
     CUSTOM = "custom"
+    RESTORE = "restore"
 
 
 class ReconcileReason(StrEnum):
@@ -63,10 +64,10 @@ class ReconcileReason(StrEnum):
 
 DEFAULT_TRANSITION_BEHAVIORS: Mapping[str, TransitionBehavior] = MappingProxyType(
     {
-        "on_enter_idle": TransitionBehavior.OFF,
+        "on_enter_idle": TransitionBehavior.IGNORE,
         "on_exit_idle": TransitionBehavior.IGNORE,
         "on_enter_active": TransitionBehavior.ON,
-        "on_exit_active": TransitionBehavior.IGNORE,
+        "on_exit_active": TransitionBehavior.OFF,
         "on_enter_overridden": TransitionBehavior.IGNORE,
         "on_exit_overridden": TransitionBehavior.IGNORE,
         "on_enter_constrained": TransitionBehavior.IGNORE,
@@ -75,6 +76,28 @@ DEFAULT_TRANSITION_BEHAVIORS: Mapping[str, TransitionBehavior] = MappingProxyTyp
         "on_exit_blocked": TransitionBehavior.IGNORE,
     }
 )
+
+
+def normalize_transition_behaviors(
+    values: Mapping[str, str | TransitionBehavior] | None = None,
+) -> dict[str, TransitionBehavior]:
+    """Move only the legacy default shutdown pair to the activity exit hook.
+
+    Explicit advanced idle or active-exit policies keep their original meaning.
+    The conversion is idempotent and never modifies the caller's stored mapping.
+    """
+
+    legacy = dict(values or {})
+    result = dict(DEFAULT_TRANSITION_BEHAVIORS)
+    result.update({key: TransitionBehavior(value) for key, value in legacy.items()})
+    if (
+        legacy.get("on_enter_idle", TransitionBehavior.OFF) == TransitionBehavior.OFF
+        and legacy.get("on_exit_active", TransitionBehavior.IGNORE)
+        == TransitionBehavior.IGNORE
+    ):
+        result["on_enter_idle"] = TransitionBehavior.IGNORE
+        result["on_exit_active"] = TransitionBehavior.OFF
+    return result
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,6 +109,7 @@ class ControllerConfig:
     entity_unique_id_prefix: str | None = None
     icon: str | None = None
     trigger_entities: tuple[str, ...] = ()
+    presence_entities: tuple[str, ...] = ()
     control_entities: tuple[str, ...] = ()
     state_entities: tuple[str, ...] = ()
     override_entities: tuple[str, ...] = ()
@@ -94,6 +118,8 @@ class ControllerConfig:
     delay_seconds: float = 180.0
     sensor_resets_timer: bool = False
     blocking_enabled: bool = True
+    protect_manual_off: bool = True
+    protect_manual_on: bool = True
     block_timeout_seconds: float | None = None
     enabled_default: bool = True
     stay_mode_default: bool = False
@@ -104,8 +130,11 @@ class ControllerConfig:
     night_mode: Mapping[str, object] | None = None
     service_data_on: Mapping[str, object] = field(default_factory=dict)
     service_data_off: Mapping[str, object] = field(default_factory=dict)
+    lifecycle_actions: Mapping[str, list[dict[str, object]]] = field(default_factory=dict)
     trigger_on_states: tuple[str, ...] = ("on",)
     trigger_off_states: tuple[str, ...] = ("off",)
+    presence_on_states: tuple[str, ...] = ("on",)
+    presence_off_states: tuple[str, ...] = ("off",)
     state_on_states: tuple[str, ...] = ("on",)
     state_off_states: tuple[str, ...] = ("off",)
     override_on_states: tuple[str, ...] = ("on",)

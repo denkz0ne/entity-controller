@@ -332,6 +332,7 @@ def test_editor_uses_compact_cards_and_searchable_entity_chips(page):
     page.locator('[data-picker-toggle="basic.trigger_entities"]').click()
     search = page.locator('[data-entity-search="basic.trigger_entities"]')
     search.fill("front door")
+    expect(page.locator('[data-entity-option="light.room"]')).not_to_be_visible()
     page.locator('[data-entity-option="binary_sensor.front_door"]').click()
 
     assert page.locator(
@@ -365,12 +366,18 @@ def test_editor_picker_survives_runtime_refresh_and_normalizes_search(page):
     search = page.locator('[data-entity-search="basic.trigger_entities"]')
     search.fill("obyvacka poh")
     assert page.locator('[data-entity-option="binary_sensor.living_room_motion"]').is_visible()
+    expect(page.locator('[data-entity-option="light.room"]')).not_to_be_visible()
 
     page.evaluate("panel._refresh()")
     page.wait_for_timeout(50)
 
     assert page.locator('[data-picker-toggle="basic.trigger_entities"]').get_attribute("aria-expanded") == "true"
     assert search.input_value() == "obyvacka poh"
+    expect(page.locator('[data-entity-option="light.room"]')).not_to_be_visible()
+    search.fill("no matching entity")
+    expect(page.locator('.entity-option:visible')).to_have_count(0)
+    search.fill("")
+    expect(page.locator('[data-entity-option="light.room"]')).to_be_visible()
 
 
 def test_controller_icon_is_selected_from_searchable_visual_picker(page):
@@ -389,6 +396,7 @@ def test_controller_icon_is_selected_from_searchable_visual_picker(page):
     assert page.locator('[data-field="icon"]').count() == 0
     page.locator("button.controller-avatar").click()
     page.locator(".icon-search").fill("sunset")
+    expect(page.locator('[data-icon-value="mdi:lightbulb"]')).not_to_be_visible()
     page.locator('[data-icon-value="mdi:weather-sunset"]').click()
     page.wait_for_function(
         'panel.controllers[0].form.basic.icon === "mdi:weather-sunset"'
@@ -551,11 +559,11 @@ def test_saved_editor_payload_passes_ha_schema_without_changing_other_settings(
     assert normalized == {**baseline, "name": "Renamed room"}
 
 
-def test_invalid_json_stops_save_before_websocket_submission(page):
+def test_invalid_parameter_stops_save_before_websocket_submission(page):
     page.evaluate("""() => {
       const controller = panel.controllers[0];
       controller.entry_id = "entry-1";
-      controller.form = {basic: {name: "Hall", delay_seconds: 180},
+      controller.form = {basic: {name: "Hall", delay_seconds: 180, control_entities: ["light.room"]},
         actions: {service_data_on: {brightness: 100}}};
       window.wsCalls = [];
       panel.hass = {...panel.hass, user: {is_admin: true}, callWS: async message => {
@@ -563,15 +571,106 @@ def test_invalid_json_stops_save_before_websocket_submission(page):
       }};
     }""")
     page.locator(".edit-toggle").first.click()
-    page.locator('button[data-mode="full"]').click()
-    section = page.locator(".editor-section").filter(has_text="Akcie pri ďalších stavoch")
+    section = page.locator('.parameter-editor[data-editor-section="actions-service_data_on"]')
     section.locator("summary").click()
-    section.locator('[data-field="service_data_on"]').fill('{"brightness":')
+    section.locator('input[type="number"][data-service-param="brightness_pct"]').fill("101")
     page.locator('[data-field="name"]').first.fill("Renamed room")
     page.locator(".editor-save").click()
     assert page.evaluate('wsCalls.filter(call => call.type === "entity_controller/panel/save").length') == 0
     assert "Uloženie zlyhalo" in page.locator(".save-state").inner_text()
-    assert page.locator('[data-field="service_data_on"]').input_value() == '{"brightness":'
+    assert section.locator('input[type="number"][data-service-param="brightness_pct"]').input_value() == "101"
+
+
+def test_graphical_light_parameters_preserve_legacy_and_separate_profiles(page):
+    page.evaluate("""() => {
+      const c=panel.controllers[0]; c.entry_id='entry-1';
+      c.form={basic:{name:'Room',control_entities:['light.room'],delay_seconds:{minutes:4}},
+        actions:{service_data_on:{brightness:100,custom_key:'keep'},service_data_off:{}},
+        night:{night_mode_enabled:true,night_start_source:'fixed',night_end_source:'fixed',
+          night_start_time:'22:00',night_end_time:'06:00',night_service_data_on:{brightness:10},night_service_data_off:{}}};
+      window.wsCalls=[];panel.hass={...panel.hass,user:{is_admin:true},callWS:async m=>{
+        wsCalls.push(m);return {success:true,form:m.form};}};
+    }""")
+    page.locator('.edit-toggle').first.click()
+    day = page.locator('[data-editor-section="actions-service_data_on"]')
+    day.locator('summary').click()
+    assert page.locator('.editor textarea[data-kind="json"]').count() == 0
+    day.locator('input[type="number"][data-service-param="brightness_pct"]').fill('75')
+    day.locator('input[type="checkbox"][data-service-param="color_temp_kelvin"]').check()
+    day.locator('input[type="number"][data-service-param="color_temp_kelvin"]').fill('2700')
+    assert day.locator('input[type="range"][data-service-param="brightness_pct"]').input_value() == '75'
+    night = page.locator('[data-editor-section="night-night_service_data_on"]')
+    night.locator('summary').click()
+    night.locator('input[type="number"][data-service-param="brightness_pct"]').fill('20')
+    page.evaluate('panel.hass={...panel.hass};panel._render(true)')
+    expect(day).to_have_attribute('open','')
+    expect(night).to_have_attribute('open','')
+    page.locator('.editor-save').click()
+    saved = page.evaluate('wsCalls.find(m=>m.type==="entity_controller/panel/save").form')
+    assert saved['actions']['service_data_on'] == {'brightness_pct':75,'color_temp_kelvin':2700,'custom_key':'keep'}
+    assert saved['night']['night_service_data_on'] == {'brightness_pct':20}
+    assert saved['actions']['service_data_off'] == {}
+
+
+def test_basic_decision_distinguishes_running_and_draft_settings(page):
+    page.evaluate("""() => {
+      const c=panel.controllers[0];c.state='active_timer';c.expires_at=new Date(Date.now()+240000).toISOString();
+      c.night_active=true;c.form={basic:{name:'Room',delay_seconds:{minutes:4},control_entities:['light.room']},
+        actions:{service_data_on:{brightness_pct:80}},night:{night_mode_enabled:true,night_delay_seconds:{minutes:1},
+          night_service_data_on:{brightness_pct:20,color_temp_kelvin:2700}}};
+      panel.hass={...panel.hass,user:{is_admin:true}};
+    }""")
+    page.locator('.edit-toggle').first.click()
+    decision = page.locator('.live-decision')
+    expect(decision).to_contain_text('Nočný profil')
+    expect(decision).to_contain_text('Jas 20 % · 2700 K')
+    assert decision.locator('[data-decision-countdown]').inner_text() in {'4 min','3 min 59 s'}
+    page.locator('[data-duration-manual="basic.delay_seconds"]').fill('600')
+    expect(decision.locator('.draft-preview')).to_contain_text('10 min')
+    expect(decision.locator('.decision-metrics')).to_contain_text('Jas 20 % · 2700 K')
+    page.evaluate('panel.controllers[0].state="overridden";panel.controllers[0].active_overrides=["input_boolean.override"];panel._updateEditorStatus(panel.controllers[0])')
+    expect(decision.locator('[data-decision-countdown]')).to_have_text('Odpočet nebeží')
+    expect(decision).to_contain_text('Riadenie prevzal Override')
+
+
+def test_solar_source_and_offset_preview_changes_without_saving(page):
+    page.evaluate("""() => {
+      const c=panel.controllers[0];c.form={basic:{name:'Room'},constraints:{constraint_enabled:true,
+        constraint_start_source:'fixed',constraint_start_time:'12:00',constraint_end_source:'fixed',constraint_end_time:'22:00'}};
+      c.resolved_schedule={solar:{sunrise:375,sunset:1104},constraint:{start:720,end:1320}};
+      panel.hass={...panel.hass,user:{is_admin:true}};
+    }""")
+    page.locator('.edit-toggle').first.click()
+    page.locator('[data-field="constraint_start_source"]').select_option('sunrise')
+    assert page.locator('[data-field="constraint_start_time"]').input_value() == '375'
+    page.locator('[aria-label="Zvýšiť posun o 15 minút"]').click()
+    assert page.locator('[data-field="constraint_start_time"]').input_value() == '390'
+    page.locator('[data-field="constraint_start_source"]').select_option('sunset')
+    assert page.locator('[data-field="constraint_start_time"]').input_value() == '1119'
+    assert page.evaluate('panel.controllers[0].form.constraints.constraint_start_time') == '12:00'
+
+
+def test_native_action_editor_updates_draft_and_scene_selector(page):
+    page.evaluate("""() => {
+      customElements.define('ha-form',class extends HTMLElement {});
+      const c=panel.controllers[0];c.entry_id='entry-1';c.form={basic:{name:'Room'},actions:{on_enter_active:'on',on_exit_active:'off'}};
+      panel.hass={...panel.hass,user:{is_admin:true},states:{...panel.hass.states,'scene.evening':{attributes:{friendly_name:'Večer'}}}};
+    }""")
+    page.locator('.edit-toggle').first.click()
+    page.locator('[data-field="on_enter_active"]').select_option('custom')
+    native = page.locator('ha-form[data-native-action="on_enter_active"]')
+    assert native.evaluate('el=>el.schema[0].selector') == {'action':{}}
+    page.locator('[data-scene-hook="on_enter_active"]').select_option('scene.evening')
+    assert native.evaluate('el=>el.data.sequence') == [{'action':'scene.turn_on','target':{'entity_id':'scene.evening'}}]
+    native.evaluate("el=>el.dispatchEvent(new CustomEvent('value-changed',{detail:{value:{sequence:[{action:'script.turn_on',target:{entity_id:'script.test'}}]}}}))")
+    assert page.evaluate('panel.controllers[0].form.actions.lifecycle_actions.on_enter_active[0].action') == 'script.turn_on'
+    page.locator('[data-field="on_exit_active"]').select_option('restore')
+    assert page.evaluate('panel.controllers[0].form.actions.on_enter_idle') == 'ignore'
+    page.locator('.editor [data-icon-toggle]').click()
+    icon = page.locator('ha-form[data-native-icon]')
+    assert icon.evaluate('el=>el.schema[0].selector') == {'icon':{}}
+    icon.evaluate("el=>el.dispatchEvent(new CustomEvent('value-changed',{detail:{value:{icon:'mdi:sofa'}}}))")
+    assert page.evaluate('panel.controllers[0].form.basic.icon') == 'mdi:sofa'
 
 
 @pytest.mark.parametrize("edit_while_saving", [False, True])
@@ -867,3 +966,32 @@ def test_mobile_help_opens_by_tap_without_changing_draft(mobile_page):
     assert mobile_page.locator(".editor-save").is_disabled()
     mobile_page.locator(".editor-heading").tap()
     assert mobile_page.locator(".help-popover:popover-open").count() == 0
+
+
+def test_removing_rule_entity_keeps_rules_and_other_sections_open(page):
+    page.evaluate("""() => {
+      const c = panel.controllers[0];
+      c.entry_id = "entry-1";
+      c.form = {
+        basic: {name: c.name, trigger_entities: [], control_entities: [], delay_seconds: 240},
+        timer: {backoff_enabled: false, backoff_factor: 2},
+        rules: {override_entities: ["light.room", "binary_sensor.motion"], interlock_entities: []},
+      };
+      panel.hass = {...panel.hass, user: {is_admin: true}};
+    }""")
+    page.locator(".edit-toggle").first.click()
+    page.locator('[data-mode="full"]').click()
+    page.locator(".rules-card summary").click()
+    advanced = page.locator(".editor-section").filter(has_text="Adaptívne časovanie")
+    advanced.locator("summary").click()
+    page.locator('.rules-card [data-remove-entity][data-value="light.room"]').click()
+    expect(page.locator(".rules-card")).to_have_attribute("open", "")
+    expect(advanced).to_have_attribute("open", "")
+    expect(page.locator('.rules-card [data-entity-id="light.room"]')).to_have_count(0)
+    page.locator('.rules-card [data-remove-entity][data-value="binary_sensor.motion"]').click()
+    expect(page.locator(".rules-card")).to_have_attribute("open", "")
+    page.locator('[data-picker-toggle="rules.override_entities"]').click()
+    page.locator('[data-entity-option="light.room"]').click()
+    expect(page.locator(".rules-card")).to_have_attribute("open", "")
+    expect(advanced).to_have_attribute("open", "")
+    assert page.locator(".editor-save").is_enabled()

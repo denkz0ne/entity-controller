@@ -5,22 +5,18 @@ Replace the generic/missing integration artwork with a distinctive Entity Contro
 
 ## Selected visual direction
 
-The earlier node/flow-graph direction is discarded. The selected identity is **a central control center governing multiple entities**.
+The selected identity is the user's newer concept: **a white open C with two dots on a cyan rounded square**.
 
 Final concept to reproduce as production artwork:
 
-- dark navy / indigo rounded-square base;
-- one large **master control dial** in the upper center;
-- the dial uses a cyan/aqua ring and a short vertical indicator;
-- three subordinate circular entity symbols below, connected to the master control;
-- left symbol: **home**;
-- center symbol: **light bulb**;
-- right symbol: **time / clock** — explicitly a clock, not thermometer/climate;
+- cyan `#03A9F4` rounded-square base;
+- thick white open C, rounded ends;
+- small white dot in the middle and a larger white dot at the right;
 - geometric, modern, flat/vector-like;
 - no text, no `EC` monogram, no node graph, no Wi-Fi/cloud motif;
-- the icon should read first as “one controller governing multiple entities”.
+- preserve the selected silhouette at small sizes.
 
-The Home / Light / Time glyphs are illustrative examples only. They must not imply that Entity Controller is restricted to those domains.
+The previous navy dial with home/light/clock artwork is superseded.
 
 ## Production simplification
 
@@ -30,8 +26,7 @@ The generated concept is a visual direction, not a pixel-perfect production asse
 - use consistent ring/stroke thickness;
 - keep strong negative space and a clear silhouette;
 - remain recognizable at 32–64 px;
-- keep enough spacing that the three lower symbols do not merge after resizing;
-- keep the clock face simple enough to remain readable at small size;
+- keep both dots separate from the C after resizing;
 - avoid visual similarity to the Home Assistant logo or another integration mark.
 
 ## Asset requirements
@@ -85,7 +80,7 @@ Before closing the task:
 ## Acceptance criteria
 
 - Entity Controller no longer presents as “icon not available” on supported Home Assistant versions.
-- The selected control-center concept is used: master dial + Home + Light + Clock.
+- The selected newer concept is used: cyan square, open C, small centre dot and larger right dot.
 - It does not depend on text to be understood.
 - It remains legible in light and dark Home Assistant themes and at 32–64 px.
 - PNG assets are shipped locally under `custom_components/entity_controller/brand/`.
@@ -94,3 +89,11 @@ Before closing the task:
 ## Related
 
 Entity-specific MDI icons are covered separately by entity/UI work. This task is only the integration/product brand mark.
+
+## HACS 2.0.5 limitation verified 2026-10-05
+
+The installed HACS frontend still reads `brands.home-assistant.io` for custom
+repositories. The local HA assets cannot change that dashboard URL. Upstream
+[integration PR 5388](https://github.com/hacs/integration/pull/5388) and
+[frontend PR 945](https://github.com/hacs/frontend/pull/945) remain open.
+Do not claim that updating Entity Controller alone fixes HACS' missing icon.

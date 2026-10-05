@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections import defaultdict
 from collections.abc import Callable
+from copy import deepcopy
 from datetime import datetime
 from functools import partial
 from types import SimpleNamespace
@@ -13,13 +15,13 @@ from .context import ContextTracker
 from .controller import ControllerRuntime, ReconcileSnapshot
 from .entry_migration import CONTROLLER_ID_KEY, ENTITY_UNIQUE_ID_PREFIX_KEY
 from .model import (
-    DEFAULT_TRANSITION_BEHAVIORS,
     ControllerConfig,
     ControllerState,
     ReconcileReason,
     SensorType,
     TransitionBehavior,
     TransitionCause,
+    normalize_transition_behaviors,
 )
 from .schedule import schedule_at_home_assistant, window_is_active_from_data
 
@@ -29,6 +31,7 @@ if TYPE_CHECKING:
 
 _ENTITY_FIELDS = {
     "trigger_entities",
+    "presence_entities",
     "control_entities",
     "state_entities",
     "override_entities",
@@ -36,12 +39,21 @@ _ENTITY_FIELDS = {
 }
 _STATE_LIST_FIELDS = {
     "trigger_on_states",
+    "presence_on_states",
+    "presence_off_states",
     "trigger_off_states",
     "state_on_states",
     "state_off_states",
     "override_on_states",
     "override_off_states",
     "state_attributes_ignore",
+}
+# Light service fields cannot be forwarded to switch/fan turn services.
+_LIGHT_ONLY_FIELDS = {
+    "brightness", "brightness_pct", "brightness_step", "brightness_step_pct",
+    "color_temp", "color_temp_kelvin", "kelvin", "hs_color", "rgb_color",
+    "rgbw_color", "rgbww_color", "xy_color", "color_name", "white",
+    "flash", "effect", "transition",
 }
 _OFF_STATES = {"off", "unavailable", "unknown", ""}
 
@@ -66,6 +78,15 @@ class EntityControllerManager:
             Callable[[str, str, ControllerRuntime | None], None]
         ] = set()
         self.contexts = ContextTracker()
+        # original/last owned values, per controller and light; pending off lights
+        # remain observed until ON. These are deliberately not persisted.
+        self._light_profiles: dict[str, dict[str, dict[str, Any]]] = {}
+        self._pending_light_restore: set[tuple[str, str]] = set()
+        self._lifecycle_tasks: dict[str, asyncio.Task[Any]] = {}
+        self._original_output_states: dict[str, dict[str, tuple[str, dict[str, Any]]]] = {}
+        self._output_session_open: set[str] = set()
+        self._output_session_started: dict[str, datetime | None] = {}
+        self._manual_output_sessions: set[str] = set()
         self._remove_time_listener: Callable[[], None] | None = None
         if now is None:
             from homeassistant.util import dt as dt_util
@@ -120,6 +141,9 @@ class EntityControllerManager:
                 else None
             ),
             state_persistor=self._async_persist_runtime_state,
+            session_finisher=partial(self._async_release_light_profile, config.subentry_id),
+            session_discarder=partial(self._discard_light_profile, config.subentry_id),
+            lifecycle_executor=partial(self._async_execute_lifecycle, config.subentry_id),
         )
         self.controllers[config.subentry_id] = runtime
         self._subentry_fingerprints[config.subentry_id] = self._fingerprint(subentry)
@@ -133,7 +157,7 @@ class EntityControllerManager:
     async def async_remove_controller(self, subentry_id: str) -> None:
         """Remove one controller and all callbacks it registered."""
 
-        runtime = self.controllers.pop(subentry_id, None)
+        runtime = self.controllers.get(subentry_id)
         for remove in self._remove_callbacks.pop(subentry_id, ()):
             remove()
         self.controller_errors.pop(subentry_id, None)
@@ -141,6 +165,9 @@ class EntityControllerManager:
         if runtime is not None:
             self._notify_controller_listeners("removed", subentry_id, runtime)
             await runtime.async_stop()
+        self.controllers.pop(subentry_id, None)
+        self._light_profiles.pop(subentry_id, None)
+        self._pending_light_restore = {item for item in self._pending_light_restore if item[0] != subentry_id}
 
     async def async_update_controller(self, subentry: Any) -> ControllerRuntime:
         """Hot-update one controller runtime from updated subentry data."""
@@ -149,6 +176,7 @@ class EntityControllerManager:
         if runtime is None:
             return await self.async_add_controller(subentry)
 
+        self._discard_light_profile(subentry.subentry_id)
         was_active_timer = runtime.state is ControllerState.ACTIVE_TIMER
         was_constrained = runtime.state is ControllerState.CONSTRAINED
         for remove in self._remove_callbacks.pop(subentry.subentry_id, ()):
@@ -161,11 +189,13 @@ class EntityControllerManager:
             if snapshot.constrained:
                 await runtime.async_reconcile(ReconcileReason.RECONFIGURE, snapshot)
             else:
-                await runtime.async_resume_after_constraint(snapshot)
+                await runtime.async_reconcile(ReconcileReason.RECONFIGURE, snapshot)
         elif runtime.state is ControllerState.ACTIVE_TIMER or (
             was_active_timer and runtime.state is ControllerState.IDLE
         ):
             snapshot = self._snapshot(runtime.config, enabled=runtime.enabled)
+            runtime.active_presence_entities = snapshot.active_presence_entities
+            runtime.presence_active = bool(snapshot.active_presence_entities)
             if (
                 not snapshot.enabled
                 or snapshot.constrained
@@ -244,6 +274,9 @@ class EntityControllerManager:
         if runtime is None:
             return
         config = runtime.config
+        if behavior is TransitionBehavior.RESTORE:
+            await self._async_restore_outputs(subentry_id)
+            return
         if behavior.value not in {"on", "off"} or not config.control_entities:
             return
         service_data: dict[str, Any] = dict(
@@ -262,13 +295,234 @@ class EntityControllerManager:
                 by_domain[domain].append(entity_id)
         context = self.contexts.new_action_context(None)
         for domain, entity_ids in by_domain.items():
-            await self.hass.services.async_call(
-                domain,
-                f"turn_{behavior.value}",
-                {"entity_id": entity_ids, **service_data},
-                blocking=True,
-                context=context,
-            )
+            domain_data = {
+                key: value for key, value in service_data.items()
+                if (domain == "light" or key not in _LIGHT_ONLY_FIELDS)
+                and (domain == "fan" or key != "percentage")
+            }
+            previous_profiles = {
+                entity_id: deepcopy(self._light_profiles.get(subentry_id, {}).get(entity_id))
+                for entity_id in entity_ids
+            }
+            if domain == "light" and behavior.value == "on":
+                for entity_id in entity_ids:
+                    self._capture_light_profile(subentry_id, entity_id, domain_data)
+            try:
+                await self.hass.services.async_call(
+                    domain,
+                    f"turn_{behavior.value}",
+                    {"entity_id": entity_ids, **domain_data},
+                    blocking=True,
+                    context=context,
+                )
+            except Exception as err:
+                self.controller_errors[subentry_id] = f"{domain}.turn_{behavior.value}: {err}"
+                runtime.last_action_result = "failed"
+                runtime.last_action_error = str(err)
+                if behavior.value == "on":
+                    for entity_id in entity_ids:
+                        old_profile = previous_profiles[entity_id]
+                        profiles = self._light_profiles.get(subentry_id, {})
+                        if old_profile is None:
+                            profiles.pop(entity_id, None)
+                        else:
+                            profiles[entity_id] = old_profile
+                        self._original_output_states.get(subentry_id, {}).pop(entity_id, None)
+                    runtime.snapshot_held = bool(self._original_output_states.get(subentry_id))
+
+    async def _async_execute_lifecycle(self, subentry_id: str, key: str) -> bool:
+        runtime = self.controllers.get(subentry_id)
+        if runtime is None:
+            return False
+        sequence = runtime.config.lifecycle_actions.get(key)
+        behavior = runtime.config.transition_behaviors.get(key, TransitionBehavior.IGNORE)
+        if key == "on_enter_active" and (sequence or behavior is TransitionBehavior.ON):
+            self._original_output_states[subentry_id] = {
+                entity_id: (state.state, dict(state.attributes or {}))
+                for entity_id in runtime.config.control_entities
+                if (state := self.hass.states.get(entity_id)) is not None
+            }
+            self._output_session_open.add(subentry_id)
+            self._output_session_started[subentry_id] = runtime.last_transition_at
+            self._manual_output_sessions.discard(subentry_id)
+            runtime.snapshot_held = True
+        elif key.startswith("on_enter_") and key != "on_enter_active":
+            self._original_output_states.pop(subentry_id, None)
+            runtime.snapshot_held = False
+        if not sequence:
+            return False
+        from .lifecycle import async_execute_sequence
+
+        task = asyncio.create_task(async_execute_sequence(
+            self.hass, sequence, name=f"EC {runtime.config.name}: {key}",
+            context=self.contexts.new_action_context(None),
+            variables={"controller_id": subentry_id, "controller_name": runtime.config.name, "night_active": runtime.night_active},
+        ))
+        self._lifecycle_tasks[subentry_id] = task
+        runtime.last_action_hook = key
+        runtime.last_action_result = "running"
+        runtime.last_action_error = None
+        try:
+            await task
+            runtime.last_action_result = "completed"
+        except asyncio.CancelledError:
+            runtime.last_action_result = "cancelled"
+            if not task.cancelled():
+                raise
+        except Exception as err:
+            self.controller_errors[subentry_id] = f"{key}: {err}"
+            runtime.last_action_result = "failed"
+            runtime.last_action_error = str(err)
+        finally:
+            if self._lifecycle_tasks.get(subentry_id) is task:
+                self._lifecycle_tasks.pop(subentry_id, None)
+        return True
+
+    async def _async_restore_outputs(self, subentry_id: str) -> None:
+        runtime = self.controllers.get(subentry_id)
+        if runtime is None or subentry_id in self._manual_output_sessions or runtime.transition_cause_in_progress is TransitionCause.MANUAL_CONTROL:
+            self._original_output_states.pop(subentry_id, None)
+            if runtime is not None:
+                runtime.snapshot_held = False
+            return
+        runtime.snapshot_held = False
+        originals = self._original_output_states.pop(subentry_id, {})
+        for entity_id, (original_state, attributes) in originals.items():
+            current = self.hass.states.get(entity_id)
+            if current is None or original_state not in {"on", "off"} or current.state not in {"on", "off"}:
+                self.controller_errors[subentry_id] = f"Restore skipped unavailable or unknown output: {entity_id}"
+                continue
+            domain = entity_id.partition(".")[0]
+            data: dict[str, Any] = {"entity_id": [entity_id]}
+            if domain == "light" and original_state == "on":
+                values = self._light_values(attributes)
+                if values.get("brightness") is not None:
+                    data["brightness"] = values["brightness"]
+                color_key = {"hs": "hs_color", "xy": "xy_color", "rgb": "rgb_color", "rgbw": "rgbw_color", "rgbww": "rgbww_color"}.get(values.get("color_mode"), "color_temp_kelvin")
+                if values.get(color_key) is not None:
+                    data[color_key] = values[color_key]
+            if domain == "fan" and original_state == "on" and attributes.get("percentage") is not None:
+                data["percentage"] = attributes["percentage"]
+            if domain == "light" and original_state == "on" and attributes.get("effect") in (attributes.get("effect_list") or ()):
+                data["effect"] = attributes["effect"]
+            current_values = self._light_values(current.attributes)
+            if current.state == original_state and all(current_values.get(key) == value for key, value in data.items() if key != "entity_id"):
+                continue
+            try:
+                await self.hass.services.async_call(domain, f"turn_{original_state}", data, blocking=True, context=self.contexts.new_action_context(None))
+            except Exception as err:
+                self.controller_errors[subentry_id] = f"Restore failed for {entity_id}: {err}"
+
+    def _discard_light_profile(self, subentry_id: str) -> None:
+        runtime = self.controllers.get(subentry_id)
+        if runtime is not None:
+            runtime.snapshot_held = False
+        task = self._lifecycle_tasks.pop(subentry_id, None)
+        if task is not None:
+            task.cancel()
+        self._light_profiles.pop(subentry_id, None)
+        self._original_output_states.pop(subentry_id, None)
+        self._output_session_started.pop(subentry_id, None)
+        self._manual_output_sessions.discard(subentry_id)
+        self._output_session_open.discard(subentry_id)
+        self._pending_light_restore = {item for item in self._pending_light_restore if item[0] != subentry_id}
+
+    @staticmethod
+    def _light_values(attributes: Any) -> dict[str, Any]:
+        values = dict(attributes or {})
+        if values.get("color_temp_kelvin") is None and values.get("color_temp"):
+            values["color_temp_kelvin"] = round(1000000 / values["color_temp"])
+        return values
+
+    def _capture_light_profile(self, subentry_id: str, entity_id: str, data: dict[str, Any]) -> None:
+        state = self.hass.states.get(entity_id)
+        if state is None:
+            return
+        values = self._light_values(state.attributes)
+        changes = {}
+        if "brightness" in data:
+            changes["brightness"] = data["brightness"]
+        elif "brightness_pct" in data:
+            changes["brightness"] = round(float(data["brightness_pct"]) * 255 / 100)
+        kelvin = data.get("color_temp_kelvin", data.get("kelvin"))
+        if kelvin is None and data.get("color_temp"):
+            kelvin = round(1000000 / data["color_temp"])
+        if kelvin is not None:
+            changes["color_temp_kelvin"] = kelvin
+        profiles = self._light_profiles.setdefault(subentry_id, {})
+        profile = profiles.setdefault(entity_id, {"original": {}, "owned": {}})
+        for key, value in changes.items():
+            if key == "color_temp_kelvin":
+                original_key = {
+                    "hs": "hs_color", "xy": "xy_color", "rgb": "rgb_color",
+                    "rgbw": "rgbw_color", "rgbww": "rgbww_color",
+                }.get(values.get("color_mode"), key)
+            else:
+                original_key = key
+            if original_key in values and values[original_key] is not None:
+                profile["original"].setdefault(key, (original_key, values[original_key]))
+                profile["owned"][key] = value
+        self._pending_light_restore.discard((subentry_id, entity_id))
+
+    def _relinquish_changed_light_fields(self, subentry_id: str, entity_id: str, event: Any) -> None:
+        profile = self._light_profiles.get(subentry_id, {}).get(entity_id)
+        if not profile:
+            return
+        event_data = event if isinstance(event, dict) else event.data
+        state = event_data.get("new_state")
+        if state is None:
+            return
+        values = self._light_values(state.attributes)
+        for key, owned in tuple(profile["owned"].items()):
+            # Many devices omit attributes while off: omission is not a manual edit.
+            if key in values and values[key] is not None and values[key] != owned:
+                profile["owned"].pop(key)
+            elif key == "color_temp_kelvin" and state.state == "on" and values.get("color_mode") not in (None, "color_temp"):
+                profile["owned"].pop(key)
+
+    async def _async_release_light_profile(self, subentry_id: str) -> None:
+        runtime = self.controllers.get(subentry_id)
+        started = self._output_session_started.get(subentry_id)
+        if runtime is not None and runtime.manual_control_at is not None and started is not None and runtime.manual_control_at >= started:
+            self._manual_output_sessions.add(subentry_id)
+            self._original_output_states.pop(subentry_id, None)
+            runtime.snapshot_held = False
+        task = self._lifecycle_tasks.pop(subentry_id, None)
+        if task is not None and not task.done():
+            task.cancel()
+        self._output_session_open.discard(subentry_id)
+        for entity_id in tuple(self._light_profiles.get(subentry_id, {})):
+            await self._async_restore_light(subentry_id, entity_id)
+
+    async def _async_restore_light(self, subentry_id: str, entity_id: str) -> None:
+        profiles = self._light_profiles.get(subentry_id, {})
+        profile = profiles.get(entity_id)
+        if profile is None:
+            return
+        state = self.hass.states.get(entity_id)
+        if state is None or state.state != "on":
+            self._pending_light_restore.add((subentry_id, entity_id))
+            return
+        values = self._light_values(state.attributes)
+        data = {}
+        for key, owned in profile["owned"].items():
+            if values.get(key) != owned:
+                continue
+            if key == "color_temp_kelvin" and values.get("color_mode") not in (None, "color_temp"):
+                continue
+            original_key, original = profile["original"][key]
+            data[original_key] = original
+        # Remove before the service call: own state events can re-enter listeners.
+        profiles.pop(entity_id, None)
+        self._pending_light_restore.discard((subentry_id, entity_id))
+        if data:
+            try:
+                await self.hass.services.async_call(
+                    "light", "turn_on", {"entity_id": [entity_id], **data},
+                    blocking=True, context=self.contexts.new_action_context(None),
+                )
+            except Exception as err:
+                self.controller_errors[subentry_id] = f"Profile restore failed for {entity_id}: {err}"
 
     async def _async_persist_runtime_state(self, runtime: ControllerRuntime) -> None:
         """Persist controller-owned switches in the entry or legacy subentry."""
@@ -324,12 +578,7 @@ class EntityControllerManager:
         if "sensor_type" in data:
             data["sensor_type"] = SensorType(data["sensor_type"])
         if "transition_behaviors" in data:
-            transition_behaviors = dict(DEFAULT_TRANSITION_BEHAVIORS)
-            transition_behaviors.update({
-                key: TransitionBehavior(value)
-                for key, value in dict(data["transition_behaviors"]).items()
-            })
-            data["transition_behaviors"] = transition_behaviors
+            data["transition_behaviors"] = normalize_transition_behaviors(data["transition_behaviors"])
         if "enabled" in data:
             data["enabled_default"] = bool(data.pop("enabled"))
         if "stay_mode" in data:
@@ -344,6 +593,8 @@ class EntityControllerManager:
             removers.append(
                 self._track_state(entity_id, self._trigger_listener(runtime))
             )
+        for entity_id in config.presence_entities:
+            removers.append(self._track_state(entity_id, self._presence_listener(runtime)))
         for entity_id in (*config.control_entities, *config.state_entities):
             removers.append(self._track_state(entity_id, self._state_listener(runtime)))
         for entity_id in config.override_entities:
@@ -389,6 +640,23 @@ class EntityControllerManager:
 
         return _handle
 
+    def _presence_listener(self, runtime: ControllerRuntime) -> Callable[[Any], Any]:
+        async def _handle(event: Any) -> None:
+            entity_id = self._event_entity_id(event)
+            if self._event_matches(event, runtime.config.presence_on_states):
+                active = set(runtime.active_presence_entities)
+                active.add(entity_id)
+            elif self._event_matches(event, runtime.config.presence_off_states):
+                active = set(runtime.active_presence_entities)
+                active.discard(entity_id)
+            else:
+                return  # Unknown/unavailable is not an explicit vacancy event.
+            runtime.active_presence_entities = tuple(
+                candidate for candidate in runtime.config.presence_entities if candidate in active
+            )
+            await runtime.async_handle_presence_change(entity_id, is_active=bool(active))
+        return _handle
+
     async def _async_refresh_time_windows(self, runtime: ControllerRuntime) -> None:
         """Refresh constraint and day/night profile before processing an event."""
 
@@ -407,7 +675,7 @@ class EntityControllerManager:
                 sunset=sunset,
             )
         )
-        runtime.night_active = bool(
+        night_active = bool(
             runtime.config.night_mode
             and window_is_active_from_data(
                 dict(runtime.config.night_mode),
@@ -416,6 +684,9 @@ class EntityControllerManager:
                 sunset=sunset,
             )
         )
+        if runtime.night_active != night_active:
+            await self._async_release_light_profile(runtime.config.subentry_id)
+        runtime.night_active = night_active
         was_constrained = runtime.constrained
         runtime.constrained = constrained
         if constrained and (
@@ -445,6 +716,12 @@ class EntityControllerManager:
 
     def _state_listener(self, runtime: ControllerRuntime) -> Callable[[Any], Any]:
         async def _handle(event: Any) -> None:
+            entity_id = self._event_entity_id(event)
+            context = self._event_context(event)
+            if not self.contexts.is_own_context(context):
+                self._relinquish_changed_light_fields(runtime.config.subentry_id, entity_id, event)
+            if (runtime.config.subentry_id, entity_id) in self._pending_light_restore:
+                await self._async_restore_light(runtime.config.subentry_id, entity_id)
             if self._only_ignored_attributes_changed(
                 event, runtime.config.state_attributes_ignore
             ):
@@ -477,9 +754,18 @@ class EntityControllerManager:
                 entity_id,
                 is_on=is_on or other_is_on,
                 is_own_context=self.contexts.is_own_context(context),
+                manual_control_kind=self._manual_event_kind(event),
             )
 
         return _handle
+
+    @staticmethod
+    def _manual_event_kind(event: Any) -> str:
+        data = event if isinstance(event, dict) else event.data
+        old, new = data.get("old_state"), data.get("new_state")
+        if old is not None and new is not None and old.state == new.state:
+            return "manual_attribute_change"
+        return "manual_on" if new is not None and new.state == "on" else "manual_off"
 
     @staticmethod
     def _only_ignored_attributes_changed(
@@ -564,6 +850,8 @@ class EntityControllerManager:
         self, config: ControllerConfig, *, enabled: bool = True
     ) -> ReconcileSnapshot:
         now = self._now()
+        observed_runtime = self.controllers.get(config.subentry_id)
+        previous_presence = set(observed_runtime.active_presence_entities) if observed_runtime is not None else set()
         sunrise, sunset = self._sun_events(
             now,
             config.constraint_window,
@@ -606,6 +894,12 @@ class EntityControllerManager:
                 for entity_id in (*config.state_entities, *config.control_entities)
             ),
             night_active=night_active,
+            active_presence_entities=tuple(
+                entity_id
+                for entity_id in config.presence_entities
+                if self._entity_matches(entity_id, config.presence_on_states)
+                or (entity_id in previous_presence and not self._entity_matches(entity_id, config.presence_off_states))
+            ),
             active_overrides=tuple(
                 entity_id
                 for entity_id in config.override_entities

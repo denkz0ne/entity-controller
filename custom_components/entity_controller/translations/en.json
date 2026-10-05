@@ -13,7 +13,11 @@
               "icon": "Icon",
               "trigger_entities": "Trigger entities",
               "control_entities": "Control entities",
-              "delay_seconds": "Day delay in seconds"
+              "delay_seconds": "Day delay in seconds",
+              "presence_entities": "Presence / hold sensors"
+            },
+            "data_description": {
+              "presence_entities": "Do not activate the room. Hold an already active controller while presence is detected. After the final sensor clears, the normal vacancy delay begins."
             }
           },
           "timer": {
@@ -36,12 +40,16 @@
             "data": {
               "state_entities": "State entities",
               "blocking_enabled": "Block on manual control",
-              "block_timeout_seconds": "Block timeout (0 = no timeout)"
+              "block_timeout_seconds": "Block timeout (0 = no timeout)",
+              "protect_manual_off": "Protect manual OFF",
+              "protect_manual_on": "Protect manual ON and adjustments"
             },
             "data_description": {
               "state_entities": "Optional extra entities used to observe the real state. Controlled entities are observed automatically.",
               "blocking_enabled": "Manual changes outside EC put the controller into Blocked instead of immediately overwriting them.",
-              "block_timeout_seconds": "Zero disables the timeout. Active interlocks stay blocked until cleared."
+              "block_timeout_seconds": "Zero disables the timeout. Active interlocks stay blocked until cleared.",
+              "protect_manual_off": "After an external OFF, wait until the room clears so another trigger does not immediately turn it back on.",
+              "protect_manual_on": "Preserve external ON, brightness, color and other significant adjustments during the current activity session."
             }
           },
           "rules": {
@@ -105,9 +113,13 @@
               "on_enter_constrained": "When entering constrained",
               "on_exit_constrained": "When leaving constrained",
               "on_enter_blocked": "When entering blocked",
-              "on_exit_blocked": "When leaving blocked"
+              "on_exit_blocked": "When leaving blocked",
+              "lifecycle_actions": "Custom HA actions by lifecycle hook"
             },
-            "description": "Defines what EC does while entering or leaving states. By default it turns on on activation and off on return to idle."
+            "description": "Defines what EC does while entering or leaving states. By default it turns on on activation and off on return to idle.",
+            "data_description": {
+              "lifecycle_actions": "Map a lifecycle hook (such as on_enter_active) to a native HA action sequence. Scenes can be applied with scene.turn_on."
+            }
           },
           "advanced": {
             "name": "Advanced state mapping",
@@ -118,7 +130,9 @@
               "state_off_states": "Controlled entity OFF states",
               "override_on_states": "Override active states",
               "override_off_states": "Override inactive states",
-              "state_attributes_ignore": "Ignored state attributes"
+              "state_attributes_ignore": "Ignored state attributes",
+              "presence_on_states": "Presence active states",
+              "presence_off_states": "Presence inactive states"
             },
             "description": "Values in neither list are neutral and leave the current condition unchanged. Unknown, unavailable, and transitional states count only when listed."
           }
@@ -145,7 +159,11 @@
               "icon": "Icon",
               "trigger_entities": "Trigger entities",
               "control_entities": "Control entities",
-              "delay_seconds": "Day delay in seconds"
+              "delay_seconds": "Day delay in seconds",
+              "presence_entities": "Presence / hold sensors"
+            },
+            "data_description": {
+              "presence_entities": "Do not activate the room. Hold an already active controller while presence is detected. After the final sensor clears, the normal vacancy delay begins."
             }
           },
           "timer": {
@@ -168,12 +186,16 @@
             "data": {
               "state_entities": "State entities",
               "blocking_enabled": "Block on manual control",
-              "block_timeout_seconds": "Block timeout (0 = no timeout)"
+              "block_timeout_seconds": "Block timeout (0 = no timeout)",
+              "protect_manual_off": "Protect manual OFF",
+              "protect_manual_on": "Protect manual ON and adjustments"
             },
             "data_description": {
               "state_entities": "Optional extra entities used to observe the real state. Controlled entities are observed automatically.",
               "blocking_enabled": "Manual changes outside EC put the controller into Blocked instead of immediately overwriting them.",
-              "block_timeout_seconds": "Zero disables the timeout. Active interlocks stay blocked until cleared."
+              "block_timeout_seconds": "Zero disables the timeout. Active interlocks stay blocked until cleared.",
+              "protect_manual_off": "After an external OFF, wait until the room clears so another trigger does not immediately turn it back on.",
+              "protect_manual_on": "Preserve external ON, brightness, color and other significant adjustments during the current activity session."
             }
           },
           "rules": {
@@ -230,9 +252,13 @@
               "on_enter_constrained": "When entering constrained",
               "on_exit_constrained": "When leaving constrained",
               "on_enter_blocked": "When entering blocked",
-              "on_exit_blocked": "When leaving blocked"
+              "on_exit_blocked": "When leaving blocked",
+              "lifecycle_actions": "Custom HA actions by lifecycle hook"
             },
-            "description": "Defines what EC does while entering or leaving states. By default it turns on on activation and off on return to idle."
+            "description": "Defines what EC does while entering or leaving states. By default it turns on on activation and off on return to idle.",
+            "data_description": {
+              "lifecycle_actions": "Map a lifecycle hook (such as on_enter_active) to a native HA action sequence. Scenes can be applied with scene.turn_on."
+            }
           },
           "advanced": {
             "name": "Advanced state mapping",
@@ -243,7 +269,9 @@
               "state_off_states": "Controlled entity OFF states",
               "override_on_states": "Override active states",
               "override_off_states": "Override inactive states",
-              "state_attributes_ignore": "Ignored state attributes"
+              "state_attributes_ignore": "Ignored state attributes",
+              "presence_on_states": "Presence active states",
+              "presence_off_states": "Presence inactive states"
             },
             "description": "Values in neither list are neutral and leave the current condition unchanged. Unknown, unavailable, and transitional states count only when listed."
           }
@@ -269,7 +297,9 @@
       "options": {
         "on": "Turn on",
         "off": "Turn off",
-        "ignore": "Do nothing"
+        "ignore": "Do nothing",
+        "custom": "Custom HA action",
+        "restore": "Restore previous state"
       }
     }
   },

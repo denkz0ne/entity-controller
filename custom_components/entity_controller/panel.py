@@ -17,7 +17,7 @@ from .schedule import resolve_schedule_point, schedule_point_from_data
 
 PANEL_URL = "entity-controller"
 PANEL_JS = "/entity_controller/entity-controller-panel.js"
-PANEL_JS_VERSION = "10.5.0"
+PANEL_JS_VERSION = "10.6.0"
 _PANEL_DATA_KEY = "entity_controller_panel"
 _PANEL_SAVE_SCHEMA = {
     vol.Required("type"): "entity_controller/panel/save",
@@ -43,6 +43,18 @@ def _resolved_schedule(hass: Any, data: dict[str, Any]) -> dict[str, dict[str, i
 
     now = dt_util.now()
     result: dict[str, dict[str, int]] = {}
+    events: dict[str, datetime | None] = {"sunrise": None, "sunset": None}
+    for source, event in (("sunrise", SUN_EVENT_SUNRISE), ("sunset", SUN_EVENT_SUNSET)):
+        try:
+            events[source] = get_astral_event_date(hass, event, now.date())
+        except (ValueError, TypeError):
+            pass
+    solar = {
+        source: dt_util.as_local(at).hour * 60 + dt_util.as_local(at).minute
+        for source, at in events.items() if at is not None
+    }
+    if solar:
+        result["solar"] = solar
     for name, window in (
         ("constraint", data.get("constraint_window")),
         ("night", data.get("night_mode")),
@@ -50,13 +62,6 @@ def _resolved_schedule(hass: Any, data: dict[str, Any]) -> dict[str, dict[str, i
         if not window:
             continue
         points = {side: schedule_point_from_data(dict(window[side])) for side in ("start", "end")}
-        events: dict[str, datetime | None] = {"sunrise": None, "sunset": None}
-        for source, event in (("sunrise", SUN_EVENT_SUNRISE), ("sunset", SUN_EVENT_SUNSET)):
-            if any(point.source.value == source for point in points.values()):
-                try:
-                    events[source] = get_astral_event_date(hass, event, now.date())
-                except (ValueError, TypeError):
-                    pass
         resolved: dict[str, int] = {}
         for side, point in points.items():
             try:
@@ -206,6 +211,10 @@ def serialize_controllers(hass: Any) -> list[dict[str, Any]]:
                     ),
                     "last_triggered_at": getattr(runtime, "last_triggered_at", None),
                     "effective_delay_seconds": getattr(runtime, "effective_delay_seconds", None),
+                    "night_active": getattr(runtime, "night_active", False),
+                    "presence_active": getattr(runtime, "presence_active", False),
+                    "active_presence_entities": list(getattr(runtime, "active_presence_entities", ()) or ()),
+                    "timer_expired_pending_sensor": getattr(runtime, "timer_expired_pending_sensor", False),
                     "expires_at": getattr(runtime, "expires_at", None),
                     "block_expires_at": getattr(runtime, "block_expires_at", None),
                     "next_transition_at": (

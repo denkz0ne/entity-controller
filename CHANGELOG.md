@@ -2,6 +2,42 @@
 
 All notable changes to Entity Controller v10 are documented here.
 
+<a name="10.6.0"></a>
+## 10.6.0 (2026-10-05)
+
+### Controller settings and lighting
+
+- Compact responsive Basic settings with a running/draft decision summary,
+  remaining activity time, active profile and graphical day/night parameters.
+- Brightness and Kelvin sliders with exact numeric input, colour picker, common
+  effects, transitions and fan percentage; keep untouched legacy/unknown values.
+- Temporary light profiles restore owned original attributes without turning
+  OFF lights ON or overwriting manual changes. Explicit activity-end Restore
+  restores the original output state; manual takeover always wins.
+- Independent presence/hold inputs keep an already active room occupied and
+  restart the vacancy delay after the last sensor clears.
+- Manual OFF/ON/attribute takeover lasts until the room clears, with distinct
+  reasons and configurable protection.
+- Scenes and native Home Assistant action sequences on lifecycle hooks, bounded
+  execution, cancellation and side-effect-free reconfiguration.
+- Advanced settings use compact cards and question-mark explanations.
+
+### Fixes
+
+- Entity/icon searches actually hide non-matching results. Entity results use
+  two lines; empty results and keyboard navigation are explicit.
+- Removing selected entities preserves expanded settings sections.
+- Solar source and offset draft previews use actual HA sunrise/sunset data;
+  exact clock positions no longer round to the range step.
+- Mixed output domains receive only applicable light/fan parameters and one
+  failed domain does not prevent remaining domains from executing.
+- Replace the older navy icon with the selected cyan C and two white dots.
+  HA local branding is included; HACS 2.0.5 still uses the old upstream brands
+  CDN and requires the corresponding upstream HACS fix.
+
+Existing controllers retain explicit transition choices; only the legacy default
+shutdown pair is canonicalized. Saving remains explicit: **Uložiť / Zavrieť**.
+
 <a name="10.5.0"></a>
 ## 10.5.0 (2026-10-05)
 
