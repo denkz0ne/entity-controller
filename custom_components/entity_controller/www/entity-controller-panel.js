@@ -131,9 +131,8 @@ class EntityControllerPanel extends HTMLElement {
   }
 
   _dayRange() {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    return { start, end: new Date(start.getTime() + WINDOW_MS) };
+    const end = new Date();
+    return { start: new Date(end.getTime() - WINDOW_MS), end };
   }
 
   async _loadHistory() {
@@ -147,10 +146,11 @@ class EntityControllerPanel extends HTMLElement {
           start_time: start.toISOString(),
           end_time: end.toISOString(),
           entity_ids: [controller.state_entity_id],
-          minimal_response: true,
+          minimal_response: false,
           no_attributes: true,
         });
-        this.history.set(controller.id, result?.[0] || []);
+        const records = Array.isArray(result) ? result[0] : result?.states;
+        this.history.set(controller.id, Array.isArray(records) ? records : []);
         this.historyErrors.delete(controller.id);
       } catch (error) {
         this.history.set(controller.id, null);
@@ -221,8 +221,7 @@ class EntityControllerPanel extends HTMLElement {
   _timeline(controller) {
     const history = this.history.get(controller.id);
     const { start, end } = this._dayRange();
-    const now = Date.now();
-    const chartEnd = Math.min(now, end.getTime());
+    const chartEnd = end.getTime();
     const entries = [...(history || [])]
       .filter((entry) => entry?.last_changed && Number.isFinite(new Date(entry.last_changed).getTime()))
       .map((entry) => ({ state: String(entry.state), last_changed: entry.last_changed }));
@@ -260,7 +259,8 @@ class EntityControllerPanel extends HTMLElement {
       return '<i class="tick" style="left:' + position + '%"></i>';
     }).join("");
     const labels = Array.from({ length: 13 }, (_, index) => {
-      const label = String(index * 2).padStart(2, "0") + ":00";
+      const offset = (index - 12) * 2;
+      const label = offset === 0 ? "0" : offset + "h";
       return '<span>' + label + '</span>';
     }).join("");
     return '<div class="timeline-wrap"><div class="timeline" role="img" aria-label="Stavový priebeh počas dňa" ' +

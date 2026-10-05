@@ -201,3 +201,35 @@ def test_native_scroll_has_finite_height_without_parent_height(page):
     page.locator(".chip").first.hover()
     page.mouse.wheel(0, 400)
     page.wait_for_function("scroller.scrollTop > 100")
+
+
+def test_timeline_loads_recorder_states_on_a_rolling_offset_axis(page):
+    page.evaluate(
+        """async () => {
+          const now = Date.now();
+          const calls = [];
+          panel.hass = {
+            ...panel.hass,
+            callWS: async (message) => {
+              calls.push(message);
+              return [[{
+                state: "active_timer",
+                last_changed: new Date(now - 60 * 60 * 1000).toISOString(),
+              }]];
+            },
+          };
+          panel.history.set("controller-0", []);
+          await panel._loadHistory();
+          window.timelineCalls = calls;
+        }"""
+    )
+    assert page.locator(".timeline-axis span").all_text_contents() == [
+        "-24h", "-22h", "-20h", "-18h", "-16h", "-14h", "-12h",
+        "-10h", "-8h", "-6h", "-4h", "-2h", "0",
+    ]
+    assert page.locator(".timeline").first.get_attribute("style").find(
+        "#28bd57"
+    ) >= 0
+    history_call = page.evaluate("timelineCalls[0]")
+    assert history_call["minimal_response"] is False
+    assert history_call["end_time"] > history_call["start_time"]

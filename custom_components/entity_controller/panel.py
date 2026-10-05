@@ -16,7 +16,7 @@ from .schedule import resolve_schedule_point, schedule_point_from_data
 
 PANEL_URL = "entity-controller"
 PANEL_JS = "/entity_controller/entity-controller-panel.js"
-PANEL_JS_VERSION = "10.0.0-rc.10"
+PANEL_JS_VERSION = "10.0.0-timeline.1"
 _PANEL_DATA_KEY = "entity_controller_panel"
 
 
