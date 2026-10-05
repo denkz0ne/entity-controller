@@ -9,5 +9,6 @@
   "issue_tracker": "https://github.com/denkz0ne/entity-controller/issues",
   "requirements": [],
   "after_dependencies": ["frontend", "http", "websocket_api", "light", "script"],
-  "version": "10.1.0"
+  "version": "10.2.0"
 }
+
