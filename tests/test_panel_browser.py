@@ -324,7 +324,7 @@ def test_editor_uses_compact_cards_and_searchable_entity_chips(page):
     assert page.locator('[data-field="delay_seconds"]').get_attribute("type") == "range"
     assert page.locator('[data-picker-toggle="basic.trigger_entities"]').is_visible()
 
-    page.locator('[data-picker="basic.trigger_entities"]').click()
+    page.locator('[data-picker-toggle="basic.trigger_entities"]').click()
     search = page.locator('[data-entity-search="basic.trigger_entities"]')
     search.fill("front door")
     page.locator('[data-entity-option="binary_sensor.front_door"]').click()
