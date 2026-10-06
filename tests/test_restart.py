@@ -47,6 +47,17 @@ async def test_active_session_resumes_original_deadline_with_motion_off():
     await hass.fire_state_change("binary_sensor.motion", "off", old_state="on")
     deadline = runtime.expires_at
     await manager.async_unload()
+    after, restored_manager, restored = await setup(
+        {"binary_sensor.motion": "off", "light.hall": "on"}, store,
+    )
+    assert restored.state is ControllerState.ACTIVE_TIMER
+    assert restored.expires_at == deadline
+    assert restored.restart_restore_status == "matched"
+    assert after.service_calls == []
+    await restored.async_handle_timer_expired()
+    assert restored.state is ControllerState.IDLE
+    assert any(call[1] == "turn_off" for call in after.service_calls)
+    await restored_manager.async_unload()
 
 
 @pytest.mark.asyncio
@@ -73,17 +84,6 @@ async def test_late_initial_output_report_after_grace_is_not_manual_control(monk
     assert runtime.state is ControllerState.BLOCKED
     assert runtime.manual_takeover_pending
     await manager.async_unload()
-    after, restored_manager, restored = await setup(
-        {"binary_sensor.motion": "off", "light.hall": "on"}, store,
-    )
-    assert restored.state is ControllerState.ACTIVE_TIMER
-    assert restored.expires_at == deadline
-    assert restored.restart_restore_status == "matched"
-    assert after.service_calls == []
-    await restored.async_handle_timer_expired()
-    assert restored.state is ControllerState.IDLE
-    assert any(call[1] == "turn_off" for call in after.service_calls)
-    await restored_manager.async_unload()
 
 
 @pytest.mark.asyncio
