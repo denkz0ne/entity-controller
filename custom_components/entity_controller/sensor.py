@@ -51,6 +51,7 @@ class EntityControllerStateSensor(EntityControllerEntity, SensorEntity):
         """Return useful runtime metadata without per-second countdown churn."""
 
         return {
+            "restart_restore_status": getattr(self.runtime, "restart_restore_status", None),
             # Keep the original keys for automations created during early v10 RCs.
             "last_transition": self.runtime.last_transition_at,
             "transition_cause": None
