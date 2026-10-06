@@ -134,7 +134,8 @@ async def test_add_controller_reconciles_control_entity_on_without_forcing_off()
         subentry(control_entities=("light.hall",), state_entities=("light.hall",))
     )
 
-    assert runtime.state is ControllerState.BLOCKED
+    assert runtime.state is ControllerState.IDLE
+    assert runtime.manual_release_ready is True
     assert runtime.last_reconcile_reason.value == "startup"
 
 
@@ -576,7 +577,7 @@ async def test_unmapped_state_entity_does_not_clear_another_mapped_on_entity() -
     await hass.fire_state_change("light.a", "unknown", old_state="on")
 
     assert runtime.state_entities_on is True
-    assert runtime.state is ControllerState.BLOCKED
+    assert runtime.state is ControllerState.IDLE
     assert runtime.active_state_entities == ()
 
     await hass.fire_state_change("light.a", "paused", old_state="unknown")
@@ -599,7 +600,7 @@ async def test_explicit_off_recomputes_state_entity_or_semantics() -> None:
 
     await hass.fire_state_change("light.a", "off", old_state="on")
     assert runtime.state_entities_on is True
-    assert runtime.state is ControllerState.BLOCKED
+    assert runtime.state is ControllerState.IDLE
 
     await hass.fire_state_change("light.b", "off", old_state="on")
     assert runtime.state_entities_on is False

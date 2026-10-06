@@ -24,6 +24,7 @@ from .model import (
     TransitionCause,
     normalize_transition_behaviors,
 )
+from .restart import RestartStateManager
 from .schedule import schedule_at_home_assistant, window_is_active_from_data
 
 if TYPE_CHECKING:
@@ -68,6 +69,7 @@ class EntityControllerManager:
         entry: ConfigEntry[Any],
         *,
         now: Callable[[], datetime] | None = None,
+        runtime_store: Any = None,
     ) -> None:
         self.hass = hass
         self.entry = entry
@@ -95,6 +97,7 @@ class EntityControllerManager:
             now = dt_util.now
         self._now = now
         self._loaded = False
+        self._restart = RestartStateManager(self, runtime_store)
 
     @property
     def is_loaded(self) -> bool:
@@ -106,6 +109,7 @@ class EntityControllerManager:
         """Initialize manager-owned runtime resources."""
 
         self._loaded = True
+        await self._restart.async_load()
         await self.async_sync_subentries()
         if hasattr(self.hass, "bus"):
             from homeassistant.helpers.event import async_track_time_change
@@ -122,6 +126,9 @@ class EntityControllerManager:
     async def async_unload(self) -> None:
         """Release manager-owned runtime resources."""
 
+        await self._restart.async_stop()
+        if self._restart.stop_listener is not None:
+            self._restart.stop_listener()
         for subentry_id in tuple(self.controllers):
             await self.async_remove_controller(subentry_id)
         if self._remove_time_listener is not None:
@@ -150,8 +157,9 @@ class EntityControllerManager:
         self._subentry_fingerprints[config.subentry_id] = self._fingerprint(subentry)
         self.controller_errors.pop(config.subentry_id, None)
         await runtime.async_start()
+        self._restart.prepare(runtime)
         self._register_controller_listeners(runtime)
-        await self._safe_reconcile(runtime, ReconcileReason.STARTUP)
+        await self._restart.async_start(runtime)
         self._notify_controller_listeners("added", config.subentry_id, runtime)
         return runtime
 
@@ -164,6 +172,7 @@ class EntityControllerManager:
         self.controller_errors.pop(subentry_id, None)
         self._subentry_fingerprints.pop(subentry_id, None)
         if runtime is not None:
+            self._restart.remove(runtime)
             self._notify_controller_listeners("removed", subentry_id, runtime)
             await runtime.async_stop()
         self.controllers.pop(subentry_id, None)
@@ -599,21 +608,23 @@ class EntityControllerManager:
     def _register_controller_listeners(self, runtime: ControllerRuntime) -> None:
         config = runtime.config
         removers: list[Callable[[], None]] = []
+        def track(entity_id: str, callback: Any) -> Any:
+            return self._track_state(entity_id, self._restart.guard(runtime, callback))
         for entity_id in config.trigger_entities:
             removers.append(
-                self._track_state(entity_id, self._trigger_listener(runtime))
+                track(entity_id, self._trigger_listener(runtime))
             )
         for entity_id in config.presence_entities:
-            removers.append(self._track_state(entity_id, self._presence_listener(runtime)))
+            removers.append(track(entity_id, self._presence_listener(runtime)))
         for entity_id in (*config.control_entities, *config.state_entities):
-            removers.append(self._track_state(entity_id, self._state_listener(runtime)))
+            removers.append(track(entity_id, self._state_listener(runtime)))
         for entity_id in config.override_entities:
             removers.append(
-                self._track_state(entity_id, self._override_listener(runtime))
+                track(entity_id, self._override_listener(runtime))
             )
         for entity_id in config.interlock_entities:
             removers.append(
-                self._track_state(entity_id, self._interlock_listener(runtime))
+                track(entity_id, self._interlock_listener(runtime))
             )
         self._remove_callbacks[config.subentry_id] = removers
 
