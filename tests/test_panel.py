@@ -187,4 +187,4 @@ def test_panel_lifecycle_registers_once_and_removes_sidebar(monkeypatch):
     )
     assert panel_registration[1]["sidebar_title"] == "Svetlo v tme"
     assert panel_registration[1]["frontend_url_path"] == "entity-controller"
-    assert panel.PANEL_JS_VERSION == "10.7.0"
+    assert panel.PANEL_JS_VERSION == "10.7.0-recorder-history.1"
