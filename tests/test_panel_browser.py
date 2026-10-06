@@ -212,10 +212,12 @@ def test_timeline_loads_recorder_states_on_a_rolling_offset_axis(page):
             ...panel.hass,
             callWS: async (message) => {
               calls.push(message);
-              return [[{
-                state: "active_timer",
-                last_changed: new Date(now - 60 * 60 * 1000).toISOString(),
-              }]];
+              // HA WebSocket history is keyed by entity ID, uses epoch
+              // seconds and omits lc when it equals lu (even with minimal=false).
+              return {[message.entity_ids[0]]: [{
+                s: "active_timer",
+                lu: (now - 60 * 60 * 1000) / 1000,
+              }]};
             },
           };
           panel.history.set("controller-0", []);
@@ -233,6 +235,67 @@ def test_timeline_loads_recorder_states_on_a_rolling_offset_axis(page):
     history_call = page.evaluate("timelineCalls[0]")
     assert history_call["minimal_response"] is False
     assert history_call["end_time"] > history_call["start_time"]
+
+
+def test_timeline_restores_compact_history_after_page_reload(page):
+    recorded = page.evaluate(
+        """() => {
+          const now = Date.now() / 1000;
+          return {
+            "sensor.state_0": [
+              {s: "idle", lu: now - 90000},
+              {s: "active_timer", lu: now - 3600},
+              {s: "blocked", lc: now - 1800, lu: now - 600},
+              {s: "idle", lu: now - 60},
+            ],
+            "sensor.unrelated": [{s: "overridden", lu: now - 90000}],
+          };
+        }"""
+    )
+    for reload_page in (False, True):
+        if reload_page:
+            page.reload()
+            mount_panel(page)
+        page.evaluate(
+            """async (recorded) => {
+              panel.controllers = panel.controllers.slice(0, 1);
+              panel.hass = {...panel.hass, callWS: async () => recorded};
+              await panel._loadHistory();
+            }""",
+            recorded,
+        )
+        style = page.locator(".timeline").first.get_attribute("style")
+        for color in ("#aab2bd", "#28bd57", "#f04452"):
+            assert color in style
+        assert "#9b59d0" not in style
+        assert "#d6dbe0" not in style
+        assert page.evaluate("panel.history.get('controller-0').length") == 4
+        assert page.evaluate(
+            "Date.parse(panel.history.get('controller-0')[2].last_changed) / 1000"
+        ) == pytest.approx(recorded["sensor.state_0"][2]["lc"], abs=0.001)
+
+
+@pytest.mark.parametrize("failure", ("disconnected", "malformed"))
+def test_timeline_keeps_loaded_records_when_history_refresh_fails(page, failure):
+    page.evaluate(
+        """async (failure) => {
+          panel.controllers = panel.controllers.slice(0, 1);
+          const recorded = {"sensor.state_0": [
+            {s: "active_timer", lu: Date.now() / 1000 - 3600},
+          ]};
+          panel.hass = {...panel.hass, callWS: async () => recorded};
+          await panel._loadHistory();
+          panel.hass = {...panel.hass, callWS: async () => {
+            if (failure === "disconnected") throw new Error("Spojenie prerušené");
+            return {"sensor.state_0": [{s: "active_timer"}]};
+          }};
+          await panel._loadHistory();
+        }""",
+        failure,
+    )
+    assert "#28bd57" in page.locator(".timeline").first.get_attribute("style")
+    expect(page.locator(".timeline-error")).to_be_visible()
+    assert page.evaluate("panel.history.get('controller-0').length") == 1
 
 
 def test_admin_config_panel_switches_modes_and_saves_explicitly(page):

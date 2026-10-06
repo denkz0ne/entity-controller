@@ -118,7 +118,10 @@ class EntityControllerPanel extends HTMLElement {
     const previous = this._hass;
     this._hass = hass;
     if (hass && !previous) this._start();
-    if (hass && previous && hass.connection !== previous.connection) this._watchStates();
+    if (hass && previous && hass.connection !== previous.connection) {
+      this._watchStates();
+      this._refresh();
+    }
     this._render(Boolean(this._editing));
   }
 
@@ -222,6 +225,28 @@ class EntityControllerPanel extends HTMLElement {
     return { start: new Date(end.getTime() - WINDOW_MS), end };
   }
 
+  _historyEntries(result, entityId) {
+    // WebSocket history differs from REST history: it is keyed by entity ID
+    // and always uses compressed states (s, lc/lu in epoch seconds).
+    const records = Array.isArray(result)
+      ? (Array.isArray(result[0]) ? result[0] : result)
+      : result?.[entityId] ?? [];
+    if (!result || typeof result !== "object" || !Array.isArray(records)) {
+      throw new Error("Neplatná odpoveď histórie z Home Assistanta.");
+    }
+    const entries = records.flatMap((entry) => {
+      const state = entry?.s ?? entry?.state;
+      const time = entry?.lc ?? entry?.lu ?? entry?.last_changed ?? entry?.last_updated;
+      const at = typeof time === "number" ? time * 1000 : Date.parse(time);
+      if (typeof state !== "string" || !Number.isFinite(at)) return [];
+      return [{ state, last_changed: new Date(at).toISOString() }];
+    });
+    if (records.length && !entries.length) {
+      throw new Error("História neobsahuje čitateľné stavy a časové údaje.");
+    }
+    return entries;
+  }
+
   async _loadHistory() {
     if (!this._hass || !this.controllers.length) return;
     const { start, end } = this._dayRange();
@@ -233,14 +258,13 @@ class EntityControllerPanel extends HTMLElement {
           start_time: start.toISOString(),
           end_time: end.toISOString(),
           entity_ids: [controller.state_entity_id],
+          include_start_time_state: true,
           minimal_response: false,
           no_attributes: true,
         });
-        const records = Array.isArray(result) ? result[0] : result?.states;
-        this.history.set(controller.id, Array.isArray(records) ? records : []);
+        this.history.set(controller.id, this._historyEntries(result, controller.state_entity_id));
         this.historyErrors.delete(controller.id);
       } catch (error) {
-        this.history.set(controller.id, null);
         this.historyErrors.set(controller.id, error?.message || "História nie je dostupná.");
       }
     }));
@@ -350,7 +374,7 @@ class EntityControllerPanel extends HTMLElement {
       const label = offset === 0 ? "0" : offset + "h";
       return '<span>' + label + '</span>';
     }).join("");
-    return '<div class="timeline-wrap"><div class="timeline" role="img" aria-label="Stavový priebeh počas dňa" ' +
+    return '<div class="timeline-wrap"><div class="timeline" role="img" aria-label="Stavový priebeh za posledných 24 hodín" ' +
       'style="background:linear-gradient(90deg,' + (gradient || STATES.unknown.color + ' 0% 100%') + ')">' +
       ticks + '</div><div class="timeline-axis">' + labels + '</div>' +
       (this.historyErrors.has(controller.id)
