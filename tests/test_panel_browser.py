@@ -323,7 +323,7 @@ def test_editor_uses_compact_cards_and_searchable_entity_chips(page):
 
     assert page.locator(".editor").is_visible()
     assert not page.locator(".row.editing .timeline-line").is_visible()
-    assert page.locator(".editor-card").filter(has_text="Spúšťače").is_visible()
+    assert page.locator(".editor-card").filter(has_text="Čo spúšťa automatiku").is_visible()
     assert page.locator(".editor-card").filter(has_text="Ovládané zariadenia").is_visible()
     assert page.locator('input[type="range"][data-field="delay_seconds"]').get_attribute("type") == "range"
     assert page.locator('[data-duration-manual="basic.delay_seconds"]').get_attribute("type") == "number"
