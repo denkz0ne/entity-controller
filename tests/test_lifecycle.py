@@ -20,13 +20,21 @@ from custom_components.entity_controller.lifecycle import (
 )
 
 
-def test_normalization_validates_without_persisting_compiled_templates():
+@pytest.mark.asyncio
+async def test_normalization_validates_without_persisting_compiled_templates(tmp_path):
+    # HA 2026.9 validates dynamic templates in its active event-loop context.
+    hass = HomeAssistant(str(tmp_path))
+    assert hass.loop is asyncio.get_running_loop()
     raw = {"on_enter_active": [{"service": "test.record", "data": {"name": "{{ controller_id }}"}}]}
     original = deepcopy(raw)
     result = normalize_lifecycle_actions(raw)
     assert result == original
     assert isinstance(result["on_enter_active"][0]["data"]["name"], str)
     assert raw == original
+    with pytest.raises(vol.Invalid):
+        normalize_lifecycle_actions({
+            "on_enter_active": [{"action": "test.record", "data": {"name": "{{"}}],
+        })
 
 
 @pytest.mark.parametrize("value", [
