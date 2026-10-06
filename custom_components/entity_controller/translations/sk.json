@@ -1,5 +1,5 @@
 {
-  "title": "Entity Controller",
+  "title": "Svetlo v tme",
   "config": {
     "step": {
       "user": {
@@ -139,7 +139,7 @@
         }
       },
       "reconfigure": {
-        "title": "Premenovať Entity Controller",
+        "title": "Premenovať controller",
         "data": {
           "name": "Názov"
         }

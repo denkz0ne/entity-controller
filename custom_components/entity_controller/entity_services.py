@@ -68,7 +68,7 @@ def async_entity_service_activate(self):
     if(self.model is None):
         return
 
-    self.model.log.debug("Activating the Entity Controller")
+    self.model.log.debug("Activating Svetlo v tme")
     self.model.activate()
 
 def async_entity_service_clear_block(self):
@@ -130,4 +130,3 @@ def async_entity_service_set_night_mode(self, start_time=None, end_time=None):
         self.model.night_mode[CONF_END_TIME] = end_time
 
     self.model.prepare_service_data()
-

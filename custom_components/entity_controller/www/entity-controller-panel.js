@@ -1108,7 +1108,7 @@ class EntityControllerPanel extends HTMLElement {
         .manual-controls{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr 1fr;align-items:center;gap:12px}.manual-controls h3{margin:0;font-size:13px}.manual-controls .switch-setting{margin:0}@container ec-panel (max-width:620px){.manual-controls{grid-template-columns:1fr}}
       `;
       this.shadowRoot.innerHTML = '<style>' + styles + editorStyles + interactionStyles + scheduleStyles + manualSaveStyles + layoutStyles + '</style>' +
-        '<main class="wrap"><header class="heading"><h1>Entity Controller</h1>' +
+        '<main class="wrap"><header class="heading"><h1>Svetlo v tme</h1>' +
         '<p>Rýchly prehľad controllerov</p></header><div class="error" hidden></div>' +
         '<section class="list"></section><footer class="legend"><div class="legend-items"><span class="legend-title">Legenda časovej osi:</span>' +
         '<span><i class="swatch idle"></i>Neaktívny</span><span><i class="swatch active_timer"></i>Aktívny · časovač</span>' +

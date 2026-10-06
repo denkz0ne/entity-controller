@@ -123,6 +123,6 @@ class EntityControllerEntity(Entity):
         return {
             "identifiers": {(DOMAIN, subentry_id)},
             "name": self.runtime.config.name,
-            "manufacturer": "Entity Controller",
-            "model": "Entity Controller v10",
+            "manufacturer": "Svetlo v tme",
+            "model": "Svetlo v tme v10",
         }

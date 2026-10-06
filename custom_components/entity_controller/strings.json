@@ -1,5 +1,5 @@
 {
-  "title": "Entity Controller",
+  "title": "Svetlo v tme",
   "config": {
     "step": {
       "user": {
@@ -139,7 +139,7 @@
         }
       },
       "reconfigure": {
-        "title": "Rename Entity Controller",
+        "title": "Rename controller",
         "data": {
           "name": "Name"
         }

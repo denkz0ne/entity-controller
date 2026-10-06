@@ -17,7 +17,7 @@ from .schedule import resolve_schedule_point, schedule_point_from_data
 
 PANEL_URL = "entity-controller"
 PANEL_JS = "/entity_controller/entity-controller-panel.js"
-PANEL_JS_VERSION = "10.6.0"
+PANEL_JS_VERSION = "10.7.0"
 _PANEL_DATA_KEY = "entity_controller_panel"
 _PANEL_SAVE_SCHEMA = {
     vol.Required("type"): "entity_controller/panel/save",
@@ -369,7 +369,7 @@ async def async_setup_panel(hass: Any) -> None:
         frontend.async_register_built_in_panel(
             hass,
             component_name="custom",
-            sidebar_title="Entity Controller",
+            sidebar_title="Svetlo v tme",
             sidebar_icon="mdi:home-automation",
             frontend_url_path=PANEL_URL,
             config={

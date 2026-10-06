@@ -95,7 +95,7 @@ def parse_legacy_yaml(content: str) -> dict[str, Any]:
     except yaml.YAMLError as err:
         raise ValueError(f"Invalid YAML syntax: {err}") from err
     if not isinstance(parsed, dict):
-        raise ValueError("Legacy Entity Controller YAML must be a mapping")
+        raise ValueError("Legacy Svetlo v tme YAML must be a mapping")
     return parsed
 
 

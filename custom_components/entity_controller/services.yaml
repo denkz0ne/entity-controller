@@ -1,5 +1,5 @@
 activate:
-  description: Enables and activates an Entity Controller when current rules allow it.
+  description: Enables and activates a Svetlo v tme controller when current rules allow it.
     Active constraints, overrides, interlocks, and blocked state are preserved.
   fields:
     controller_id:
@@ -7,14 +7,14 @@ activate:
       example: 'motion_light'
 
 clear_block:
-  description: Clears the blocked state of an Entity Controller, if set
+  description: Clears the blocked state of a Svetlo v tme controller, if set
   fields:
     controller_id:
       description: Stable controller id. If omitted, targets all controllers.
       example: 'motion_light'
 
 enable_block:
-  description: Enables the blocked state of an Entity Controller, if timer is active
+  description: Enables the blocked state of a Svetlo v tme controller, if timer is active
   fields:
     controller_id:
       description: Stable controller id. If omitted, targets all controllers.

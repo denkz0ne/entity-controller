@@ -1,6 +1,18 @@
 # Change Log
 
-All notable changes to Entity Controller v10 are documented here.
+All notable changes to Svetlo v tme v10 are documented here.
+
+<a name="10.7.0"></a>
+## 10.7.0 (2026-10-06)
+
+### Product rebrand
+
+- Rename the Home Assistant integration and sidebar panel to **Svetlo v tme**.
+- Update HACS display name, device manufacturer/model, translations, service
+  descriptions, documentation, and GitHub-facing product copy.
+- Keep the internal `entity_controller` domain, entity IDs, service IDs,
+  configuration storage, and controller behavior unchanged. Existing setups do
+  not require migration for this rebrand.
 
 <a name="10.6.0"></a>
 ## 10.6.0 (2026-10-05)

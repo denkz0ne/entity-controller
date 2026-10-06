@@ -1,4 +1,4 @@
-name: Entity Controller v10
+name: Svetlo v tme · Home Assistant tests
 
 on:
   push:
@@ -85,7 +85,7 @@ jobs:
         run: |
           python -m pytest tests/test_repository_metadata.py -v
 
-      - name: Run v10 tests
+      - name: Run integration tests
         run: |
           python -m pytest \
             tests/test_manifest.py \

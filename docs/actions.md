@@ -1,6 +1,6 @@
-# Entity Controller v10 actions
+# Svetlo v tme v10 actions
 
-Entity Controller v10 keeps compatibility actions for common v9 service workflows while exposing native entities for day-to-day control.
+Svetlo v tme v10 keeps compatibility actions for common v9 service workflows while exposing native entities for day-to-day control.
 
 ## Available actions
 
@@ -15,7 +15,7 @@ Actions target one controller by its stable controller id. They operate on the a
 
 ## Native controls
 
-The native Enabled switch disables controller decisions without forcing controlled loads off. The native Stay Mode switch persists Entity Controller-owned stay state. External Helpers remain regular Home Assistant entities.
+The native Enabled switch disables controller decisions without forcing controlled loads off. The native Stay Mode switch persists Svetlo v tme-owned stay state. External Helpers remain regular Home Assistant entities.
 
 ## Migration note
 

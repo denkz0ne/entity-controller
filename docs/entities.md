@@ -1,6 +1,6 @@
-# Entity Controller v10 native entities
+# Svetlo v tme v10 native entities
 
-> Current behavior: `v10-modernization`, `10.0.0-rc.9`. Each controller config entry owns one device with five native entities. Each native entity has a stable unique ID, a translated function name, a function-specific icon, and a canonical entity ID.
+> Current stable release: `10.7.0`. Each controller config entry owns one device with five native entities. Each native entity has a stable unique ID, a translated function name, a function-specific icon, and a canonical entity ID.
 
 Each controller config entry owns one virtual Home Assistant device and currently exposes five native entities.
 
@@ -14,7 +14,7 @@ Each controller config entry owns one virtual Home Assistant device and currentl
 | `binary_sensor` / `blocked` | Convenience boolean for the `blocked` state. | yes |
 | `button` / `activate` | Requests controller activation using the same runtime action as the compatibility service. | yes |
 
-The controller itself is represented by a device named after the configured controller. The current model string is `Entity Controller v10`.
+The controller itself is represented by a device named after the configured controller. The current model string is `Svetlo v tme v10`.
 
 ## State sensor
 
@@ -151,6 +151,6 @@ Create a separate diagnostic entity only when the value has independent historic
 
 ## Native controls versus external Helpers
 
-Entity Controller owns only controller runtime controls such as Enabled and Stay Mode. It does not create a persistent manual-block/guest-mode/holiday-mode switch.
+Svetlo v tme owns only controller runtime controls such as Enabled and Stay Mode. It does not create a persistent manual-block/guest-mode/holiday-mode switch.
 
 A user-created Helper remains a normal Home Assistant entity and can be selected as an override or interlock input in one or more controllers.
