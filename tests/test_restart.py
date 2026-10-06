@@ -213,6 +213,10 @@ async def test_startup_availability_events_do_not_create_manual_takeover():
 async def test_unavailable_sensor_cannot_leave_startup_pending_forever(monkeypatch):
     scheduled = []
     monkeypatch.setattr(
+        "custom_components.entity_controller.manager.schedule_at_home_assistant",
+        lambda hass, when, callback: lambda: None,
+    )
+    monkeypatch.setattr(
         "homeassistant.helpers.event.async_call_later",
         lambda hass, delay, callback: scheduled.append((delay, callback)) or (lambda: None),
     )
