@@ -323,8 +323,8 @@ def test_editor_uses_compact_cards_and_searchable_entity_chips(page):
 
     assert page.locator(".editor").is_visible()
     assert not page.locator(".row.editing .timeline-line").is_visible()
-    assert page.locator(".editor-card").filter(has_text="Spúšťače").is_visible()
-    assert page.locator(".editor-card").filter(has_text="Ovládané entity").is_visible()
+    assert page.locator(".editor-card").filter(has_text="Čo spúšťa automatiku").is_visible()
+    assert page.locator(".editor-card").filter(has_text="Ovládané zariadenia").is_visible()
     assert page.locator('input[type="range"][data-field="delay_seconds"]').get_attribute("type") == "range"
     assert page.locator('[data-duration-manual="basic.delay_seconds"]').get_attribute("type") == "number"
     assert page.locator('[data-picker-toggle="basic.trigger_entities"]').is_visible()
@@ -635,7 +635,7 @@ def test_basic_decision_distinguishes_running_and_draft_settings(page):
     expect(decision.locator('.decision-metrics')).to_contain_text('Jas 20 % · 2700 K')
     page.evaluate('panel.controllers[0].state="overridden";panel.controllers[0].active_overrides=["input_boolean.override"];panel._updateEditorStatus(panel.controllers[0])')
     expect(decision.locator('[data-decision-countdown]')).to_have_text('Odpočet nebeží')
-    expect(decision).to_contain_text('Riadenie prevzal Override')
+    expect(decision).to_contain_text('Aktívne prednostné riadenie')
 
 
 def test_solar_source_and_offset_preview_changes_without_saving(page):

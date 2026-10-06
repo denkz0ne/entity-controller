@@ -9,13 +9,13 @@ const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
 }[char]));
 
 const STATES = {
-  idle: { label: "Neaktívny", color: "#aab2bd" },
-  active_timer: { label: "Aktívny · časovač", color: "#28bd57" },
-  active_stay_on: { label: "Aktívny · trvalý režim", color: "#00a896" },
-  blocked: { label: "Blokovaný", color: "#f04452" },
-  overridden: { label: "Override", color: "#9b59d0" },
-  constrained: { label: "Časovo obmedzený", color: "#1686f5" },
-  disabled: { label: "Vypnutý", color: "#667085" },
+  idle: { label: "Čaká na spúšťač", color: "#aab2bd" },
+  active_timer: { label: "Aktívny · beží odpočet", color: "#28bd57" },
+  active_stay_on: { label: "Aktívny · trvalé zapnutie", color: "#00a896" },
+  blocked: { label: "Pozastavený", color: "#f04452" },
+  overridden: { label: "Prednostné riadenie", color: "#9b59d0" },
+  constrained: { label: "Mimo povoleného času", color: "#1686f5" },
+  disabled: { label: "Automatika vypnutá", color: "#667085" },
   unknown: { label: "Neznámy", color: "#d6dbe0" },
 };
 
@@ -32,23 +32,23 @@ const durationSeconds = (value) => {
     (Number(value.minutes || 0) * 60) + Number(value.seconds || 0);
 };
 const FIELD_LABELS = {
-  name: "Názov", icon: "Ikona", trigger_entities: "Spúšťacie entity",
-  control_entities: "Ovládané entity", delay_seconds: "Doba aktivity",
-  presence_entities: "Prítomnosť / podržanie", presence_on_states: "Prítomnosť · aktívny stav", presence_off_states: "Prítomnosť · neaktívny stav",
-  sensor_type: "Typ spúšťača", sensor_resets_timer: "Opakovaný spúšťač obnoví časovač",
-  backoff_enabled: "Postupne predlžovať opakovanie", backoff_factor: "Faktor predĺženia",
-  backoff_max_seconds: "Najdlhšie predĺženie", state_entities: "Sledované entity",
-  blocking_enabled: "Povoliť blokovanie", block_timeout_seconds: "Automatické odblokovanie po",
-  protect_manual_off: "Rešpektovať ručné vypnutie", protect_manual_on: "Rešpektovať zapnutie a úpravy",
-  override_entities: "Override entity", interlock_entities: "Interlock entity",
-  constraint_enabled: "Povoliť časové okno", night_mode_enabled: "Povoliť nočný režim",
-  night_delay_seconds: "Nočný čas aktivity", service_data_on: "Parametre pri zapnutí",
-  service_data_off: "Parametre pri vypnutí", night_service_data_on: "Nočné parametre pri zapnutí",
-  night_service_data_off: "Nočné parametre pri vypnutí", enabled_default: "Počiatočne povolený",
-  stay_mode_default: "Počiatočný trvalý režim", trigger_on_states: "Spúšťacie stavy · aktívny",
-  trigger_off_states: "Spúšťacie stavy · neaktívny", state_on_states: "Sledované stavy · aktívny",
-  state_off_states: "Sledované stavy · neaktívny", override_on_states: "Override stavy · aktívny",
-  override_off_states: "Override stavy · neaktívny", state_attributes_ignore: "Ignorované atribúty",
+  name: "Názov ovládača", icon: "Ikona", trigger_entities: "Čo spúšťa aktivitu",
+  control_entities: "Čo má ovládač ovládať", delay_seconds: "Čas do vypnutia",
+  presence_entities: "Senzory prítomnosti", presence_on_states: "Prítomnosť · aktívny stav", presence_off_states: "Prítomnosť · neaktívny stav",
+  sensor_type: "Režim spúšťača", sensor_resets_timer: "Nová aktivita obnoví celý odpočet",
+  backoff_enabled: "Predlžovať čas pri opakovanom spustení", backoff_factor: "Násobok predĺženia",
+  backoff_max_seconds: "Najdlhší čas do vypnutia", state_entities: "Ďalšie sledované entity",
+  blocking_enabled: "Pozastaviť automatiku pri ručnej zmene", block_timeout_seconds: "Zrušiť dočasné pozastavenie po",
+  protect_manual_off: "Rešpektovať ručné vypnutie", protect_manual_on: "Rešpektovať ručné zapnutie a úpravy",
+  override_entities: "Entity s prednostným riadením", interlock_entities: "Entity, ktoré pozastavia automatiku",
+  constraint_enabled: "Obmedziť aktivitu na časové okno", night_mode_enabled: "Používať nočný profil",
+  night_delay_seconds: "Nočný čas do vypnutia", service_data_on: "Nastavenia zariadení pri zapnutí",
+  service_data_off: "Nastavenia zariadení pri vypnutí", night_service_data_on: "Nastavenia pri nočnom zapnutí",
+  night_service_data_off: "Nastavenia pri nočnom vypnutí", enabled_default: "Po vytvorení povoliť automatiku",
+  stay_mode_default: "Počiatočné trvalé zapnutie", trigger_on_states: "Spúšťač · aktívne stavy",
+  trigger_off_states: "Spúšťač · neaktívne stavy", state_on_states: "Zariadenie · zapnuté stavy",
+  state_off_states: "Zariadenie · vypnuté stavy", override_on_states: "Prednostné riadenie · aktívne stavy",
+  override_off_states: "Prednostné riadenie · neaktívne stavy", state_attributes_ignore: "Ignorovať zmeny atribútov",
   constraint_start_source: "Začiatok podľa", constraint_end_source: "Koniec podľa",
   night_start_source: "Začiatok noci podľa", night_end_source: "Koniec noci podľa",
   constraint_start_time: "Začiatok okna", constraint_end_time: "Koniec okna",
@@ -59,9 +59,9 @@ const FIELD_LABELS = {
   night_end_offset_seconds: "Posun konca v sekundách",
   on_enter_idle: "Pri skončení aktivity", on_exit_idle: "Pri obnovení z neaktivity",
   on_enter_active: "Pri aktivácii", on_exit_active: "Po skončení aktivity",
-  on_enter_overridden: "Pri prevzatí override", on_exit_overridden: "Po skončení override",
-  on_enter_constrained: "Pri zatvorení časového okna", on_exit_constrained: "Pri otvorení časového okna",
-  on_enter_blocked: "Pri zablokovaní", on_exit_blocked: "Po odblokovaní",
+  on_enter_overridden: "Pri prednostnom riadení", on_exit_overridden: "Po skončení prednosti",
+  on_enter_constrained: "Pri zatvorení povoleného okna", on_exit_constrained: "Pri otvorení povoleného okna",
+  on_enter_blocked: "Pri pozastavení automatiky", on_exit_blocked: "Pri obnovení automatiky",
 };
 
 class EntityControllerPanel extends HTMLElement {
@@ -364,27 +364,34 @@ class EntityControllerPanel extends HTMLElement {
     const state = this._hass?.states?.[controller.state_entity_id];
     const attributes = state?.attributes || {};
     const causeLabels = {
-      sensor_trigger: "Spustený pohybom",
-      sensor_release: "Pohyb skončil",
-      timer_expired: "Časovač skončil",
-      manual_control: "Ručné ovládanie",
-      override: "Override aktívny",
+      sensor_trigger: "Aktivovaný spúšťačom",
+      sensor_release: "Spúšťač sa uvoľnil",
+      timer_expired: "Odpočet sa skončil",
+      manual_control: "Ručný zásah má prednosť",
+      override: "Prednostné riadenie aktívne",
       constraint: "Časové okno",
-      stay_mode: "Trvalý režim",
+      stay_mode: "Trvalé zapnutie",
       service: "Zmena cez službu",
       configuration: "Zmena nastavení",
     };
-    let detail = causeLabels[controller.last_transition_cause] || "Čaká na podmienku";
+    let detail = causeLabels[controller.last_transition_cause] || "Čaká na ďalší spúšťač alebo podmienku";
     if (key === "blocked") {
-      detail = controller.block_reason || attributes.block_reason || "Blokujúca podmienka aktívna";
+      const reason = controller.block_reason || attributes.block_reason;
+      const blockReasonLabels = {
+        interlock: "Aktívna blokovacia podmienka",
+        controlled_entity_on: "Sledované zariadenie je zapnuté",
+        manual_off: "Ručné vypnutie má prednosť",
+        manual_on: "Ručné zapnutie alebo úprava má prednosť",
+      };
+      detail = blockReasonLabels[reason] || "Ručná zmena alebo aktívna blokovacia podmienka";
     } else if (key === "overridden") {
-      detail = controller.overridden_by || (controller.active_overrides || []).join(", ") || "Override aktívny";
+      detail = controller.overridden_by || (controller.active_overrides || []).join(", ") || "Prednostné riadenie aktívne";
     } else if (key === "constrained") {
-      detail = controller.next_transition_label || "Čaká na otvorenie časového okna";
+      detail = controller.next_transition_label || "Čaká na začiatok povoleného času";
     } else if (key === "disabled") {
-      detail = "Rozhodovanie controlleru je vypnuté";
+      detail = "Automatika je vypnutá";
     } else if (key === "idle") {
-      detail = "Čaká na spúšťač";
+      detail = "Čaká, kým sa splní podmienka spustenia";
     }
 
     let label = meta.label;
@@ -543,7 +550,7 @@ class EntityControllerPanel extends HTMLElement {
         esc(Object.keys(data).length ? this._parameterText(data) : nightProfile ? 'Podľa denného profilu' : 'Pôvodné hodnoty') +
         '</small><ha-icon icon="mdi:chevron-down"></ha-icon></summary><div class="parameter-fields">' +
         '<div class="section-title parameter-help"><span>' + (nightProfile ? 'Nočné parametre' : 'Parametre zariadení') + '</span>' +
-        help(key, 'Zaškrtni iba hodnoty, ktoré má automatika meniť. Prázdny nočný profil preberá denné hodnoty. Pôvodné hodnoty sa obnovia pri skončení riadenia; vypnuté svetlo sa kvôli obnove nezapne. Ručne zmenené hodnoty majú prednosť.') + '</div>' +
+        help(key, 'Zaškrtni iba hodnoty, ktoré má automatika meniť. Ak nočný profil hodnotu neobsahuje, použije dennú hodnotu. Predchádzajúci stav sa obnoví po skončení aktivity alebo pri ručnom prevzatí ovládania. Vypnuté svetlo sa pri obnove nezapne a ručné zmeny majú prednosť.') + '</div>' +
         (uncertainCapabilities ? '<div class="section-title capability-warning"><span>Možnosti svetla nie sú overené</span>' +
           help('Možnosti svetla', 'Niektoré svetlo je nedostupné alebo neoznamuje svoje možnosti. Uložené parametre zostávajú zachované. Dostupné ovládače treba overiť po pripojení svetla; plynulý prechod sa ponúka iba pri potvrdenej podpore všetkých svetiel.') + '</div>' : '') +
         (!off && lights.length ? (brightnessSupported ? control('brightness_pct', 'Jas', brightness, 0, 100, 1, '%', data.brightness_pct != null || data.brightness != null) : '') +
@@ -718,22 +725,22 @@ class EntityControllerPanel extends HTMLElement {
       const values = form[section] || {};
       const entries = Object.entries(values).filter(([key]) => fields === null || fields.includes(key));
       const hints = {
-        sensor_type: 'Udalosť reaguje na nový pohyb. Trvanie drží aktivitu, kým je spúšťač zapnutý.',
-        backoff_enabled: 'Pri opakovanej aktivite môže automatika postupne predlžovať čas do vypnutia.',
-        backoff_factor: 'Násobok času pri ďalšom predĺžení. Napríklad 2 znamená dvojnásobok.',
-        backoff_max_seconds: 'Horná hranica postupne predlžovaného časovača.',
-        block_timeout_seconds: 'Po tomto čase sa zruší dočasné blokovanie. Nula vypne automatické odblokovanie.',
-        enabled_default: 'Počiatočná hodnota pri vytvorení controllera; aktuálne zapnutie ovláda hlavný prepínač.',
-        stay_mode_default: 'Počiatočný trvalý režim bez bežného odpočtu.',
-        state_attributes_ignore: 'Atribúty, ktorých zmenu automatika nepovažuje za ručný zásah. Oddeľ ich čiarkami.',
+        sensor_type: 'Jednorazová udalosť spustí aktivitu. Režim Trvanie ju drží, kým je spúšťač aktívny.',
+        backoff_enabled: 'Pri opakovanom spustení sa čas do vypnutia môže postupne predĺžiť.',
+        backoff_factor: 'Násobok predchádzajúceho času pri ďalšom predĺžení. Hodnota 2 znamená dvojnásobok.',
+        backoff_max_seconds: 'Maximálny čas do vypnutia po postupnom predĺžení.',
+        block_timeout_seconds: 'Po tomto čase sa zruší dočasné pozastavenie. Hodnota 0 časový limit vypne; aktívna blokovacia podmienka však trvá až do uvoľnenia.',
+        enabled_default: 'Určuje, či sa automatika po vytvorení povolí. Neskôr ju ovláda hlavný prepínač.',
+        stay_mode_default: 'Počiatočne ponechá zariadenie zapnuté bez bežného odpočtu do vypnutia.',
+        state_attributes_ignore: 'Atribúty, ktorých zmenu nebude automatika považovať za ručný zásah. Názvy oddeľ čiarkami.',
       };
       const contents = entries.map(([key, value]) => '<div class="advanced-setting">' + renderField(section, key, value) +
         help(FIELD_LABELS[key] || key, hints[key] || (key.startsWith('on_') ? 'Akcia pri tomto prechode stavu. Nič nerobiť zachová stav zariadení.' :
-          'Hodnoty stavu entity oddeľ čiarkami. Aktívny a neaktívny stav majú samostatné mapovanie.')) + '</div>').join("");
+          'Uveď stavy, ktoré sa majú považovať za aktívne alebo neaktívne; oddeľ ich čiarkami. Ostatné stavy podmienku nemenia.')) + '</div>').join("");
       return contents ? '<details class="editor-section editor-card" data-editor-section="' + esc(section) + '"><summary><span>' + esc(title) +
         '</span><ha-icon icon="mdi:chevron-down"></ha-icon></summary><div class="advanced-fields">' + contents + '</div></details>' : '';
     }).join("") : '';
-    const diagnosticReason = controller.block_reason === "interlock" ? "Zastavené pravidlom Interlock" :
+    const diagnosticReason = controller.block_reason === "interlock" ? "Pozastavené aktívnou blokovacou podmienkou" :
       controller.block_reason === "controlled_entity_on" ? "Zapnuté ovládané zariadenie bráni automatickému zásahu" :
         controller.last_transition_cause === "manual_control" ? "Poslednú zmenu spôsobil ručný zásah" :
           controller.block_reason || controller.next_transition_label || "Bez aktívneho blokovania";
@@ -758,7 +765,7 @@ class EntityControllerPanel extends HTMLElement {
     const resetTimer = '<label class="switch-setting"><span>Nový pohyb vynuluje odpočet</span><input type="checkbox" data-section="timer"' +
       ' data-field="sensor_resets_timer"' + (timer.sensor_resets_timer ? ' checked' : '') + '><i></i></label>';
     const behaviorOptions = [["on", "Zapnúť entity"], ["off", "Vypnúť entity"], ["ignore", "Nič nerobiť"], ["restore", "Obnoviť pôvodný stav"], ["custom", "Scéna / vlastné akcie"]];
-    return '<section class="editor"><header class="editor-header"><div class="editor-heading"><h2>Nastavenia controllera</h2>' +
+    return '<section class="editor"><header class="editor-header"><div class="editor-heading"><h2>Nastavenia ovládača</h2>' +
       '<span class="save-state" role="status">' + esc(this._savingControllers.has(controller.id)
         ? "Ukladám…" : this._saveErrors.get(controller.id) ||
           (this._dirtyControllers.has(controller.id) ? "Neuložené zmeny" : "Uložené")) +
@@ -769,7 +776,7 @@ class EntityControllerPanel extends HTMLElement {
       (this._dirtyControllers.has(controller.id) && !this._savingControllers.has(controller.id) ? '' : ' disabled') +
       '>Uložiť</button><button type="button" class="editor-close" data-close="' + esc(controller.id) + '">Zavrieť</button></div></div></header>' +
       '<div class="editor-grid"><section class="editor-card identity-card"><div class="card-heading"><div class="card-heading-icon"><ha-icon icon="mdi:tune-variant"></ha-icon></div>' +
-      '<div class="card-heading-copy"><h3>Názov a ikona</h3></div></div>' +
+      '<div class="card-heading-copy"><h3>Identita ovládača</h3></div></div>' +
       '<div class="card-fields">' + renderField("basic", "name", basic.name || controller.name) +
       '<div class="icon-picker"><button type="button" class="add-entity" data-icon-toggle="editor"><ha-icon icon="' +
       esc(basic.icon || controller.icon || "mdi:home-automation") + '"></ha-icon> Vybrať ikonu</button>' +
@@ -778,30 +785,30 @@ class EntityControllerPanel extends HTMLElement {
           '<button type="button" class="icon-option" data-icon-value="mdi:' + name + '" aria-label="mdi:' + name + '"><ha-icon icon="mdi:' + name + '"></ha-icon><span>' + name.replaceAll("-", " ") + '</span></button>').join("") + '</div></div>' : '') + '</div></div>' +
       '</section>' +
       '<section class="editor-card live-decision" aria-label="Čo sa stane teraz">' + this._decisionSummary(controller) + '</section>' +
-      '<div class="editor-column inputs-column"><section class="editor-card inputs-card"><h3 class="group-title">Vstupy</h3>' +
-      '<div class="activation-inputs">' + entityPicker("basic", "trigger_entities", "Spúšťače", "Čo aktivuje miestnosť?", ["binary_sensor", "sensor", "input_boolean", "switch", "light", "fan", "event", "device_tracker"]) +
-      '<details class="presence-editor" data-editor-section="presence"' + (basic.presence_entities?.length ? ' open' : '') + '><summary>Prítomnosť / podržanie<ha-icon icon="mdi:chevron-down"></ha-icon></summary>' +
-      entityPicker("basic", "presence_entities", "Senzory prítomnosti", "Samy nezapínajú svetlo. Držia aktívnu miestnosť, kým niekto zostáva vnútri. Po odchode sa spustí bežný časovač.", ["binary_sensor", "sensor", "input_boolean", "device_tracker"]) + '</details></div>' +
-      entityPicker("monitoring", "state_entities", "Sledované entity", "Ich zapnutý stav môže pozastaviť automatiku.",
+      '<div class="editor-column inputs-column"><section class="editor-card inputs-card"><h3 class="group-title">Čo spúšťa automatiku</h3>' +
+      '<div class="activation-inputs">' + entityPicker("basic", "trigger_entities", "Spúšťacie entity", "Aktívny stav ktorejkoľvek z nich môže spustiť činnosť ovládača, ak to dovoľuje časové okno a ostatné pravidlá.", ["binary_sensor", "sensor", "input_boolean", "switch", "light", "fan", "event", "device_tracker"]) +
+      '<details class="presence-editor" data-editor-section="presence"' + (basic.presence_entities?.length ? ' open' : '') + '><summary>Senzory, ktoré podržia aktivitu<ha-icon icon="mdi:chevron-down"></ha-icon></summary>' +
+      entityPicker("basic", "presence_entities", "Senzory prítomnosti", "Samy ovládač nespustia. Podržia zariadenie už zapnuté, kým senzor hlási prítomnosť. Po uvoľnení posledného senzora začne čas do vypnutia.", ["binary_sensor", "sensor", "input_boolean", "device_tracker"]) + '</details></div>' +
+      entityPicker("monitoring", "state_entities", "Ďalšie sledované entity", "Dopĺňajú sledovanie skutočného stavu. Pri ručnej zmene môžu pozastaviť automatiku.",
         ["binary_sensor", "sensor", "input_boolean", "device_tracker"],
-        '<label class="switch-setting"><span>Povoliť blokovanie</span><input type="checkbox" data-section="monitoring" data-field="blocking_enabled"' +
+        '<label class="switch-setting"><span>Pozastaviť automatiku pri ručnej zmene</span><input type="checkbox" data-section="monitoring" data-field="blocking_enabled"' +
         (monitoring.blocking_enabled !== false ? ' checked' : '') + '><i></i></label>') + '</section>' +
       schedule("constraints", "Povolený čas", "constraint", Boolean(constraints.constraint_enabled), "06:00", "23:00") + '</div>' +
-      '<div class="editor-column behavior-column"><section class="editor-card behavior-card"><h3 class="group-title">Ovládanie a časovanie</h3>' +
-      entityPicker("basic", "control_entities", "Ovládané entity", "Zariadenia, ktoré sa zapnú alebo vypnú pri zmene stavu.", ["light", "switch", "fan"]) +
+      '<div class="editor-column behavior-column"><section class="editor-card behavior-card"><h3 class="group-title">Čo a ako dlho ovládať</h3>' +
+      entityPicker("basic", "control_entities", "Ovládané zariadenia", "Vybrané svetlá, spínače alebo ventilátory reagujú na začiatok a koniec aktivity.", ["light", "switch", "fan"]) +
       '<section class="settings-group timing-card"><div class="card-heading"><div class="card-heading-icon"><ha-icon icon="mdi:timer-outline"></ha-icon></div>' +
-      '<div class="card-heading-copy section-title"><h3>Časovanie</h3>' + help("Časovanie", "Po poslednej aktivite sa spustí odpočet. Čas môžeš nastaviť posuvníkom alebo vpísať v sekundách.") + '</div></div>' +
+      '<div class="card-heading-copy section-title"><h3>Čas do vypnutia</h3>' + help("Čas do vypnutia", "Po skončení aktivity začne odpočet. Po jeho uplynutí sa vykoná nastavená akcia. Čas môžeš nastaviť posuvníkom alebo presne vpísať.") + '</div></div>' +
       '<div class="duration-setting">' + duration + '</div>' + resetTimer + '</section>' +
       '<section class="settings-group editor-actions"><div class="card-heading"><div class="card-heading-icon"><ha-icon icon="mdi:gesture-tap-button"></ha-icon></div>' +
-      '<div class="card-heading-copy section-title"><h3>Akcia controllera</h3>' + help("Akcia controllera", "Vyber, čo sa má stať pri aktivácii a po skončení aktivity.") + '</div></div><div class="card-fields">' +
+      '<div class="card-heading-copy section-title"><h3>Správanie zariadení</h3>' + help("Správanie zariadení", "Vyber, čo sa má stať na začiatku a konci aktivity. Denný a nočný profil môžu nastaviť odlišný jas, farbu či ďalšie podporované vlastnosti.") + '</div></div><div class="card-fields">' +
       behaviorField("actions", "on_enter_active", actions.on_enter_active || "on", "Pri aktivácii", behaviorOptions) +
       behaviorField("actions", "on_exit_active", actions.on_exit_active || "off", "Po skončení aktivity", behaviorOptions) + '</div>' +
       '<div class="parameter-pair">' + parameters('actions', 'service_data_on') + parameters('actions', 'service_data_off', true) + '</div></section></section>' +
-      schedule("night", "Nočný profil", "night", Boolean(night.night_mode_enabled), "20:00", "06:00") + '</div>' +
-      '<details class="editor-card rules-card" data-editor-section="rules"><summary>Priorita a blokovanie<ha-icon icon="mdi:chevron-down"></ha-icon></summary><div class="rule-groups">' +
-      entityPicker("rules", "override_entities", "Override", "Prevezme prioritu podľa vstupného stavu.", ["binary_sensor", "sensor", "input_boolean", "switch", "light", "device_tracker"]) +
-      entityPicker("rules", "interlock_entities", "Interlock", "Blokuje automatické riadenie, kým je vstup aktívny.", ["binary_sensor", "sensor", "input_boolean", "switch", "light", "device_tracker"]) +
-      '<div class="manual-controls"><div class="section-title"><h3>Ručné riadenie</h3>' + help('Ručné riadenie','Ručné vypnutie, zapnutie alebo úprava svetla dostane prednosť počas obsadenia miestnosti. Automatika sa pripraví na nový pohyb až po uvoľnení spúšťačov a prítomnosti.') + '</div>' +
+      schedule("night", "Nočný profil svetla", "night", Boolean(night.night_mode_enabled), "20:00", "06:00") + '</div>' +
+      '<details class="editor-card rules-card" data-editor-section="rules"><summary>Prednosť a bezpečné blokovanie<ha-icon icon="mdi:chevron-down"></ha-icon></summary><div class="rule-groups">' +
+      entityPicker("rules", "override_entities", "Prednostné riadenie", "Aktívna entita prepne ovládač do stavu Prednostné riadenie. Po jej vypnutí sa znovu vyhodnotia bežné podmienky.", ["binary_sensor", "sensor", "input_boolean", "switch", "light", "device_tracker"]) +
+      entityPicker("rules", "interlock_entities", "Blokovacia podmienka", "Kým je niektorá z týchto entít aktívna, ovládač zostane pozastavený. Časový limit toto pravidlo neobíde.", ["binary_sensor", "sensor", "input_boolean", "switch", "light", "device_tracker"]) +
+      '<div class="manual-controls"><div class="section-title"><h3>Ručné ovládanie</h3>' + help('Ručné riadenie','Ručné vypnutie, zapnutie alebo úprava zariadenia má prednosť. Pri ochrane ručného vypnutia sa automatika obnoví až po uvoľnení miestnosti; pri ochrane ručného zapnutia zachová jas, farbu a ďalšie významné úpravy.') + '</div>' +
       renderField('monitoring','protect_manual_off',monitoring.protect_manual_off !== false) +
       renderField('monitoring','protect_manual_on',monitoring.protect_manual_on !== false) + '</div>' +
       '</div></details>' + advancedMarkup + diagnosticMarkup + '</div></section>';
@@ -915,14 +922,14 @@ class EntityControllerPanel extends HTMLElement {
     const params = controller.night_active && Object.keys(liveForm.night?.night_service_data_on || {}).length
       ? liveForm.night.night_service_data_on : liveForm.actions?.service_data_on || {};
     const remaining = controller.expires_at ? Math.max(0, (new Date(controller.expires_at) - Date.now()) / 1000) : null;
-    const reason = controller.active_interlocks?.length ? 'Aktívne blokovacie pravidlo' :
-      controller.active_overrides?.length ? 'Riadenie prevzal Override' :
+    const reason = controller.active_interlocks?.length ? 'Blokovacia podmienka je aktívna' :
+      controller.active_overrides?.length ? 'Aktívne prednostné riadenie' :
       controller.block_reason?.startsWith('manual') || controller.last_transition_cause === 'manual_control' ? 'Ručné riadenie má prednosť' :
       state === 'constrained' ? 'Mimo povoleného času' : state === 'disabled' ? 'Automatika je vypnutá' :
-      state === 'active_stay_on' ? 'Trvalý režim bez odpočtu' : state === 'active_timer' ?
+      state === 'active_stay_on' ? 'Trvalé zapnutie bez odpočtu' : state === 'active_timer' ?
         (controller.timer_expired_pending_sensor ? 'Čaká na uvoľnenie spúšťača' : 'Nová aktivita môže predĺžiť čas') : 'Čaká na aktivitu';
-    const countdown = controller.presence_active && state === 'active_timer' ? 'Drží prítomnosť' : state === 'active_timer' && remaining != null ? this._formatDuration(remaining) :
-      state === 'active_stay_on' ? 'Bez časového limitu' : 'Odpočet nebeží';
+    const countdown = controller.presence_active && state === 'active_timer' ? 'Senzor prítomnosti drží aktivitu' : state === 'active_timer' && remaining != null ? this._formatDuration(remaining) :
+      state === 'active_stay_on' ? 'Bez odpočtu do vypnutia' : 'Odpočet nebeží';
     const next = controller.next_transition_at ? (controller.next_transition_label || 'Plánovaná zmena') + ' · ' +
       new Date(controller.next_transition_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : 'Žiadna naplánovaná zmena';
     const draft = controller.form || {};
@@ -932,10 +939,10 @@ class EntityControllerPanel extends HTMLElement {
       '" aria-label="Pomoc: aktuálne rozhodnutie" aria-controls="' + esc(helpId) +
       '" aria-expanded="false">?</button><div id="' + esc(helpId) +
       '" class="help-popover" popover role="note">' + esc(reason + '. ' + next +
-      '. Odpočet neznamená automatické vypnutie pri ručnom riadení alebo Override. Neuložený návrh ešte neovplyvňuje bežiaci profil.') + '</div>';
+      '. Po odpočte sa zariadenie nemusí vypnúť, ak má prednosť ručné alebo prednostné riadenie, prípadne je aktívna prítomnosť. Neuložený návrh ešte nemení bežiace nastavenie.') + '</div>';
     return '<div class="decision-heading"><h3>Čo sa stane teraz ' + help + '</h3><span class="live-badge">Bežiace nastavenie</span></div>' +
       '<div class="decision-metrics"><div title="' + esc(reason) + '"><span>Stav</span><strong>' + esc(STATES[state].label) + '</strong><small>' + esc(reason) + '</small></div>' +
-      '<div><span>Zostáva do konca aktivity</span><strong data-decision-countdown title="Čas aktivity nie je zárukou vypnutia pri Override alebo ručnom riadení.">' + esc(countdown) + '</strong></div>' +
+      '<div><span>Zostáva do konca aktivity</span><strong data-decision-countdown title="Po odpočte môže zariadenie zostať zapnuté pri ručnom alebo prednostnom riadení, prípadne pri aktívnej prítomnosti.">' + esc(countdown) + '</strong></div>' +
       '<div title="' + esc(next) + '"><span>' + profile + ' profil</span><strong>' + esc(this._parameterText(params)) + '</strong><small>' +
       esc(next) + '</small></div></div>' + (dirty ? '<div class="draft-preview"><b>Neuložený návrh</b><span>Po poslednej aktivite ' +
         esc(this._formatDuration(durationSeconds(draft.basic?.delay_seconds))) + ' · ' + esc(this._parameterText(draft.actions?.service_data_on || {})) +
@@ -1108,7 +1115,7 @@ class EntityControllerPanel extends HTMLElement {
         .manual-controls{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr 1fr;align-items:center;gap:12px}.manual-controls h3{margin:0;font-size:13px}.manual-controls .switch-setting{margin:0}@container ec-panel (max-width:620px){.manual-controls{grid-template-columns:1fr}}
       `;
       this.shadowRoot.innerHTML = '<style>' + styles + editorStyles + interactionStyles + scheduleStyles + manualSaveStyles + layoutStyles + '</style>' +
-        '<main class="wrap"><header class="heading"><h1>Entity Controller</h1>' +
+        '<main class="wrap"><header class="heading"><h1>Svetlo v tme</h1>' +
         '<p>Rýchly prehľad controllerov</p></header><div class="error" hidden></div>' +
         '<section class="list"></section><footer class="legend"><div class="legend-items"><span class="legend-title">Legenda časovej osi:</span>' +
         '<span><i class="swatch idle"></i>Neaktívny</span><span><i class="swatch active_timer"></i>Aktívny · časovač</span>' +
@@ -1605,7 +1612,7 @@ class EntityControllerPanel extends HTMLElement {
       return rect.bottom > bounds.top && rect.top < bounds.bottom;
     }).length;
     counter.textContent = "Zobrazených " + visible + " z " +
-      this.controllers.length + " controllerov";
+      this.controllers.length + " ovládačov";
   }
 }
 

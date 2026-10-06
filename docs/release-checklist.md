@@ -1,4 +1,4 @@
-# Entity Controller v10 release checklist
+# Svetlo v tme v10 release checklist
 
 ## Migration rehearsal
 
@@ -24,6 +24,9 @@
 
 ## Validation gates
 
+- Confirm HACS and Home Assistant show “Svetlo v tme” while the internal
+  `entity_controller` domain, existing entity IDs, service IDs, and panel URL
+  remain unchanged.
 - Ruff passes on the maintained v10 runtime and test surface.
 - Pytest passes for the maintained v10 suite from a clean config fixture.
 - Pytest passes for the maintained v10 suite from a migrated config fixture.
@@ -34,5 +37,5 @@
 ## known limitations
 
 - GitHub Actions do not pin Home Assistant to the 2026.9 minimum, so the release still needs a smoke test on that supported version.
-- Migration Repairs are guide-only; Entity Controller never deletes Helpers or rewrites/removes YAML.
+- Migration Repairs are guide-only; Svetlo v tme never deletes Helpers or rewrites/removes YAML.
 - The legacy state mirror is transitional compatibility and should remain documented until stable migration feedback is clean.

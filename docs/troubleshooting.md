@@ -1,4 +1,4 @@
-# Entity Controller v10 troubleshooting
+# Svetlo v tme v10 troubleshooting
 
 ## Controller starts disabled after restart
 
@@ -6,11 +6,11 @@ If a configured entity cannot be read during startup or reconcile, only that con
 
 ## Active timer after restart
 
-Entity Controller restores only valid controller-owned runtime state. An active timer may be restored with its future expiry timestamp, but restore must not replay ON/OFF transition actions. If the old expiry is already in the past, the timer should be rebuilt from live state instead of replaying stale behavior.
+Svetlo v tme restores only valid controller-owned runtime state. An active timer may be restored with its future expiry timestamp, but restore must not replay ON/OFF transition actions. If the old expiry is already in the past, the timer should be rebuilt from live state instead of replaying stale behavior.
 
 ## Enabled and Stay Mode
 
-Enabled and Stay Mode are native Entity Controller state. They can be restored by Entity Controller. External Helpers selected as overrides, interlocks, or rule inputs remain ordinary Home Assistant entities and keep their own state through their own integrations.
+Enabled and Stay Mode are native Svetlo v tme state. They can be restored by Svetlo v tme. External Helpers selected as overrides, interlocks, or rule inputs remain ordinary Home Assistant entities and keep their own state through their own integrations.
 
 ## Diagnostics
 

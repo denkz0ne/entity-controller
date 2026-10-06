@@ -182,3 +182,9 @@ def test_panel_lifecycle_registers_once_and_removes_sidebar(monkeypatch):
     assert len([item for item in registrations if isinstance(item[0], tuple)]) == 2
     assert len(websocket_registrations) == 2
     assert len(removals) == 1
+    panel_registration = next(
+        item for item in registrations if isinstance(item[0], tuple)
+    )
+    assert panel_registration[1]["sidebar_title"] == "Svetlo v tme"
+    assert panel_registration[1]["frontend_url_path"] == "entity-controller"
+    assert panel.PANEL_JS_VERSION == "10.7.0"

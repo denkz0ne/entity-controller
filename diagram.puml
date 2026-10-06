@@ -1,7 +1,7 @@
 @startuml
 
 header
-<font color=red>Entity Controller</font>
+<font color=red>Svetlo v tme</font>
 State Machine Diagram
 endheader
 

@@ -1,8 +1,8 @@
-# Entity Controller v10 Configuration
+# Svetlo v tme v10 Configuration
 
-Entity Controller v10 uses one Home Assistant config entry and one device per controller.
+Svetlo v tme v10 uses one Home Assistant config entry and one device per controller.
 
-Add another controller with the top-right `+` on the Entity Controller
+Add another controller with the top-right `+` on the Svetlo v tme
 integration page. Open a controller's settings to edit only that controller.
 
 The UI supports:
@@ -30,7 +30,7 @@ entities, retriggers reset the timer, and timer expiry turns them off. Enabled
 and Stay Mode state is stored in the controller config entry. The allowed window
 prevents activation outside its bounds. The night window changes the active
 profile without creating another controller. All controller fields can be
-edited later from the controller device in the Entity Controller integration.
+edited later from the controller device in the Svetlo v tme integration.
 
 ## Presence / hold sensors
 

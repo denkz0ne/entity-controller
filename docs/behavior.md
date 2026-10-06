@@ -1,8 +1,8 @@
-# Entity Controller v10 behavior
+# Svetlo v tme v10 behavior
 
-> Source baseline: `v10-modernization`, `10.0.0-rc.9`. This is a source-derived runtime reference, not a description of planned behavior.
+> Source baseline: stable `10.7.0`. This is a source-derived runtime reference, not a description of planned behavior.
 
-Entity Controller v10 implements an explicit async finite-state machine. The controller has seven user-visible runtime states and two different ways to change state:
+Svetlo v tme v10 implements an explicit async finite-state machine. The controller has seven user-visible runtime states and two different ways to change state:
 
 - **transition** — an actual runtime event; enter/exit behaviors may execute `turn_on`/`turn_off` actions;
 - **reconcile** — rebuild logical state from current Home Assistant reality without replaying transition side effects.
@@ -96,7 +96,7 @@ Timers use generation guards, so callbacks cancelled by reconfiguration or later
 
 The manager listens to both `control_entities` and extra `state_entities`.
 
-Entity Controller-generated service calls use tracked Home Assistant contexts; state events with an EC-owned context are ignored as manual changes.
+Svetlo v tme-generated service calls use tracked Home Assistant contexts; state events with an EC-owned context are ignored as manual changes.
 
 For a genuine external/manual state change:
 

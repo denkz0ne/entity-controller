@@ -1,6 +1,6 @@
-# Migrating Entity Controller v9 YAML to v10
+# Migrating Svetlo v tme v9 YAML to v10
 
-On the first startup after installing v10, Entity Controller imports the legacy YAML controllers that Home Assistant has already loaded under the `entity_controller` key. For example, `configuration.yaml` can include the existing file like this:
+On the first startup after installing v10, Svetlo v tme imports the legacy YAML controllers that Home Assistant has already loaded under the `entity_controller` key. For example, `configuration.yaml` can include the existing file like this:
 
 ```yaml
 entity_controller: !include entitycontroller.yaml

@@ -123,7 +123,7 @@ async def _async_import_legacy_controllers(
             )
 
     if imported_count:
-        _LOGGER.info("Imported %d legacy Entity Controller controller(s)", imported_count)
+        _LOGGER.info("Imported %d legacy Svetlo v tme controller(s)", imported_count)
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

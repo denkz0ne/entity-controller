@@ -10,7 +10,7 @@
   <rect x="0" y="748" width="210" height="62" fill="#fff" stroke="#e2e5e9"/><text x="22" y="782" font-size="14">⚙  Nastavenia</text>
   <rect x="210" y="0" width="1230" height="55" fill="#fff" stroke="#e2e5e9"/>
   <text x="245" y="34" font-size="14">VYPÍNAČE　 Roboti　 Úlohy　 Rolety　 Kamery　 <tspan fill="#039be5" font-weight="700">EC / pohyby</tspan>　 Ender　 test　 Voda</text>
-  <text x="240" y="92" class="title">Entity Controller</text><text x="240" y="116" class="sub muted">Rýchly prehľad controllerov</text>
+  <text x="240" y="92" class="title">Svetlo v tme</text><text x="240" y="116" class="sub muted">Rýchly prehľad controllerov</text>
 
   <!-- rows -->
   <g transform="translate(230,138)">

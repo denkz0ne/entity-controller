@@ -8,7 +8,7 @@ def test_flat_controller_config_flow_has_clear_localized_add_and_edit_labels() -
     expected = {
         "strings.json": ("Add controller", "Edit controller"),
         "en.json": ("Add controller", "Edit controller"),
-        "sk.json": ("Pridať controller", "Upraviť controller"),
+        "sk.json": ("Pridať ovládač", "Upraviť ovládač"),
     }
     for filename, (add_label, edit_label) in expected.items():
         path = (

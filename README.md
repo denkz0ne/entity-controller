@@ -1,28 +1,34 @@
-# Entity Controller
+# Svetlo v tme
 
-![Entity Controller integration icon](custom_components/entity_controller/brand/icon.png)
+![Svetlo v tme integration icon](custom_components/entity_controller/brand/icon.png)
 
-Entity Controller v10 is a Home Assistant device integration for reusable "when this happens, keep that active for a while" automations. Each controller is one Home Assistant config entry and one device, so the integration page lists controllers directly.
+**Svetlo v tme** is a Home Assistant integration for reusable, configurable
+controllers that activate devices from triggers, preserve manual control, and
+apply separate daytime and nighttime behavior. Each controller is represented
+as a Home Assistant device with native state and control entities.
 
-Current stable release: `10.6.0`
+Current stable release: `10.7.0`
 
-The setup flow immediately opens the first controller form. Entity Controller
-appears once on the Integrations page; each configured controller appears below
-it as a device with native State, Enabled, Stay Mode, Blocked, and Activate
-entities. Controllers directly control the selected Home Assistant entities.
-The controller form includes allowed operating windows, sunrise/sunset offsets,
-day and night delays/service data, timer backoff, manual-control blocking,
-override/interlock inputs, transition behavior, and custom state mappings. The
-sidebar configuration panel adds a compact inline editor with searchable entity
-chips, visual schedule controls, and separate basic and full settings modes.
+The integration includes a compact sidebar panel for monitoring controllers
+and editing their settings. It offers searchable entity selection, graphical
+schedule controls, basic and advanced settings, and explicit **Save / Close**
+actions. Day and night profiles can set supported light brightness and color,
+fan percentage, transitions, and other service parameters without requiring
+users to write service data by hand.
 
-Entity Controller uses Home Assistant's stock device integration UI. The top
-right `+` adds a controller; each controller's settings edit that controller.
-No frontend patch is used.
+The integration's internal Home Assistant domain remains `entity_controller`
+for compatibility. Existing entity IDs, service IDs, configuration entries,
+and automations do not need to be renamed because of the product rebrand.
+
+The integration uses Home Assistant's native device and config-entry UI. The
+top-right `+` adds a controller; each controller's settings edit that
+controller.
 
 ## Status
 
-The v10 stable line targets Home Assistant `2026.9.0` and newer. Review the migration guide before upgrading from v9; legacy YAML and Helpers are preserved for manual validation and cleanup.
+The stable v10 line targets Home Assistant `2026.9.0` and newer. Review the
+migration guide before upgrading from v9; legacy YAML and Helpers are preserved
+for manual validation and cleanup.
 
 ## Documentation
 
@@ -36,9 +42,11 @@ The v10 stable line targets Home Assistant `2026.9.0` and newer. Review the migr
 
 ## Migration model
 
-The migration guide covers legacy YAML and v10 config-entry data. Entity Controller does not delete Helpers or rewrite `ec.yaml`. External Helpers stay ordinary Home Assistant entities and can be selected by one or more controller rules.
+The migration guide covers legacy YAML and v10 config-entry data. Svetlo v tme
+does not delete Helpers or rewrite `ec.yaml`. External Helpers stay ordinary
+Home Assistant entities and can be selected by one or more controller rules.
 
 ## Development
 
-The maintained v10 CI path is `.github/workflows/v10-modernization.yml`. It runs repository metadata checks, Ruff, and the v10 pytest suite.
-
+The maintained CI workflow runs repository metadata checks, Ruff, the pytest
+suite, and browser tests for the sidebar panel.
