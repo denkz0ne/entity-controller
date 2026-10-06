@@ -199,7 +199,7 @@ def test_diacritic_controller_name_uses_canonical_entity_id_slug() -> None:
 def test_entity_translations_cover_native_function_names_and_fsm_states() -> None:
     for path, state_name in (
         (Path("custom_components/entity_controller/translations/en.json"), "State"),
-        (Path("custom_components/entity_controller/translations/sk.json"), "Stav"),
+        (Path("custom_components/entity_controller/translations/sk.json"), "Stav automatiky"),
     ):
         entity = json.loads(path.read_text(encoding="utf-8"))["entity"]
         assert entity["sensor"]["state"]["name"] == state_name

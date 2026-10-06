@@ -3,143 +3,143 @@
   "config": {
     "step": {
       "user": {
-        "title": "Pridať controller",
-        "description": "Nastav samostatný controller.",
+        "title": "Pridať ovládač",
+        "description": "Vyber, čo má ovládač spustiť a ako dlho má zariadenie zostať aktívne.",
         "sections": {
           "basic": {
-            "name": "Základné nastavenie",
+            "name": "Základné nastavenia",
             "data": {
-              "name": "Názov",
+              "name": "Názov ovládača",
               "icon": "Ikona",
-              "trigger_entities": "Spúšťacie entity",
-              "control_entities": "Ovládané entity",
-              "delay_seconds": "Čas aktivity",
-              "presence_entities": "Senzory prítomnosti / podržania"
+              "trigger_entities": "Čo spúšťa aktivitu",
+              "control_entities": "Čo má ovládač ovládať",
+              "delay_seconds": "Čas do vypnutia",
+              "presence_entities": "Senzory prítomnosti"
             },
             "data_description": {
-              "presence_entities": "Miestnosť samy nezapínajú. Držia už aktívny controller, kým je detegovaná prítomnosť. Po uvoľnení posledného senzora začne bežný čas do vypnutia."
+              "presence_entities": "Samy aktivitu nespustia. Keď je ovládač už aktívny, podržia ho, kým niektorý senzor hlási prítomnosť. Po uvoľnení posledného senzora začne plynúť čas do vypnutia."
             }
           },
           "timer": {
-            "name": "Spúšťanie a časovač",
+            "name": "Spustenie a časovanie",
             "data": {
-              "sensor_type": "Typ spúšťača",
-              "sensor_resets_timer": "Po uvoľnení spúšťača spustiť časovač znova",
-              "backoff_enabled": "Adaptívne predlžovanie času",
-              "backoff_factor": "Násobiteľ predĺženia",
-              "backoff_max_seconds": "Maximálny čas aktivity"
+              "sensor_type": "Režim spúšťača",
+              "sensor_resets_timer": "Nová aktivita obnoví celý odpočet",
+              "backoff_enabled": "Predlžovať čas pri opakovanom spustení",
+              "backoff_factor": "Násobok predĺženia",
+              "backoff_max_seconds": "Najdlhší čas do vypnutia"
             },
             "data_description": {
-              "sensor_type": "Udalosť spustí časovač. Trvanie drží EC aktívny, kým je spúšťač aktívny.",
-              "sensor_resets_timer": "Platí pre Trvanie. Po uvoľnení posledného spúšťača začne celý čas aktivity odznova.",
-              "backoff_enabled": "Opakované spustenia môžu čas aktivity postupne predĺžiť."
+              "sensor_type": "Udalosť spustí jednu aktivitu. Trvanie udrží ovládač aktívny, kým je spúšťač zapnutý.",
+              "sensor_resets_timer": "Pri režime Trvanie začne po vypnutí posledného spúšťača celý čas aktivity odznova.",
+              "backoff_enabled": "Pri opakovaných spusteniach sa čas do vypnutia postupne predĺži."
             }
           },
           "monitoring": {
-            "name": "Ručné zásahy a sledovaný stav",
+            "name": "Rešpektovanie ručných zmien",
             "data": {
-              "state_entities": "Stavové entity",
-              "blocking_enabled": "Rešpektovať ručný zásah",
-              "block_timeout_seconds": "Automaticky odblokovať po",
+              "state_entities": "Ďalšie sledované entity",
+              "blocking_enabled": "Pozastaviť automatiku pri ručnej zmene",
+              "block_timeout_seconds": "Zrušiť dočasné pozastavenie po",
               "protect_manual_off": "Rešpektovať ručné vypnutie",
               "protect_manual_on": "Rešpektovať ručné zapnutie a úpravy"
             },
             "data_description": {
-              "state_entities": "Voliteľné doplnkové entity, podľa ktorých EC sleduje skutočný stav. Ovládané entity sa sledujú automaticky.",
-              "blocking_enabled": "Ručná zmena mimo EC prejde do stavu Blokovaný namiesto okamžitého prepísania.",
-              "block_timeout_seconds": "0 vypne timeout. Aktívny interlock zostáva blokovaný až do jeho vypnutia.",
-              "protect_manual_off": "Po externom vypnutí počkať na vyprázdnenie miestnosti, aby ďalší pohyb svetlo ihneď nezapol.",
-              "protect_manual_on": "Zachovať externé zapnutie, jas, farbu a ďalšie významné úpravy počas aktuálnej aktivity."
+              "state_entities": "Tieto entity dopĺňajú sledovanie skutočného stavu. Ovládané zariadenia sa sledujú automaticky.",
+              "blocking_enabled": "Keď zariadenie zmeníš ručne, automatika sa pozastaví namiesto okamžitého prepísania tvojej zmeny.",
+              "block_timeout_seconds": "Po uplynutí času sa zruší dočasné pozastavenie. Hodnota 0 vypne časový limit. Aktívna blokovacia podmienka má prednosť a pozastavenie trvá, kým sa neuvoľní.",
+              "protect_manual_off": "Po ručnom vypnutí sa automatika neobnoví, kým sa miestnosť neuvoľní. Ďalší pohyb potom môže spustiť novú aktivitu.",
+              "protect_manual_on": "Počas aktuálnej aktivity zachová aj ručné zapnutie, zmenu jasu, farby a ďalších nastavení."
             }
           },
           "rules": {
-            "name": "Override a Interlock",
+            "name": "Prednosť a blokovanie",
             "data": {
-              "override_entities": "Override entity",
-              "interlock_entities": "Blokovacia podmienka (Interlock)"
+              "override_entities": "Entity s prednostným riadením",
+              "interlock_entities": "Entity, ktoré pozastavia automatiku"
             },
             "data_description": {
-              "override_entities": "Aktívny override dočasne nahradí bežnú logiku EC.",
-              "interlock_entities": "Aktívny interlock blokuje tento controller. Jeden Helper môže zdieľať viac controllerov."
+              "override_entities": "Keď je táto entita aktívna, ovládač prejde do prednostného režimu a bežné pravidlá ustúpia.",
+              "interlock_entities": "Kým je niektorá z týchto entít aktívna, ovládač zostane pozastavený. Tú istú blokovaciu entitu môže zdieľať viac ovládačov."
             }
           },
           "constraints": {
-            "name": "Povolené časové okno",
+            "name": "Kedy smie automatika pracovať",
             "data": {
-              "constraint_enabled": "Povoliť iba v časovom okne",
-              "constraint_start_source": "Začiatok povoleného okna",
-              "constraint_start_time": "Čas začiatku povoleného okna",
-              "constraint_start_offset_seconds": "Posun začiatku v sekundách",
-              "constraint_end_source": "Koniec povoleného okna",
-              "constraint_end_time": "Čas konca povoleného okna",
-              "constraint_end_offset_seconds": "Posun konca v sekundách"
+              "constraint_enabled": "Obmedziť aktivitu na časové okno",
+              "constraint_start_source": "Začiatok okna",
+              "constraint_start_time": "Pevný čas začiatku",
+              "constraint_start_offset_seconds": "Posun začiatku",
+              "constraint_end_source": "Koniec okna",
+              "constraint_end_time": "Pevný čas konca",
+              "constraint_end_offset_seconds": "Posun konca"
             },
-            "description": "Mimo tohto povoleného okna je EC časovo obmedzený a bežný trigger ho nespustí."
+            "description": "Mimo povoleného okna bežné spúšťače novú aktivitu nezačnú. Začiatok a koniec môžeš nastaviť na pevný čas alebo východ či západ slnka."
           },
           "night": {
-            "name": "Nočný profil",
+            "name": "Nočný svetelný profil",
             "data": {
-              "night_mode_enabled": "Zapnúť nočný profil",
+              "night_mode_enabled": "Používať nočný profil",
               "night_start_source": "Začiatok nočného profilu",
-              "night_start_time": "Čas začiatku noci",
-              "night_start_offset_seconds": "Posun začiatku noci v sekundách",
+              "night_start_time": "Pevný čas začiatku noci",
+              "night_start_offset_seconds": "Posun začiatku noci",
               "night_end_source": "Koniec nočného profilu",
-              "night_end_time": "Čas konca noci",
-              "night_end_offset_seconds": "Posun konca noci v sekundách",
-              "night_delay_seconds": "Nočný čas aktivity",
-              "night_service_data_on": "Nočné dáta služby pre zapnutie",
-              "night_service_data_off": "Nočné dáta služby pre vypnutie"
+              "night_end_time": "Pevný čas konca noci",
+              "night_end_offset_seconds": "Posun konca noci",
+              "night_delay_seconds": "Nočný čas do vypnutia",
+              "night_service_data_on": "Nastavenia zariadení pri nočnom zapnutí",
+              "night_service_data_off": "Nastavenia zariadení pri nočnom vypnutí"
             },
-            "description": "Nočný profil EC neblokuje. Počas svojho okna môže použiť iný čas aktivity a servisné dáta."
+            "description": "V tomto časovom okne sa použije samostatný čas aktivity a nastavenia zariadení pri zapnutí a vypnutí. Profil nemení povolené časové okno."
           },
           "initial_state": {
-            "name": "Počiatočný stav",
+            "name": "Počiatočné správanie",
             "data": {
-              "enabled_default": "Po vytvorení zapnutý",
-              "stay_mode_default": "Predvolene zapnúť trvalý režim"
+              "enabled_default": "Po vytvorení povoliť automatiku",
+              "stay_mode_default": "Po vytvorení ponechať trvalé zapnutie"
             }
           },
           "actions": {
-            "name": "Akcie pri zmene stavu",
+            "name": "Čo sa má stať pri zmene stavu",
             "data": {
-              "service_data_on": "Denné dáta služby pre zapnutie",
-              "service_data_off": "Denné dáta služby pre vypnutie",
-              "on_enter_idle": "Pri vstupe do nečinnosti",
-              "on_exit_idle": "Pri odchode z nečinnosti",
-              "on_enter_active": "Pri aktivácii",
-              "on_exit_active": "Pri ukončení aktivity",
-              "on_enter_overridden": "Pri zapnutí override",
-              "on_exit_overridden": "Pri vypnutí override",
-              "on_enter_constrained": "Pri zablokovaní časovým oknom",
-              "on_exit_constrained": "Pri uvoľnení časového okna",
-              "on_enter_blocked": "Pri zablokovaní",
-              "on_exit_blocked": "Pri odblokovaní",
-              "lifecycle_actions": "Vlastné HA akcie podľa fázy"
+              "service_data_on": "Nastavenia zariadení pri dennom zapnutí",
+              "service_data_off": "Nastavenia zariadení pri dennom vypnutí",
+              "on_enter_idle": "Pri skončení aktivity",
+              "on_exit_idle": "Pri opätovnom spustení",
+              "on_enter_active": "Pri začiatku aktivity",
+              "on_exit_active": "Pri skončení aktivity",
+              "on_enter_overridden": "Pri prevzatí prednostného riadenia",
+              "on_exit_overridden": "Po skončení prednostného riadenia",
+              "on_enter_constrained": "Pri zatvorení povoleného okna",
+              "on_exit_constrained": "Pri otvorení povoleného okna",
+              "on_enter_blocked": "Pri pozastavení automatiky",
+              "on_exit_blocked": "Pri obnovení automatiky",
+              "lifecycle_actions": "Vlastné akcie Home Assistant"
             },
-            "description": "Určuje, čo EC spraví pri zmene stavov. Predvolene zapne pri aktivácii a vypne pri návrate do nečinnosti.",
+            "description": "Určuje správanie zariadení pri prechode medzi stavmi. Predvolene sa pri začiatku aktivity zapnú a po jej skončení vypnú.",
             "data_description": {
-              "lifecycle_actions": "Mapa fázy (napr. on_enter_active) na natívnu sekvenciu HA akcií. Scénu možno spustiť akciou scene.turn_on."
+              "lifecycle_actions": "Ku konkrétnemu prechodu môžeš vybrať scénu alebo zostaviť natívnu akciu Home Assistant. Napríklad scéna sa spúšťa akciou scene.turn_on."
             }
           },
           "advanced": {
-            "name": "Pokročilé mapovanie stavov",
+            "name": "Vlastné rozpoznávanie stavov",
             "data": {
-              "trigger_on_states": "Aktívne stavy spúšťača (oddelené čiarkou)",
-              "trigger_off_states": "Neaktívne stavy spúšťača",
-              "state_on_states": "Zapnuté stavy ovládanej entity",
-              "state_off_states": "Vypnuté stavy ovládanej entity",
-              "override_on_states": "Aktívne stavy override",
-              "override_off_states": "Neaktívne stavy override",
-              "state_attributes_ignore": "Ignorované atribúty stavu",
-              "presence_on_states": "Aktívne stavy prítomnosti",
-              "presence_off_states": "Neaktívne stavy prítomnosti"
+              "trigger_on_states": "Spúšťač: aktívne stavy",
+              "trigger_off_states": "Spúšťač: neaktívne stavy",
+              "state_on_states": "Sledované zariadenie: zapnuté stavy",
+              "state_off_states": "Sledované zariadenie: vypnuté stavy",
+              "override_on_states": "Prednostné riadenie: aktívne stavy",
+              "override_off_states": "Prednostné riadenie: neaktívne stavy",
+              "state_attributes_ignore": "Ignorovať zmeny týchto atribútov",
+              "presence_on_states": "Prítomnosť: aktívne stavy",
+              "presence_off_states": "Prítomnosť: neaktívne stavy"
             },
-            "description": "Stavy, ktoré nie sú v žiadnom zozname, sú neutrálne a nemenia aktuálnu podmienku. Unknown, unavailable a prechodné stavy sa zohľadnia iba vtedy, ak ich uvedieš v zozname."
+            "description": "Stav, ktorý nie je označený ako aktívny ani neaktívny, podmienku nemení. Unknown, unavailable a prechodné stavy sa použijú iba vtedy, ak ich výslovne uvedieš."
           }
         }
       },
       "reconfigure": {
-        "title": "Premenovať controller",
+        "title": "Premenovať ovládač",
         "data": {
           "name": "Názov"
         }
@@ -149,131 +149,131 @@
   "options": {
     "step": {
       "init": {
-        "title": "Upraviť controller",
-        "description": "Zmeň nastavenia tohto controlleru.",
+        "title": "Upraviť ovládač",
+        "description": "Uprav spúšťače, časovanie a správanie tohto ovládača.",
         "sections": {
           "basic": {
-            "name": "Základné nastavenie",
+            "name": "Základné nastavenia",
             "data": {
-              "name": "Názov",
+              "name": "Názov ovládača",
               "icon": "Ikona",
-              "trigger_entities": "Spúšťacie entity",
-              "control_entities": "Ovládané entity",
-              "delay_seconds": "Čas aktivity",
-              "presence_entities": "Senzory prítomnosti / podržania"
+              "trigger_entities": "Čo spúšťa aktivitu",
+              "control_entities": "Čo má ovládač ovládať",
+              "delay_seconds": "Čas do vypnutia",
+              "presence_entities": "Senzory prítomnosti"
             },
             "data_description": {
-              "presence_entities": "Miestnosť samy nezapínajú. Držia už aktívny controller, kým je detegovaná prítomnosť. Po uvoľnení posledného senzora začne bežný čas do vypnutia."
+              "presence_entities": "Samy aktivitu nespustia. Keď je ovládač už aktívny, podržia ho, kým niektorý senzor hlási prítomnosť. Po uvoľnení posledného senzora začne plynúť čas do vypnutia."
             }
           },
           "timer": {
-            "name": "Spúšťanie a časovač",
+            "name": "Spustenie a časovanie",
             "data": {
-              "sensor_type": "Typ spúšťača",
-              "sensor_resets_timer": "Po uvoľnení spúšťača spustiť časovač znova",
-              "backoff_enabled": "Adaptívne predlžovanie času",
-              "backoff_factor": "Násobiteľ predĺženia",
-              "backoff_max_seconds": "Maximálny čas aktivity"
+              "sensor_type": "Režim spúšťača",
+              "sensor_resets_timer": "Nová aktivita obnoví celý odpočet",
+              "backoff_enabled": "Predlžovať čas pri opakovanom spustení",
+              "backoff_factor": "Násobok predĺženia",
+              "backoff_max_seconds": "Najdlhší čas do vypnutia"
             },
             "data_description": {
-              "sensor_type": "Udalosť spustí časovač. Trvanie drží EC aktívny, kým je spúšťač aktívny.",
-              "sensor_resets_timer": "Platí pre Trvanie. Po uvoľnení posledného spúšťača začne celý čas aktivity odznova.",
-              "backoff_enabled": "Opakované spustenia môžu čas aktivity postupne predĺžiť."
+              "sensor_type": "Udalosť spustí jednu aktivitu. Trvanie udrží ovládač aktívny, kým je spúšťač zapnutý.",
+              "sensor_resets_timer": "Pri režime Trvanie začne po vypnutí posledného spúšťača celý čas aktivity odznova.",
+              "backoff_enabled": "Pri opakovaných spusteniach sa čas do vypnutia postupne predĺži."
             }
           },
           "monitoring": {
-            "name": "Ručné zásahy a sledovaný stav",
+            "name": "Rešpektovanie ručných zmien",
             "data": {
-              "state_entities": "Stavové entity",
-              "blocking_enabled": "Rešpektovať ručný zásah",
-              "block_timeout_seconds": "Automaticky odblokovať po",
+              "state_entities": "Ďalšie sledované entity",
+              "blocking_enabled": "Pozastaviť automatiku pri ručnej zmene",
+              "block_timeout_seconds": "Zrušiť dočasné pozastavenie po",
               "protect_manual_off": "Rešpektovať ručné vypnutie",
               "protect_manual_on": "Rešpektovať ručné zapnutie a úpravy"
             },
             "data_description": {
-              "state_entities": "Voliteľné doplnkové entity, podľa ktorých EC sleduje skutočný stav. Ovládané entity sa sledujú automaticky.",
-              "blocking_enabled": "Ručná zmena mimo EC prejde do stavu Blokovaný namiesto okamžitého prepísania.",
-              "block_timeout_seconds": "0 vypne timeout. Aktívny interlock zostáva blokovaný až do jeho vypnutia.",
-              "protect_manual_off": "Po externom vypnutí počkať na vyprázdnenie miestnosti, aby ďalší pohyb svetlo ihneď nezapol.",
-              "protect_manual_on": "Zachovať externé zapnutie, jas, farbu a ďalšie významné úpravy počas aktuálnej aktivity."
+              "state_entities": "Tieto entity dopĺňajú sledovanie skutočného stavu. Ovládané zariadenia sa sledujú automaticky.",
+              "blocking_enabled": "Keď zariadenie zmeníš ručne, automatika sa pozastaví namiesto okamžitého prepísania tvojej zmeny.",
+              "block_timeout_seconds": "Po uplynutí času sa zruší dočasné pozastavenie. Hodnota 0 vypne časový limit. Aktívna blokovacia podmienka má prednosť a pozastavenie trvá, kým sa neuvoľní.",
+              "protect_manual_off": "Po ručnom vypnutí sa automatika neobnoví, kým sa miestnosť neuvoľní. Ďalší pohyb potom môže spustiť novú aktivitu.",
+              "protect_manual_on": "Počas aktuálnej aktivity zachová aj ručné zapnutie, zmenu jasu, farby a ďalších nastavení."
             }
           },
           "rules": {
-            "name": "Override a Interlock",
+            "name": "Prednosť a blokovanie",
             "data": {
-              "override_entities": "Override entity",
-              "interlock_entities": "Blokovacia podmienka (Interlock)"
+              "override_entities": "Entity s prednostným riadením",
+              "interlock_entities": "Entity, ktoré pozastavia automatiku"
             },
             "data_description": {
-              "override_entities": "Aktívny override dočasne nahradí bežnú logiku EC.",
-              "interlock_entities": "Aktívny interlock blokuje tento controller. Jeden Helper môže zdieľať viac controllerov."
+              "override_entities": "Keď je táto entita aktívna, ovládač prejde do prednostného režimu a bežné pravidlá ustúpia.",
+              "interlock_entities": "Kým je niektorá z týchto entít aktívna, ovládač zostane pozastavený. Tú istú blokovaciu entitu môže zdieľať viac ovládačov."
             }
           },
           "constraints": {
-            "name": "Povolené časové okno",
+            "name": "Kedy smie automatika pracovať",
             "data": {
-              "constraint_enabled": "Povoliť iba v časovom okne",
-              "constraint_start_source": "Začiatok povoleného okna",
-              "constraint_start_time": "Čas začiatku povoleného okna",
-              "constraint_start_offset_seconds": "Posun začiatku v sekundách",
-              "constraint_end_source": "Koniec povoleného okna",
-              "constraint_end_time": "Čas konca povoleného okna",
-              "constraint_end_offset_seconds": "Posun konca v sekundách"
+              "constraint_enabled": "Obmedziť aktivitu na časové okno",
+              "constraint_start_source": "Začiatok okna",
+              "constraint_start_time": "Pevný čas začiatku",
+              "constraint_start_offset_seconds": "Posun začiatku",
+              "constraint_end_source": "Koniec okna",
+              "constraint_end_time": "Pevný čas konca",
+              "constraint_end_offset_seconds": "Posun konca"
             },
-            "description": "Mimo tohto povoleného okna je EC časovo obmedzený a bežný trigger ho nespustí."
+            "description": "Mimo povoleného okna bežné spúšťače novú aktivitu nezačnú. Začiatok a koniec môžeš nastaviť na pevný čas alebo východ či západ slnka."
           },
           "night": {
-            "name": "Nočný profil",
+            "name": "Nočný svetelný profil",
             "data": {
-              "night_mode_enabled": "Zapnúť nočný profil",
+              "night_mode_enabled": "Používať nočný profil",
               "night_start_source": "Začiatok nočného profilu",
-              "night_start_time": "Čas začiatku noci",
-              "night_start_offset_seconds": "Posun začiatku noci v sekundách",
+              "night_start_time": "Pevný čas začiatku noci",
+              "night_start_offset_seconds": "Posun začiatku noci",
               "night_end_source": "Koniec nočného profilu",
-              "night_end_time": "Čas konca noci",
-              "night_end_offset_seconds": "Posun konca noci v sekundách",
-              "night_delay_seconds": "Nočný čas aktivity",
-              "night_service_data_on": "Nočné dáta služby pre zapnutie",
-              "night_service_data_off": "Nočné dáta služby pre vypnutie"
+              "night_end_time": "Pevný čas konca noci",
+              "night_end_offset_seconds": "Posun konca noci",
+              "night_delay_seconds": "Nočný čas do vypnutia",
+              "night_service_data_on": "Nastavenia zariadení pri nočnom zapnutí",
+              "night_service_data_off": "Nastavenia zariadení pri nočnom vypnutí"
             },
-            "description": "Nočný profil EC neblokuje. Počas svojho okna môže použiť iný čas aktivity a servisné dáta."
+            "description": "V tomto časovom okne sa použije samostatný čas aktivity a nastavenia zariadení pri zapnutí a vypnutí. Profil nemení povolené časové okno."
           },
           "actions": {
-            "name": "Akcie pri zmene stavu",
+            "name": "Čo sa má stať pri zmene stavu",
             "data": {
-              "service_data_on": "Denné dáta služby pre zapnutie",
-              "service_data_off": "Denné dáta služby pre vypnutie",
-              "on_enter_idle": "Pri vstupe do nečinnosti",
-              "on_exit_idle": "Pri odchode z nečinnosti",
-              "on_enter_active": "Pri aktivácii",
-              "on_exit_active": "Pri ukončení aktivity",
-              "on_enter_overridden": "Pri zapnutí override",
-              "on_exit_overridden": "Pri vypnutí override",
-              "on_enter_constrained": "Pri zablokovaní časovým oknom",
-              "on_exit_constrained": "Pri uvoľnení časového okna",
-              "on_enter_blocked": "Pri zablokovaní",
-              "on_exit_blocked": "Pri odblokovaní",
-              "lifecycle_actions": "Vlastné HA akcie podľa fázy"
+              "service_data_on": "Nastavenia zariadení pri dennom zapnutí",
+              "service_data_off": "Nastavenia zariadení pri dennom vypnutí",
+              "on_enter_idle": "Pri skončení aktivity",
+              "on_exit_idle": "Pri opätovnom spustení",
+              "on_enter_active": "Pri začiatku aktivity",
+              "on_exit_active": "Pri skončení aktivity",
+              "on_enter_overridden": "Pri prevzatí prednostného riadenia",
+              "on_exit_overridden": "Po skončení prednostného riadenia",
+              "on_enter_constrained": "Pri zatvorení povoleného okna",
+              "on_exit_constrained": "Pri otvorení povoleného okna",
+              "on_enter_blocked": "Pri pozastavení automatiky",
+              "on_exit_blocked": "Pri obnovení automatiky",
+              "lifecycle_actions": "Vlastné akcie Home Assistant"
             },
-            "description": "Určuje, čo EC spraví pri zmene stavov. Predvolene zapne pri aktivácii a vypne pri návrate do nečinnosti.",
+            "description": "Určuje správanie zariadení pri prechode medzi stavmi. Predvolene sa pri začiatku aktivity zapnú a po jej skončení vypnú.",
             "data_description": {
-              "lifecycle_actions": "Mapa fázy (napr. on_enter_active) na natívnu sekvenciu HA akcií. Scénu možno spustiť akciou scene.turn_on."
+              "lifecycle_actions": "Ku konkrétnemu prechodu môžeš vybrať scénu alebo zostaviť natívnu akciu Home Assistant. Napríklad scéna sa spúšťa akciou scene.turn_on."
             }
           },
           "advanced": {
-            "name": "Pokročilé mapovanie stavov",
+            "name": "Vlastné rozpoznávanie stavov",
             "data": {
-              "trigger_on_states": "Aktívne stavy spúšťača (oddelené čiarkou)",
-              "trigger_off_states": "Neaktívne stavy spúšťača",
-              "state_on_states": "Zapnuté stavy ovládanej entity",
-              "state_off_states": "Vypnuté stavy ovládanej entity",
-              "override_on_states": "Aktívne stavy override",
-              "override_off_states": "Neaktívne stavy override",
-              "state_attributes_ignore": "Ignorované atribúty stavu",
-              "presence_on_states": "Aktívne stavy prítomnosti",
-              "presence_off_states": "Neaktívne stavy prítomnosti"
+              "trigger_on_states": "Spúšťač: aktívne stavy",
+              "trigger_off_states": "Spúšťač: neaktívne stavy",
+              "state_on_states": "Sledované zariadenie: zapnuté stavy",
+              "state_off_states": "Sledované zariadenie: vypnuté stavy",
+              "override_on_states": "Prednostné riadenie: aktívne stavy",
+              "override_off_states": "Prednostné riadenie: neaktívne stavy",
+              "state_attributes_ignore": "Ignorovať zmeny týchto atribútov",
+              "presence_on_states": "Prítomnosť: aktívne stavy",
+              "presence_off_states": "Prítomnosť: neaktívne stavy"
             },
-            "description": "Stavy, ktoré nie sú v žiadnom zozname, sú neutrálne a nemenia aktuálnu podmienku. Unknown, unavailable a prechodné stavy sa zohľadnia iba vtedy, ak ich uvedieš v zozname."
+            "description": "Stav, ktorý nie je označený ako aktívny ani neaktívny, podmienku nemení. Unknown, unavailable a prechodné stavy sa použijú iba vtedy, ak ich výslovne uvedieš."
           }
         }
       }
@@ -282,8 +282,8 @@
   "selector": {
     "sensor_type": {
       "options": {
-        "event": "Udalosť",
-        "duration": "Trvanie"
+        "event": "Jednorazová udalosť",
+        "duration": "Aktívny počas trvania signálu"
       }
     },
     "schedule_source": {
@@ -295,45 +295,45 @@
     },
     "transition_behavior": {
       "options": {
-        "on": "Zapnúť",
-        "off": "Vypnúť",
-        "ignore": "Nerobiť nič",
-        "custom": "Vlastná HA akcia",
-        "restore": "Obnoviť predchádzajúci stav"
+        "on": "Zapnúť zariadenia",
+        "off": "Vypnúť zariadenia",
+        "ignore": "Ponechať bez zmeny",
+        "custom": "Scéna alebo vlastná akcia",
+        "restore": "Obnoviť pôvodný stav"
       }
     }
   },
   "entity": {
     "sensor": {
       "state": {
-        "name": "Stav",
+        "name": "Stav automatiky",
         "state": {
-          "idle": "Nečinný",
-          "active_timer": "Aktívny časovač",
-          "active_stay_on": "Aktívny trvalý režim",
-          "blocked": "Blokovaný",
-          "overridden": "Override",
-          "constrained": "Časovo obmedzený",
-          "disabled": "Vypnutý"
+          "idle": "Čaká na spúšťač",
+          "active_timer": "Aktívna · beží odpočet",
+          "active_stay_on": "Aktívna · trvalé zapnutie",
+          "blocked": "Pozastavená",
+          "overridden": "Prednostné riadenie",
+          "constrained": "Mimo povoleného času",
+          "disabled": "Automatika vypnutá"
         }
       }
     },
     "switch": {
       "enabled": {
-        "name": "Zapnutý"
+        "name": "Automatika povolená"
       },
       "stay_mode": {
-        "name": "Trvalý režim"
+        "name": "Trvalé zapnutie"
       }
     },
     "binary_sensor": {
       "blocked": {
-        "name": "Blokovaný"
+        "name": "Automatika pozastavená"
       }
     },
     "button": {
       "activate": {
-        "name": "Aktivovať"
+        "name": "Spustiť teraz"
       }
     }
   }
