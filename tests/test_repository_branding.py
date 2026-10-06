@@ -51,3 +51,14 @@ def test_integration_brand_assets_are_transparent_and_high_resolution() -> None:
     assert (brand_dir / "icon.svg").is_file()
     assert not (brand_dir / "dark_icon.svg").exists()
     assert not (brand_dir / "dark_icon.png").exists()
+
+
+def test_brand_icon_matches_selected_c_and_two_dots() -> None:
+    # Sample stable interior points, not antialiased edges. This rejects the
+    # old navy dial/home/bulb/clock artwork and verifies the added centre dot.
+    with Image.open("custom_components/entity_controller/brand/icon@2x.png") as image:
+        assert image.getpixel((256, 70)) == (3, 169, 244, 255)
+        assert image.getpixel((240, 256)) == (255, 255, 255, 255)
+        assert image.getpixel((350, 256)) == (255, 255, 255, 255)
+        assert image.getpixel((120, 256)) == (255, 255, 255, 255)
+        assert image.getpixel((280, 256)) == (3, 169, 244, 255)

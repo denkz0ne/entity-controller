@@ -18,6 +18,7 @@ from custom_components.entity_controller.config_flow import (
     normalize_controller_user_input,
 )
 from custom_components.entity_controller.const import DOMAIN
+from custom_components.entity_controller.model import DEFAULT_TRANSITION_BEHAVIORS
 
 
 def _prepare_config_flow(
@@ -180,6 +181,7 @@ def test_controller_form_keeps_common_setup_in_one_expanded_section() -> None:
         "name",
         "icon",
         "trigger_entities",
+        "presence_entities",
         "control_entities",
         "delay_seconds",
     }
@@ -231,7 +233,7 @@ async def test_device_settings_opens_edit_controller_form() -> None:
             "constraints": {"constraint_enabled": False},
             "night": {"night_mode_enabled": False},
             "initial_state": {},
-            "actions": {},
+            "actions": {key: value.value for key, value in DEFAULT_TRANSITION_BEHAVIORS.items()},
             "advanced": {},
         }
     ]
@@ -315,6 +317,7 @@ def test_basic_controller_input_is_normalized_without_advanced_fields() -> None:
         "name": "Hall Motion",
         "icon": None,
         "trigger_entities": ("binary_sensor.hall_motion",),
+        "presence_entities": (),
         "control_entities": ("light.hall",),
         "state_entities": (),
         "override_entities": (),
@@ -323,6 +326,8 @@ def test_basic_controller_input_is_normalized_without_advanced_fields() -> None:
         "sensor_resets_timer": False,
         "delay_seconds": 180.0,
         "blocking_enabled": True,
+        "protect_manual_off": True,
+        "protect_manual_on": True,
         "block_timeout_seconds": None,
         "enabled_default": True,
         "stay_mode_default": False,
@@ -333,11 +338,12 @@ def test_basic_controller_input_is_normalized_without_advanced_fields() -> None:
         "night_mode": None,
         "service_data_on": {},
         "service_data_off": {},
+        "lifecycle_actions": {},
         "transition_behaviors": {
-            "on_enter_idle": "off",
+            "on_enter_idle": "ignore",
             "on_exit_idle": "ignore",
             "on_enter_active": "on",
-            "on_exit_active": "ignore",
+            "on_exit_active": "off",
             "on_enter_overridden": "ignore",
             "on_exit_overridden": "ignore",
             "on_enter_constrained": "ignore",
@@ -347,12 +353,62 @@ def test_basic_controller_input_is_normalized_without_advanced_fields() -> None:
         },
         "trigger_on_states": ("on",),
         "trigger_off_states": ("off",),
+        "presence_on_states": ("on",),
+        "presence_off_states": ("off",),
         "state_on_states": ("on",),
         "state_off_states": ("off",),
         "override_on_states": ("on",),
         "override_off_states": ("off",),
         "state_attributes_ignore": (),
     }
+
+
+def test_presence_and_lifecycle_configuration_roundtrips_without_reassigning_triggers() -> None:
+    sequence = [{"action": "scene.turn_on", "target": {"entity_id": "scene.room_evening"}}]
+    normalized = normalize_controller_user_input({
+        "basic": {"name": "Room", "trigger_entities": ["binary_sensor.pir"],
+                  "presence_entities": ["binary_sensor.mmwave", "input_boolean.occupied"],
+                  "control_entities": ["light.room"]},
+        "advanced": {"presence_on_states": "on, occupied", "presence_off_states": "off, empty"},
+        "actions": {"lifecycle_actions": {"on_enter_active": sequence}},
+    })
+    assert normalized["trigger_entities"] == ("binary_sensor.pir",)
+    assert normalized["presence_entities"] == ("binary_sensor.mmwave", "input_boolean.occupied")
+    assert normalized["presence_on_states"] == ("on", "occupied")
+    assert normalized["presence_off_states"] == ("off", "empty")
+    expanded = controller_form_values(normalized)
+    assert expanded["basic"]["presence_entities"] == normalized["presence_entities"]
+    assert expanded["advanced"]["presence_on_states"] == "on, occupied"
+    assert expanded["advanced"]["presence_off_states"] == "off, empty"
+    assert expanded["actions"]["lifecycle_actions"] == {"on_enter_active": sequence}
+    assert normalize_controller_user_input(expanded) == normalized
+
+
+def test_legacy_shutdown_pair_is_canonical_before_a_name_only_save() -> None:
+    legacy = {"name": "Room", "trigger_entities": ["binary_sensor.pir"], "control_entities": ["light.room"],
+              "transition_behaviors": {"on_enter_idle": "off", "on_exit_active": "ignore"}}
+    expanded = controller_form_values(legacy)
+    assert expanded["actions"]["on_enter_idle"] == "ignore"
+    assert expanded["actions"]["on_exit_active"] == "off"
+    baseline = normalize_controller_user_input(expanded)
+    expanded["basic"]["name"] = "Renamed room"
+    renamed = normalize_controller_user_input(expanded)
+    assert renamed == {**baseline, "name": "Renamed room"}
+    assert legacy["transition_behaviors"] == {"on_enter_idle": "off", "on_exit_active": "ignore"}
+
+
+def test_manual_off_and_on_protection_roundtrip_independently() -> None:
+    for protect_off, protect_on in ((True, False), (False, True), (False, False)):
+        normalized = normalize_controller_user_input({
+            "basic": {"name": "Room", "trigger_entities": [], "control_entities": []},
+            "monitoring": {"protect_manual_off": protect_off, "protect_manual_on": protect_on},
+        })
+        assert normalized["protect_manual_off"] is protect_off
+        assert normalized["protect_manual_on"] is protect_on
+        form = controller_form_values(normalized)
+        assert form["monitoring"]["protect_manual_off"] is protect_off
+        assert form["monitoring"]["protect_manual_on"] is protect_on
+        assert normalize_controller_user_input(form) == normalized
 
 
 def test_advanced_controller_sections_are_normalized() -> None:

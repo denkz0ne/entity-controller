@@ -64,6 +64,28 @@ async def async_get_config_entry_diagnostics(
                     "active_overrides": list(runtime.active_overrides),
                     "active_interlocks": list(runtime.active_interlocks),
                     "active_triggers": list(runtime.active_triggers),
+                    "presence_active": runtime.presence_active,
+                    "active_presence_entities": list(runtime.active_presence_entities),
+                    "presence_hold_started_at": runtime.presence_hold_started_at.isoformat()
+                    if runtime.presence_hold_started_at is not None else None,
+                    "last_presence_changed_at": runtime.last_presence_changed_at.isoformat()
+                    if runtime.last_presence_changed_at is not None else None,
+                    "timer_expired_pending_presence": runtime.timer_expired_pending_presence,
+                    "manual_control_kind": runtime.manual_control_kind,
+                    "manual_control_entity": runtime.manual_control_entity,
+                    "manual_control_at": runtime.manual_control_at.isoformat()
+                    if runtime.manual_control_at is not None else None,
+                    "manual_takeover_pending": runtime.manual_takeover_pending,
+                    "manual_release_ready": runtime.manual_release_ready,
+                    "snapshot_held": runtime.snapshot_held,
+                    "last_action_hook": runtime.last_action_hook,
+                    "last_action_result": runtime.last_action_result,
+                    "last_action_error": runtime.last_action_error,
+                    "last_action_at": runtime.last_action_at.isoformat()
+                    if runtime.last_action_at is not None else None,
+                    "snapshot_generation": runtime.snapshot_generation,
+                    "selected_exit_strategy": runtime.selected_exit_strategy,
+                    "restore_skipped_manual": runtime.restore_skipped_manual,
                     "active_state_entities": list(runtime.active_state_entities),
                     "effective_delay": runtime.effective_delay_seconds,
                     "backoff_count": runtime.backoff_count,
@@ -72,6 +94,11 @@ async def async_get_config_entry_diagnostics(
                     "config": _redact(
                         {
                             "trigger_entities": list(runtime.config.trigger_entities),
+                            "presence_entities": list(runtime.config.presence_entities),
+                            "presence_on_states": list(runtime.config.presence_on_states),
+                            "presence_off_states": list(runtime.config.presence_off_states),
+                            "protect_manual_off": runtime.config.protect_manual_off,
+                            "protect_manual_on": runtime.config.protect_manual_on,
                             "control_entities": list(runtime.config.control_entities),
                             "state_entities": list(runtime.config.state_entities),
                             "override_entities": list(runtime.config.override_entities),

@@ -13,7 +13,11 @@
               "icon": "Ikona",
               "trigger_entities": "Spúšťacie entity",
               "control_entities": "Ovládané entity",
-              "delay_seconds": "Čas aktivity"
+              "delay_seconds": "Čas aktivity",
+              "presence_entities": "Senzory prítomnosti / podržania"
+            },
+            "data_description": {
+              "presence_entities": "Miestnosť samy nezapínajú. Držia už aktívny controller, kým je detegovaná prítomnosť. Po uvoľnení posledného senzora začne bežný čas do vypnutia."
             }
           },
           "timer": {
@@ -36,12 +40,16 @@
             "data": {
               "state_entities": "Stavové entity",
               "blocking_enabled": "Rešpektovať ručný zásah",
-              "block_timeout_seconds": "Automaticky odblokovať po"
+              "block_timeout_seconds": "Automaticky odblokovať po",
+              "protect_manual_off": "Rešpektovať ručné vypnutie",
+              "protect_manual_on": "Rešpektovať ručné zapnutie a úpravy"
             },
             "data_description": {
               "state_entities": "Voliteľné doplnkové entity, podľa ktorých EC sleduje skutočný stav. Ovládané entity sa sledujú automaticky.",
               "blocking_enabled": "Ručná zmena mimo EC prejde do stavu Blokovaný namiesto okamžitého prepísania.",
-              "block_timeout_seconds": "0 vypne timeout. Aktívny interlock zostáva blokovaný až do jeho vypnutia."
+              "block_timeout_seconds": "0 vypne timeout. Aktívny interlock zostáva blokovaný až do jeho vypnutia.",
+              "protect_manual_off": "Po externom vypnutí počkať na vyprázdnenie miestnosti, aby ďalší pohyb svetlo ihneď nezapol.",
+              "protect_manual_on": "Zachovať externé zapnutie, jas, farbu a ďalšie významné úpravy počas aktuálnej aktivity."
             }
           },
           "rules": {
@@ -105,9 +113,13 @@
               "on_enter_constrained": "Pri zablokovaní časovým oknom",
               "on_exit_constrained": "Pri uvoľnení časového okna",
               "on_enter_blocked": "Pri zablokovaní",
-              "on_exit_blocked": "Pri odblokovaní"
+              "on_exit_blocked": "Pri odblokovaní",
+              "lifecycle_actions": "Vlastné HA akcie podľa fázy"
             },
-            "description": "Určuje, čo EC spraví pri zmene stavov. Predvolene zapne pri aktivácii a vypne pri návrate do nečinnosti."
+            "description": "Určuje, čo EC spraví pri zmene stavov. Predvolene zapne pri aktivácii a vypne pri návrate do nečinnosti.",
+            "data_description": {
+              "lifecycle_actions": "Mapa fázy (napr. on_enter_active) na natívnu sekvenciu HA akcií. Scénu možno spustiť akciou scene.turn_on."
+            }
           },
           "advanced": {
             "name": "Pokročilé mapovanie stavov",
@@ -118,7 +130,9 @@
               "state_off_states": "Vypnuté stavy ovládanej entity",
               "override_on_states": "Aktívne stavy override",
               "override_off_states": "Neaktívne stavy override",
-              "state_attributes_ignore": "Ignorované atribúty stavu"
+              "state_attributes_ignore": "Ignorované atribúty stavu",
+              "presence_on_states": "Aktívne stavy prítomnosti",
+              "presence_off_states": "Neaktívne stavy prítomnosti"
             },
             "description": "Stavy, ktoré nie sú v žiadnom zozname, sú neutrálne a nemenia aktuálnu podmienku. Unknown, unavailable a prechodné stavy sa zohľadnia iba vtedy, ak ich uvedieš v zozname."
           }
@@ -145,7 +159,11 @@
               "icon": "Ikona",
               "trigger_entities": "Spúšťacie entity",
               "control_entities": "Ovládané entity",
-              "delay_seconds": "Čas aktivity"
+              "delay_seconds": "Čas aktivity",
+              "presence_entities": "Senzory prítomnosti / podržania"
+            },
+            "data_description": {
+              "presence_entities": "Miestnosť samy nezapínajú. Držia už aktívny controller, kým je detegovaná prítomnosť. Po uvoľnení posledného senzora začne bežný čas do vypnutia."
             }
           },
           "timer": {
@@ -168,12 +186,16 @@
             "data": {
               "state_entities": "Stavové entity",
               "blocking_enabled": "Rešpektovať ručný zásah",
-              "block_timeout_seconds": "Automaticky odblokovať po"
+              "block_timeout_seconds": "Automaticky odblokovať po",
+              "protect_manual_off": "Rešpektovať ručné vypnutie",
+              "protect_manual_on": "Rešpektovať ručné zapnutie a úpravy"
             },
             "data_description": {
               "state_entities": "Voliteľné doplnkové entity, podľa ktorých EC sleduje skutočný stav. Ovládané entity sa sledujú automaticky.",
               "blocking_enabled": "Ručná zmena mimo EC prejde do stavu Blokovaný namiesto okamžitého prepísania.",
-              "block_timeout_seconds": "0 vypne timeout. Aktívny interlock zostáva blokovaný až do jeho vypnutia."
+              "block_timeout_seconds": "0 vypne timeout. Aktívny interlock zostáva blokovaný až do jeho vypnutia.",
+              "protect_manual_off": "Po externom vypnutí počkať na vyprázdnenie miestnosti, aby ďalší pohyb svetlo ihneď nezapol.",
+              "protect_manual_on": "Zachovať externé zapnutie, jas, farbu a ďalšie významné úpravy počas aktuálnej aktivity."
             }
           },
           "rules": {
@@ -230,9 +252,13 @@
               "on_enter_constrained": "Pri zablokovaní časovým oknom",
               "on_exit_constrained": "Pri uvoľnení časového okna",
               "on_enter_blocked": "Pri zablokovaní",
-              "on_exit_blocked": "Pri odblokovaní"
+              "on_exit_blocked": "Pri odblokovaní",
+              "lifecycle_actions": "Vlastné HA akcie podľa fázy"
             },
-            "description": "Určuje, čo EC spraví pri zmene stavov. Predvolene zapne pri aktivácii a vypne pri návrate do nečinnosti."
+            "description": "Určuje, čo EC spraví pri zmene stavov. Predvolene zapne pri aktivácii a vypne pri návrate do nečinnosti.",
+            "data_description": {
+              "lifecycle_actions": "Mapa fázy (napr. on_enter_active) na natívnu sekvenciu HA akcií. Scénu možno spustiť akciou scene.turn_on."
+            }
           },
           "advanced": {
             "name": "Pokročilé mapovanie stavov",
@@ -243,7 +269,9 @@
               "state_off_states": "Vypnuté stavy ovládanej entity",
               "override_on_states": "Aktívne stavy override",
               "override_off_states": "Neaktívne stavy override",
-              "state_attributes_ignore": "Ignorované atribúty stavu"
+              "state_attributes_ignore": "Ignorované atribúty stavu",
+              "presence_on_states": "Aktívne stavy prítomnosti",
+              "presence_off_states": "Neaktívne stavy prítomnosti"
             },
             "description": "Stavy, ktoré nie sú v žiadnom zozname, sú neutrálne a nemenia aktuálnu podmienku. Unknown, unavailable a prechodné stavy sa zohľadnia iba vtedy, ak ich uvedieš v zozname."
           }
@@ -269,7 +297,9 @@
       "options": {
         "on": "Zapnúť",
         "off": "Vypnúť",
-        "ignore": "Nerobiť nič"
+        "ignore": "Nerobiť nič",
+        "custom": "Vlastná HA akcia",
+        "restore": "Obnoviť predchádzajúci stav"
       }
     }
   },

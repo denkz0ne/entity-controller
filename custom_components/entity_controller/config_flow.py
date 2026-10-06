@@ -13,7 +13,8 @@ from homeassistant.helpers import selector
 
 from .const import DEFAULT_DELAY_SECONDS, DOMAIN
 from .entry_migration import fresh_controller_data
-from .model import DEFAULT_TRANSITION_BEHAVIORS
+from .lifecycle import normalize_lifecycle_actions
+from .model import DEFAULT_TRANSITION_BEHAVIORS, normalize_transition_behaviors
 
 
 def _as_tuple(value: Any) -> tuple[str, ...]:
@@ -107,7 +108,7 @@ SCHEDULE_SOURCE_SELECTOR = selector.SelectSelector(
 )
 BEHAVIOR_SELECTOR = selector.SelectSelector(
     selector.SelectSelectorConfig(
-        options=["on", "off", "ignore"], translation_key="transition_behavior"
+        options=["on", "off", "ignore", "custom", "restore"], translation_key="transition_behavior"
     )
 )
 SENSOR_TYPE_SELECTOR = selector.SelectSelector(
@@ -128,6 +129,9 @@ CONTROLLER_SCHEMA = vol.Schema(
                     vol.Required("name"): selector.TextSelector(),
                     vol.Optional("icon"): selector.IconSelector(),
                     vol.Required("trigger_entities"): selector.EntitySelector(
+                        selector.EntitySelectorConfig(multiple=True)
+                    ),
+                    vol.Optional("presence_entities", default=[]): selector.EntitySelector(
                         selector.EntitySelectorConfig(multiple=True)
                     ),
                     vol.Required("control_entities"): selector.EntitySelector(
@@ -166,6 +170,8 @@ CONTROLLER_SCHEMA = vol.Schema(
                     vol.Optional(
                         "blocking_enabled", default=True
                     ): selector.BooleanSelector(),
+                    vol.Optional("protect_manual_off", default=True): selector.BooleanSelector(),
+                    vol.Optional("protect_manual_on", default=True): selector.BooleanSelector(),
                     vol.Optional(
                         "block_timeout_seconds", default=_duration(0)
                     ): DURATION_SELECTOR,
@@ -269,10 +275,11 @@ CONTROLLER_SCHEMA = vol.Schema(
                 {
                     vol.Optional("service_data_on", default={}): selector.ObjectSelector(),
                     vol.Optional("service_data_off", default={}): selector.ObjectSelector(),
-                    vol.Optional("on_enter_idle", default="off"): BEHAVIOR_SELECTOR,
+                    vol.Optional("lifecycle_actions", default={}): selector.ObjectSelector(),
+                    vol.Optional("on_enter_idle", default="ignore"): BEHAVIOR_SELECTOR,
                     vol.Optional("on_exit_idle", default="ignore"): BEHAVIOR_SELECTOR,
                     vol.Optional("on_enter_active", default="on"): BEHAVIOR_SELECTOR,
-                    vol.Optional("on_exit_active", default="ignore"): BEHAVIOR_SELECTOR,
+                    vol.Optional("on_exit_active", default="off"): BEHAVIOR_SELECTOR,
                     vol.Optional("on_enter_overridden", default="ignore"): BEHAVIOR_SELECTOR,
                     vol.Optional("on_exit_overridden", default="ignore"): BEHAVIOR_SELECTOR,
                     vol.Optional("on_enter_constrained", default="ignore"): BEHAVIOR_SELECTOR,
@@ -288,6 +295,8 @@ CONTROLLER_SCHEMA = vol.Schema(
                 {
                     vol.Optional("trigger_on_states", default="on"): selector.TextSelector(),
                     vol.Optional("trigger_off_states", default="off"): selector.TextSelector(),
+                    vol.Optional("presence_on_states", default="on"): selector.TextSelector(),
+                    vol.Optional("presence_off_states", default="off"): selector.TextSelector(),
                     vol.Optional("state_on_states", default="on"): selector.TextSelector(),
                     vol.Optional("state_off_states", default="off"): selector.TextSelector(),
                     vol.Optional("override_on_states", default="on"): selector.TextSelector(),
@@ -305,6 +314,7 @@ _SECTION_FIELDS: dict[str, tuple[str, ...]] = {
         "name",
         "icon",
         "trigger_entities",
+        "presence_entities",
         "control_entities",
         "delay_seconds",
     ),
@@ -318,6 +328,8 @@ _SECTION_FIELDS: dict[str, tuple[str, ...]] = {
     "monitoring": (
         "state_entities",
         "blocking_enabled",
+        "protect_manual_off",
+        "protect_manual_on",
         "block_timeout_seconds",
     ),
     "rules": ("override_entities", "interlock_entities"),
@@ -346,6 +358,7 @@ _SECTION_FIELDS: dict[str, tuple[str, ...]] = {
     "actions": (
         "service_data_on",
         "service_data_off",
+        "lifecycle_actions",
         "on_enter_idle",
         "on_exit_idle",
         "on_enter_active",
@@ -360,6 +373,8 @@ _SECTION_FIELDS: dict[str, tuple[str, ...]] = {
     "advanced": (
         "trigger_on_states",
         "trigger_off_states",
+        "presence_on_states",
+        "presence_off_states",
         "state_on_states",
         "state_off_states",
         "override_on_states",
@@ -403,7 +418,10 @@ def controller_form_values(stored_data: dict[str, Any]) -> dict[str, dict[str, A
             night.pop("service_data_off", {}) or {}
         )
 
-    flat.update(dict(flat.pop("transition_behaviors", {}) or {}))
+    flat.update({
+        key: behavior.value
+        for key, behavior in normalize_transition_behaviors(flat.pop("transition_behaviors", {})).items()
+    })
     for key in (
         "delay_seconds",
         "backoff_max_seconds",
@@ -465,11 +483,16 @@ def normalize_controller_user_input(user_input: dict[str, Any]) -> dict[str, Any
         )
         if key in data
     })
+    transition_behaviors = {
+        key: behavior.value
+        for key, behavior in normalize_transition_behaviors(transition_behaviors).items()
+    }
     timeout = _seconds(data.get("block_timeout_seconds", 0) or 0)
     return {
         "name": str(data["name"]),
         "icon": data.get("icon") or None,
         "trigger_entities": _as_tuple(data.get("trigger_entities")),
+        "presence_entities": _as_tuple(data.get("presence_entities")),
         "control_entities": _as_tuple(data.get("control_entities")),
         "state_entities": _as_tuple(data.get("state_entities")),
         "override_entities": _as_tuple(data.get("override_entities")),
@@ -478,6 +501,8 @@ def normalize_controller_user_input(user_input: dict[str, Any]) -> dict[str, Any
         "sensor_resets_timer": bool(data.get("sensor_resets_timer", False)),
         "delay_seconds": _seconds(data.get("delay_seconds", DEFAULT_DELAY_SECONDS)),
         "blocking_enabled": bool(data.get("blocking_enabled", True)),
+        "protect_manual_off": bool(data.get("protect_manual_off", True)),
+        "protect_manual_on": bool(data.get("protect_manual_on", True)),
         "block_timeout_seconds": timeout or None,
         "enabled_default": bool(data.get("enabled_default", True)),
         "stay_mode_default": bool(data.get("stay_mode_default", False)),
@@ -488,9 +513,12 @@ def normalize_controller_user_input(user_input: dict[str, Any]) -> dict[str, Any
         "night_mode": night_mode,
         "service_data_on": dict(data.get("service_data_on") or {}),
         "service_data_off": dict(data.get("service_data_off") or {}),
+        "lifecycle_actions": normalize_lifecycle_actions(data.get("lifecycle_actions") or {}),
         "transition_behaviors": transition_behaviors,
         "trigger_on_states": _state_tuple(data.get("trigger_on_states"), ("on",)),
         "trigger_off_states": _state_tuple(data.get("trigger_off_states"), ("off",)),
+        "presence_on_states": _state_tuple(data.get("presence_on_states"), ("on",)),
+        "presence_off_states": _state_tuple(data.get("presence_off_states"), ("off",)),
         "state_on_states": _state_tuple(data.get("state_on_states"), ("on",)),
         "state_off_states": _state_tuple(data.get("state_off_states"), ("off",)),
         "override_on_states": _state_tuple(

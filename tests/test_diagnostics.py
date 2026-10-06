@@ -104,6 +104,10 @@ async def test_diagnostics_include_runtime_context_and_redact_sensitive_data() -
         "binary_sensor.kitchen_motion"
     ]
     assert runtime_diagnostics["block_reason"] == "interlock"
+    assert runtime_diagnostics["last_action_at"] is None
+    assert runtime_diagnostics["snapshot_generation"] == 0
+    assert runtime_diagnostics["selected_exit_strategy"] == "off"
+    assert runtime_diagnostics["restore_skipped_manual"] is False
     assert runtime_diagnostics["config"]["trigger_entities"] == [
         "binary_sensor.kitchen_motion"
     ]

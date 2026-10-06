@@ -19,6 +19,8 @@ BehaviorExecutor = Callable[[TransitionBehavior], Awaitable[None]]
 TimerCallback = Callable[[], Awaitable[None]]
 ScheduleAt = Callable[[datetime, TimerCallback], Callable[[], None]]
 StatePersistor = Callable[["ControllerRuntime"], Awaitable[None]]
+SessionFinisher = Callable[[], Awaitable[None]]
+LifecycleExecutor = Callable[[str], Awaitable[bool]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,6 +38,7 @@ class ReconcileSnapshot:
     active_interlocks: tuple[str, ...] = ()
     active_triggers: tuple[str, ...] = ()
     active_state_entities: tuple[str, ...] = ()
+    active_presence_entities: tuple[str, ...] = ()
 
 
 _ALLOWED_TRANSITIONS: dict[ControllerState, frozenset[ControllerState]] = {
@@ -129,6 +132,9 @@ class ControllerRuntime:
         clock: Callable[[], datetime] | None = None,
         schedule_at: ScheduleAt | None = None,
         state_persistor: StatePersistor | None = None,
+        session_finisher: SessionFinisher | None = None,
+        session_discarder: Callable[[], None] | None = None,
+        lifecycle_executor: LifecycleExecutor | None = None,
     ) -> None:
         self.config = config
         self.state = ControllerState.IDLE
@@ -136,12 +142,35 @@ class ControllerRuntime:
         self._clock = clock or (lambda: datetime.now(UTC))
         self._schedule_at = schedule_at
         self._state_persistor = state_persistor
+        self._session_finisher = session_finisher
+        self._session_discarder = session_discarder
+        self._lifecycle_executor = lifecycle_executor
+        self.transition_cause_in_progress: TransitionCause | None = None
+        self._transition_generation = 0
+        self.manual_takeover_pending = False
+        self.manual_release_ready = False
+        self.manual_control_kind: str | None = None
+        self.manual_control_entity: str | None = None
+        self.manual_control_at: datetime | None = None
+        self.snapshot_held = False
+        self.last_action_hook: str | None = None
+        self.last_action_result: str | None = None
+        self.last_action_error: str | None = None
+        self.last_action_context_is_own = False
+        self.last_action_at: datetime | None = None
+        self.snapshot_generation = 0
+        self.restore_skipped_manual = False
 
         self.enabled = config.enabled_default
         self.constrained = False
         self.override_active = False
         self.interlock_active = False
         self.sensor_active = False
+        self.presence_active = False
+        self.active_presence_entities: tuple[str, ...] = ()
+        self.presence_hold_started_at: datetime | None = None
+        self.last_presence_changed_at: datetime | None = None
+        self.timer_expired_pending_presence = False
         self.state_entities_on = False
         self.night_active = False
         self.stay_mode = config.stay_mode_default
@@ -199,6 +228,12 @@ class ControllerRuntime:
         if self._state_persistor is not None:
             await self._state_persistor(self)
         self._notify_updated()
+
+    @property
+    def selected_exit_strategy(self) -> str:
+        """Return the currently configured activity-end policy for diagnostics."""
+
+        return self.config.transition_behaviors.get("on_exit_active", TransitionBehavior.IGNORE).value
 
     def add_update_listener(self, callback: Callable[[], None]) -> Callable[[], None]:
         """Subscribe a native entity to runtime state changes."""
@@ -312,12 +347,21 @@ class ControllerRuntime:
     async def async_stop(self) -> None:
         """Stop runtime-owned resources and cancel pending callbacks."""
 
+        self._transition_generation += 1
+        self.transition_cause_in_progress = None
         self._cancel_timer()
         self._cancel_block_timer()
+        await self._finish_session()
+
+    async def _finish_session(self) -> None:
+        if self._session_finisher is not None:
+            await self._session_finisher()
 
     async def async_apply_config(self, new_config: ControllerConfig) -> None:
         """Apply changed configuration without rebuilding runtime state."""
 
+        self._transition_generation += 1
+        self.transition_cause_in_progress = None
         was_active_timer = self.state is ControllerState.ACTIVE_TIMER
         was_blocked = self.state is ControllerState.BLOCKED
         trigger_base = self.last_triggered_at
@@ -349,10 +393,23 @@ class ControllerRuntime:
         )
 
     async def _execute_behavior(self, key: str) -> None:
+        if self._lifecycle_executor is not None and await self._lifecycle_executor(key):
+            return
         behavior = self.config.transition_behaviors.get(key, TransitionBehavior.IGNORE)
         if behavior is TransitionBehavior.IGNORE or self._behavior_executor is None:
             return
-        await self._behavior_executor(behavior)
+        self.last_action_hook = key
+        self.last_action_at = self._clock()
+        self.last_action_result = "running"
+        self.last_action_error = None
+        try:
+            await self._behavior_executor(behavior)
+        except Exception as err:
+            self.last_action_result = "failed"
+            self.last_action_error = str(err)
+            raise
+        if self.last_action_result == "running":
+            self.last_action_result = "completed"
 
     async def async_transition(
         self,
@@ -378,6 +435,9 @@ class ControllerRuntime:
         ):
             return False
 
+        self._transition_generation += 1
+        generation = self._transition_generation
+        self.transition_cause_in_progress = cause
         source = self.state
         source_behavior = _behavior_state_name(source)
         target_behavior = _behavior_state_name(target)
@@ -392,8 +452,19 @@ class ControllerRuntime:
             self._cancel_block_timer()
             self.blocked_at = None
 
-        if source_behavior is not None and not stays_active:
+        if self._is_active_state(source) and not self._is_active_state(target):
+            await self._finish_session()
+            if generation != self._transition_generation:
+                return False
+
+        skip_active_off = (
+            source_behavior == "active" and target is not ControllerState.IDLE
+            and self.config.transition_behaviors.get("on_exit_active") is TransitionBehavior.OFF
+        )
+        if source_behavior is not None and not stays_active and not skip_active_off and not (source_behavior == "active" and cause is TransitionCause.MANUAL_CONTROL):
             await self._execute_behavior(f"on_exit_{source_behavior}")
+            if generation != self._transition_generation:
+                return False
 
         self.state = target
         self.last_transition_at = self._clock()
@@ -419,6 +490,12 @@ class ControllerRuntime:
         if target_behavior is not None and not stays_active:
             await self._execute_behavior(f"on_enter_{target_behavior}")
 
+        if generation != self._transition_generation:
+            return False
+        if self.state is not target:
+            self.transition_cause_in_progress = None
+            return False
+
         if (
             target is ControllerState.ACTIVE_TIMER
             and source is not ControllerState.ACTIVE_TIMER
@@ -428,6 +505,7 @@ class ControllerRuntime:
             self.backoff_count = 0
             self.effective_delay_seconds = self._calculate_effective_delay()
 
+        self.transition_cause_in_progress = None
         self._notify_updated()
         return True
 
@@ -438,11 +516,14 @@ class ControllerRuntime:
     ) -> ControllerState:
         """Recompute logical state without transition enter/exit side effects."""
 
+        self._transition_generation += 1
+        self.transition_cause_in_progress = None
         if snapshot is not None:
             self._apply_snapshot(snapshot)
 
         target = self._reconcile_target()
-
+        if self._session_discarder is not None and ((self._is_active_state(self.state) and not self._is_active_state(target)) or reason in {ReconcileReason.RECONFIGURE, ReconcileReason.ENABLED}):
+            self._session_discarder()
         self.state = target
         self.last_reconcile_reason = reason
         if target is ControllerState.ACTIVE_TIMER and self.expires_at is None:
@@ -489,6 +570,8 @@ class ControllerRuntime:
         self.active_interlocks = snapshot.active_interlocks
         self.active_triggers = snapshot.active_triggers
         self.active_state_entities = snapshot.active_state_entities
+        self.active_presence_entities = snapshot.active_presence_entities
+        self.presence_active = bool(snapshot.active_presence_entities)
 
     def _reconcile_target(self) -> ControllerState:
         if not self.enabled:
@@ -499,9 +582,11 @@ class ControllerRuntime:
             return ControllerState.OVERRIDDEN
         if self.interlock_active:
             return ControllerState.BLOCKED
+        if self.manual_takeover_pending:
+            return ControllerState.BLOCKED
         if self.sensor_active:
             return self._active_target
-        if self.state_entities_on and self.config.blocking_enabled:
+        if self.state_entities_on and self.config.blocking_enabled and not self.manual_release_ready:
             return ControllerState.BLOCKED
         return ControllerState.IDLE
 
@@ -531,18 +616,22 @@ class ControllerRuntime:
         self.trigger_generation += 1
         self.timer_expired_pending_sensor = False
 
+        if self.manual_takeover_pending:
+            return False
+
         if self.state is ControllerState.ACTIVE_TIMER:
             await self.async_reset_timer()
             return False
 
         if self.state is ControllerState.IDLE:
-            if self.state_entities_on and self.config.blocking_enabled:
+            if self.state_entities_on and self.config.blocking_enabled and not self.manual_release_ready:
                 self.blocked_by = entity_id
                 return await self.async_transition(
                     ControllerState.BLOCKED,
                     TransitionCause.SENSOR_TRIGGER,
                     source_entity_id=entity_id,
                 )
+            self.manual_release_ready = False
             return await self.async_transition(
                 self._active_target,
                 TransitionCause.SENSOR_TRIGGER,
@@ -560,6 +649,7 @@ class ControllerRuntime:
         """Handle an OFF event from a duration trigger sensor."""
 
         self.sensor_active = sensor_active
+        await self._release_manual_session_if_clear()
         self.last_triggered_by = entity_id
         if (
             self.config.sensor_type is SensorType.DURATION
@@ -574,6 +664,7 @@ class ControllerRuntime:
             self.config.sensor_type is SensorType.DURATION
             and self.state is ControllerState.ACTIVE_TIMER
             and self.timer_expired_pending_sensor
+            and not self.presence_active
         ):
             self.timer_expired_pending_sensor = False
             return await self.async_transition(
@@ -590,6 +681,9 @@ class ControllerRuntime:
             return False
         self._timer_cancel = None
         self.expires_at = None
+        if self.presence_active:
+            self.timer_expired_pending_presence = True
+            return False
         if self.config.sensor_type is SensorType.DURATION and self.sensor_active:
             self.timer_expired_pending_sensor = True
             return False
@@ -604,6 +698,8 @@ class ControllerRuntime:
 
         if self.state is not ControllerState.BLOCKED:
             return False
+        if self.manual_takeover_pending:
+            return False
         if self.interlock_active:
             previous = self.state
             await self.async_reconcile(ReconcileReason.RESTORE)
@@ -616,43 +712,114 @@ class ControllerRuntime:
             target = ControllerState.IDLE
         return await self.async_transition(target, TransitionCause.TIMER_EXPIRED)
 
+    async def async_handle_presence_change(self, entity_id: str, *, is_active: bool) -> None:
+        """Presence holds an existing session; it never activates an idle one."""
+
+        was_active = self.presence_active
+        self.presence_active = is_active
+        self.last_presence_changed_at = self._clock()
+        if is_active and not was_active:
+            self.presence_hold_started_at = self._clock()
+        elif not is_active:
+            self.presence_hold_started_at = None
+            if was_active and self.state is ControllerState.ACTIVE_TIMER:
+                self.timer_expired_pending_presence = False
+                self.timer_expired_pending_sensor = False
+                self._schedule_main_timer(reset=False)
+                if self.effective_delay_seconds <= 0:
+                    await self.async_handle_timer_expired()
+        await self._release_manual_session_if_clear()
+        self._notify_updated()
+
+    async def _release_manual_session_if_clear(self) -> None:
+        if not self.manual_takeover_pending or self.sensor_active or self.presence_active:
+            return
+        self.manual_takeover_pending = False
+        self.manual_release_ready = True
+        if self.state is ControllerState.BLOCKED and not self.interlock_active:
+            self.state = ControllerState.IDLE
+            self._cancel_block_timer()
+            self.blocked_by = None
+            self.blocked_at = None
+            self.block_reason = None
+        self._notify_updated()
+
     async def async_handle_state_entity_change(
         self,
         entity_id: str,
         *,
         is_on: bool,
         is_own_context: bool,
+        manual_control_kind: str | None = None,
     ) -> bool:
         """Handle a significant state/control entity change."""
 
         self.state_entities_on = is_on
         if is_own_context:
             return False
+        if (
+            self.state is ControllerState.IDLE and is_on
+            and entity_id in self.config.control_entities and self.config.protect_manual_on
+            and manual_control_kind != "manual_off"
+        ):
+            self.manual_control_kind = manual_control_kind or "manual_on"
+            self.manual_control_entity = entity_id
+            self.manual_control_at = self._clock()
+            self.manual_takeover_pending = True
+            changed = await self.async_transition(
+                ControllerState.BLOCKED, TransitionCause.MANUAL_CONTROL,
+                source_entity_id=entity_id,
+            )
+            self.block_reason = self.manual_control_kind
+            self._cancel_block_timer()
+            self._notify_updated()
+            return changed
+        if self._is_active_state(self.state):
+            kind = manual_control_kind or ("manual_on" if is_on else "manual_off")
+            protected = self.config.protect_manual_off if kind == "manual_off" else self.config.protect_manual_on
+            self.manual_control_kind = kind
+            self.manual_control_entity = entity_id
+            self.manual_control_at = self._clock()
+            self.manual_takeover_pending = protected
+            # Protection follows the actual changed output, not the aggregate
+            # ON state of other outputs in the same room.
+            if not protected and is_on:
+                await self.async_reset_timer()
+                return False
+            await self._finish_session()
 
-        if self.state is ControllerState.ACTIVE_TIMER:
+        if self.state in (ControllerState.ACTIVE_TIMER, ControllerState.ACTIVE_STAY_ON):
             if not is_on:
-                return await self.async_transition(
+                changed = await self.async_transition(
                     ControllerState.IDLE,
                     TransitionCause.MANUAL_CONTROL,
                     source_entity_id=entity_id,
                 )
-            if self.config.blocking_enabled:
+                await self._release_manual_session_if_clear()
+                return changed
+            if self.manual_takeover_pending:
                 self.blocked_by = entity_id
-                return await self.async_transition(
+                changed = await self.async_transition(
                     ControllerState.BLOCKED,
                     TransitionCause.MANUAL_CONTROL,
                     source_entity_id=entity_id,
                 )
+                self.block_reason = self.manual_control_kind
+                self._cancel_block_timer()
+                self._notify_updated()
+                return changed
             await self.async_reset_timer()
             return False
 
         if self.state in (ControllerState.BLOCKED, ControllerState.ACTIVE_STAY_ON):
             if not is_on:
-                return await self.async_transition(
+                changed = await self.async_transition(
                     ControllerState.IDLE,
                     TransitionCause.MANUAL_CONTROL,
                     source_entity_id=entity_id,
                 )
+                await self._release_manual_session_if_clear()
+                return changed
 
         return False
 
@@ -683,7 +850,9 @@ class ControllerRuntime:
         if self.state is not ControllerState.OVERRIDDEN:
             return False
 
-        if not self.state_entities_on:
+        if self.manual_takeover_pending:
+            target = ControllerState.BLOCKED
+        elif not self.state_entities_on:
             target = ControllerState.IDLE
         elif self.config.sensor_type is SensorType.EVENT or self.sensor_active:
             target = self._active_target

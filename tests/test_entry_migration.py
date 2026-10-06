@@ -57,3 +57,23 @@ def test_flat_entry_association_explicitly_clears_old_subentry_ownership() -> No
     assert controller_entity_add_kwargs(flat_entry, "controller-a") == {
         "config_subentry_id": None
     }
+
+
+def test_flattening_migrates_only_the_legacy_default_shutdown_pair() -> None:
+    legacy = {"name": "Room", "transition_behaviors": {
+        "on_enter_idle": "off", "on_exit_active": "ignore", "on_enter_overridden": "on",
+    }}
+    result = migrated_controller_data("root", "room", legacy)
+    assert result["transition_behaviors"]["on_enter_idle"] == "ignore"
+    assert result["transition_behaviors"]["on_exit_active"] == "off"
+    assert result["transition_behaviors"]["on_enter_overridden"] == "on"
+    assert legacy["transition_behaviors"]["on_enter_idle"] == "off"
+    assert migrated_controller_data("root", "room", result) == result
+
+
+def test_flattening_preserves_an_explicit_custom_active_exit_policy() -> None:
+    result = migrated_controller_data("root", "room", {"name": "Room", "transition_behaviors": {
+        "on_enter_idle": "off", "on_exit_active": "custom",
+    }})
+    assert result["transition_behaviors"]["on_enter_idle"] == "off"
+    assert result["transition_behaviors"]["on_exit_active"] == "custom"

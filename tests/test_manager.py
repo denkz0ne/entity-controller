@@ -714,3 +714,19 @@ async def test_manager_syncs_added_updated_and_removed_subentries() -> None:
     entry.subentries = {"controller-b": entry.subentries["controller-b"]}
     await manager.async_sync_subentries()
     assert set(manager.controllers) == {"controller-b"}
+
+
+@pytest.mark.asyncio
+async def test_explicit_manual_protection_opt_out_preserves_legacy_active_reset() -> None:
+    """Saved manual opt-out retains legacy reset behavior with general blocking off."""
+    hass = FakeHass({"light.hall": "off"})
+    manager = EntityControllerManager(hass, FakeEntry())
+    runtime = await manager.async_add_controller(subentry(
+        control_entities=("light.hall",), blocking_enabled=False,
+        protect_manual_on=False, protect_manual_off=False,
+    ))
+    await runtime.async_handle_sensor_on("binary_sensor.motion")
+    await hass.fire_state_change("light.hall", "on", old_state="off")
+    assert runtime.state is ControllerState.ACTIVE_TIMER
+    assert not runtime.manual_takeover_pending
+    assert len(hass.service_calls) == 1

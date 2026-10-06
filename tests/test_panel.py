@@ -136,7 +136,7 @@ def test_resolved_schedule_uses_home_assistant_sun_time_and_configured_offset(mo
         },
     )
 
-    assert result == {"constraint": {"start": 390, "end": 1320}}
+    assert result == {"solar": {"sunrise": 375}, "constraint": {"start": 390, "end": 1320}}
 
 
 def test_panel_lifecycle_registers_once_and_removes_sidebar(monkeypatch):

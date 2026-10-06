@@ -1,18 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <rect x="28" y="28" width="456" height="456" rx="104" fill="#151A39" stroke="#34436D" stroke-width="6"/>
-  <circle cx="256" cy="157" r="76" fill="#1D2852" stroke="#4DDAD2" stroke-width="18"/>
-  <path d="M256 157v-50" stroke="#F4FBFF" stroke-linecap="round" stroke-width="13"/>
-  <path d="M256 234v40m-111 0h222m-222 0v40m111-40v40m111-40v40" stroke="#4DDAD2" stroke-linecap="round" stroke-linejoin="round" stroke-width="12"/>
-  <g fill="#263762" stroke="#6E83B8" stroke-width="5">
-    <circle cx="145" cy="369" r="51"/>
-    <circle cx="256" cy="369" r="51"/>
-    <circle cx="367" cy="369" r="51"/>
-  </g>
-  <path d="m121 370 24-22 24 22v25h-17v-18h-14v18h-17z" stroke="#F4FBFF" stroke-linecap="round" stroke-linejoin="round" stroke-width="7"/>
-  <g stroke="#F4FBFF" stroke-linecap="round" stroke-linejoin="round" stroke-width="7">
-    <path d="M238 365c0-10 8-18 18-18s18 8 18 18c0 7-3 12-7 16-3 3-4 6-4 10h-14c0-4-1-7-4-10-4-4-7-9-7-16z"/>
-    <path d="M249 397h14m-12 8h10"/>
-    <circle cx="367" cy="369" r="23"/>
-    <path d="M367 354v16l11 7"/>
-  </g>
+  <title>Entity Controller</title>
+  <rect x="8" y="8" width="496" height="496" rx="40" fill="#03A9F4"/>
+  <path d="M287 141 A124 124 0 1 0 287 371" stroke="#FFFFFF" stroke-width="66" stroke-linecap="round"/>
+  <circle cx="240" cy="256" r="32" fill="#FFFFFF"/>
+  <circle cx="350" cy="256" r="60" fill="#FFFFFF"/>
 </svg>

@@ -1,6 +1,6 @@
 pytest
 pytest-asyncio
-homeassistant
+homeassistant==2026.9.4
 pytest-mock
 freezegun
 ruff

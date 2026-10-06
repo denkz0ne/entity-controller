@@ -18,8 +18,8 @@ The UI supports:
 - configurable actions for each controller state transition;
 - custom active/inactive state mappings and ignored state attributes.
 
-The first visible section contains only name, icon, trigger entities,
-controlled entities, and activity time. The remaining settings are grouped
+The first visible section contains name, icon, activation triggers, optional
+presence/hold sensors, controlled entities, and activity time. The remaining settings are grouped
 into collapsed sections for timer behavior, manual intervention, override and
 interlock, allowed time, night profile, transition actions, and advanced state
 mapping. The initial Enabled and Stay Mode defaults are shown only while a
@@ -31,6 +31,51 @@ and Stay Mode state is stored in the controller config entry. The allowed window
 prevents activation outside its bounds. The night window changes the active
 profile without creating another controller. All controller fields can be
 edited later from the controller device in the Entity Controller integration.
+
+## Presence / hold sensors
+
+Activation triggers (for example PIR motion) start room activity. Optional
+presence sensors (for example mmWave occupancy) only hold an already active
+room; they do not switch an idle room on. While any configured presence sensor
+matches its active mapping, the inactivity timer cannot turn the room off.
+After the last presence sensor matches its inactive mapping, the normal
+configured vacancy delay begins again. A zero delay ends activity immediately.
+
+Presence is independent of the trigger event/duration mode. Leave the presence
+list empty to retain the existing PIR-only setup. Existing triggers are never
+silently reassigned. Advanced settings include separate presence ON/OFF
+mappings; neutral states such as unknown/unavailable do not count as explicit
+OFF events. Presence does not bypass Disabled, allowed time, Override,
+Interlock or manual-control protection.
+
+The State sensor and diagnostics expose `presence_active`,
+`active_presence_entities`, `presence_hold_started_at` and
+`last_presence_changed_at` so the hold source can be inspected.
+
+## Manual control
+
+Manual-control settings separately protect external OFF and external ON or
+significant adjustments, both enabled by default. External means outside this
+EC instance; Home Assistant cannot always identify a physical person. Protected
+changes release ownership until the trigger/presence room session clears.
+Disable only the corresponding protection when that external change should
+remain subject to EC's ordinary activity policy.
+
+## Custom lifecycle actions
+
+Advanced `lifecycle_actions` maps an enter/exit hook (for example
+`on_enter_active`) to a native Home Assistant action sequence. A scene can be
+applied with a sequence item such as `action: scene.turn_on` and its scene
+target. Choose Custom for that hook; its sequence runs through the shared
+lifecycle executor. Invalid sequences must be rejected before configuration
+is saved. Startup and reconfigure reconciliation do not replay actions.
+
+Normal shutdown now belongs to `on_exit_active`, whose default is Off;
+`on_enter_idle` defaults to Ignore. The old default pair (idle Off, active exit
+Ignore) converts deterministically to this equivalent room shutdown policy.
+Other explicit advanced hook combinations are retained. The conversion is
+idempotent and is applied to the editor's canonical form before an ordinary
+name-only save, so renaming does not select a new exit policy.
 
 ## Sidebar editor
 
