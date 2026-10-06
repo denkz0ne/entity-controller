@@ -42,6 +42,7 @@ class RestartStateManager:
         self.store = store
         self.records: dict[str, Any] = {}
         self.pending: set[str] = set()
+        self.awaiting_outputs: dict[str, set[str]] = {}
         self.removers: dict[str, list[Any]] = {}
         self.stop_listener: Any = None
         self.stopping = False
@@ -68,6 +69,9 @@ class RestartStateManager:
 
     def prepare(self, runtime: Any) -> None:
         self.pending.add(runtime.config.subentry_id)
+        self.awaiting_outputs[runtime.config.subentry_id] = set(
+            (*runtime.config.control_entities, *runtime.config.state_entities)
+        )
         # An observed ON during boot is not evidence of a manual action.
         runtime.manual_release_ready = True
         self.removers[runtime.config.subentry_id] = [
@@ -139,6 +143,7 @@ class RestartStateManager:
         for remove in self.removers.pop(controller_id, []):
             remove()
         self.pending.discard(controller_id)
+        self.awaiting_outputs.pop(controller_id, None)
         if not self.stopping:
             self.records.pop(controller_id, None)
             if self.store is not None:
@@ -180,6 +185,22 @@ class RestartStateManager:
                 if getattr(self.manager.hass, "is_running", True):
                     await self._initialize(runtime)
                 return
+            data = event if isinstance(event, dict) else event.data
+            entity_id = data.get("entity_id")
+            waiting = self.awaiting_outputs.get(runtime.config.subentry_id, set())
+            if entity_id in waiting:
+                old = data.get("old_state")
+                new = data.get("new_state")
+                context = getattr(new, "context", None) or data.get("context")
+                if getattr(new, "state", None) not in {None, "unknown", "unavailable"}:
+                    waiting.discard(entity_id)
+                    if getattr(old, "state", None) in {None, "unknown", "unavailable"} and not getattr(context, "user_id", None):
+                        # A late initial output report is still an observation,
+                        # even when another missing entity exhausted the grace period.
+                        runtime._apply_snapshot(self.manager._snapshot(runtime.config, enabled=runtime.enabled))
+                        runtime._notify_updated()
+                        self.capture(runtime)
+                        return
             await callback(event)
             self.capture(runtime)
 
@@ -193,6 +214,10 @@ class RestartStateManager:
                 value["state"] in {None, "unknown", "unavailable"} for value in entities.values()
             ):
                 return False
+            self.awaiting_outputs[controller_id] = {
+                entity_id for entity_id in (*runtime.config.control_entities, *runtime.config.state_entities)
+                if entities[entity_id]["state"] in {None, "unknown", "unavailable"}
+            }
             snapshot = self.manager._snapshot(runtime.config, enabled=runtime.enabled)
             saved = self.records.get(controller_id, {})
             matches = (

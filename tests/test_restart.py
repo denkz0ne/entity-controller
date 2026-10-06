@@ -47,6 +47,32 @@ async def test_active_session_resumes_original_deadline_with_motion_off():
     await hass.fire_state_change("binary_sensor.motion", "off", old_state="on")
     deadline = runtime.expires_at
     await manager.async_unload()
+
+
+@pytest.mark.asyncio
+async def test_late_initial_output_report_after_grace_is_not_manual_control(monkeypatch):
+    scheduled = []
+    monkeypatch.setattr(
+        "homeassistant.helpers.event.async_call_later",
+        lambda hass, delay, callback: scheduled.append(callback) or (lambda: None),
+    )
+    hass = FakeHass({"binary_sensor.motion": "off", "light.hall": "unavailable"})
+    hass.bus = StartupBus()
+    hass.is_running = True
+    manager = EntityControllerManager(hass, FakeEntry(), runtime_store=MemoryStore())
+    await manager._restart.async_load()
+    runtime = await manager.async_add_controller(subentry(
+        "hall", trigger_entities=("binary_sensor.motion",), control_entities=("light.hall",),
+    ))
+    await scheduled[0](None)
+    await hass.fire_state_change("light.hall", "on", old_state="unavailable")
+    assert runtime.state is ControllerState.IDLE
+    assert not runtime.manual_takeover_pending
+    await hass.fire_state_change("light.hall", "off", old_state="on")
+    await hass.fire_state_change("light.hall", "on", old_state="off")
+    assert runtime.state is ControllerState.BLOCKED
+    assert runtime.manual_takeover_pending
+    await manager.async_unload()
     after, restored_manager, restored = await setup(
         {"binary_sensor.motion": "off", "light.hall": "on"}, store,
     )
