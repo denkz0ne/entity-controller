@@ -11,7 +11,7 @@ záznam pred implementáciou, vrátane vtedajších počtov a chýbajúcich funk
 | #14 | Samostatné presence ON/OFF mapovania, ANY hold, posledné OFF spustí celý delay, priority a hot reconfigure | `test_light_profile_restore.py`, `test_reconfigure.py`, model/config flow |
 | #15 | Manuálne ON/atribúty a OFF samostatne, release po vyprázdnení, fresh trigger, EC kontext medzi entries, metadata bez takeover | Profile tests: manual session, idle ON, two outputs, flags, meaningful attributes |
 | #16 | Restore/Custom, natívne HA sekvencie, scény, snapshot, cancel, izolácia chýb, migrácia OFF hooku, diagnostika | `test_lifecycle.py`, profile restore, migration, diagnostics |
-| #17 | Basic filtre a Full escape hatch, capability intersection, jas/Kelvin/farba/efekt/transition/fan, day/night a legacy dáta | Browser capabilities/legacy/parameters; backend mixed domains/fan/errors |
+| #17 | Basic filtre a Full escape hatch, capability intersection vrátane transition, jas/Kelvin/farba/efekt/fan, day/night a legacy dáta; neoverené možnosti majú upozornenie | Browser capabilities/legacy/parameters/unavailable; backend mixed domains/fan/errors |
 | #18 | Basic/Full integruje #14–17; jediný model, explicitný Save/Close, validácia a bezpečný hot apply | Browser save/schema/revisions; config flow/panel/reconfigure |
 | #24 | Prvý klik, live refresh bez odpojenia editora, draft/search/details, × bez zbalenia, error/revision ochrana | Browser pending render, failed save, authoritative response, remove/add |
 | #25 | Kompaktné biele karty, priehľadný canvas, decision live/draft, otázniky pre klik/tap/keyboard; grid ≤550 px pri 1600 px | Browser layout 320/390/768/1600, mobile help, countdown popover |

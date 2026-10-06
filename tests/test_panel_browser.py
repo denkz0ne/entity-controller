@@ -740,6 +740,36 @@ def test_light_capabilities_intersection_and_kelvin_alias(page):
     assert page.evaluate('panel.controllers[0].form.actions.service_data_on') == {'brightness':100,'color_temp_kelvin':3000,'keep':'yes'}
 
 
+def test_transition_uses_shared_capabilities_and_unavailable_preserves_parameters(page):
+    page.evaluate("""() => {
+      panel.controllers[0].form={basic:{name:'Room',control_entities:['light.room','light.second']},
+        actions:{service_data_on:{transition:2,brightness_pct:40}}};
+      panel.hass={...panel.hass,user:{is_admin:true},states:{...panel.hass.states,
+        'light.room':{state:'on',attributes:{supported_color_modes:['brightness'],supported_features:32}},
+        'light.second':{state:'off',attributes:{supported_color_modes:['onoff'],supported_features:0}}}};
+    }""")
+    page.locator('.edit-toggle').first.click()
+    params=page.locator('[data-editor-section="actions-service_data_on"]')
+    params.locator('summary').click()
+    assert params.locator('[data-service-param="transition"]').count() == 0
+    assert params.locator('[data-service-param="brightness_pct"]').count() == 0
+    page.evaluate("""() => {
+      panel.hass.states['light.second']={state:'on',attributes:{supported_color_modes:['brightness'],supported_features:32}};
+      panel._rowMarkup.clear();panel._render();
+    }""")
+    assert params.locator('input[type="number"][data-service-param="transition"]').input_value() == '2'
+    page.evaluate("""() => {
+      panel.hass.states['light.second']={state:'unavailable',attributes:{}};
+      panel._rowMarkup.clear();panel._render();
+    }""")
+    expect(params.locator('.capability-warning')).to_contain_text('Možnosti svetla nie sú overené')
+    params.locator('.capability-warning .field-help').click()
+    expect(params.locator('.capability-warning .help-popover:popover-open')).to_be_visible()
+    assert params.locator('[data-service-param="transition"]').count() == 0
+    assert page.evaluate('panel.controllers[0].form.actions.service_data_on') == {'transition':2,'brightness_pct':40}
+    assert page.locator('.editor-save').is_disabled()
+
+
 def test_entity_picker_keyboard_empty_result_and_presence(page):
     page.evaluate("""() => {
       panel.controllers[0].form={basic:{name:'Room',trigger_entities:[],presence_entities:[]}};

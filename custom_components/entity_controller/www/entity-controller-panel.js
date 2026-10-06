@@ -515,6 +515,13 @@ class EntityControllerPanel extends HTMLElement {
       const brightnessSupported = attrs.every(a => !a.supported_color_modes || a.supported_color_modes.some(mode => mode !== 'onoff'));
       const temperatureSupported = attrs.every(a => !a.supported_color_modes || a.supported_color_modes.includes('color_temp'));
       const colorSupported = attrs.every(a => !a.supported_color_modes || a.supported_color_modes.some(mode => ['hs','xy','rgb','rgbw','rgbww'].includes(mode)));
+      // Home Assistant LightEntityFeature.TRANSITION = 32; shared controls use intersection.
+      const transitionSupported = attrs.every(a => (Number(a.supported_features) & 32) !== 0);
+      const uncertainCapabilities = lights.some(id => {
+        const state = this._hass?.states?.[id];
+        return !state || ['unknown', 'unavailable'].includes(state.state) ||
+          !state.attributes?.supported_color_modes || state.attributes?.supported_features == null;
+      });
       const minimum = Math.max(1500, ...attrs.map(a => Number(a.min_color_temp_kelvin) || 1500));
       const maximum = Math.min(10000, ...attrs.map(a => Number(a.max_color_temp_kelvin) || 10000));
       const attr = name => ' data-service-section="' + section + '" data-service-key="' + key + '" data-service-param="' + name + '"';
@@ -537,6 +544,8 @@ class EntityControllerPanel extends HTMLElement {
         '</small><ha-icon icon="mdi:chevron-down"></ha-icon></summary><div class="parameter-fields">' +
         '<div class="section-title parameter-help"><span>' + (nightProfile ? 'Nočné parametre' : 'Parametre zariadení') + '</span>' +
         help(key, 'Zaškrtni iba hodnoty, ktoré má automatika meniť. Prázdny nočný profil preberá denné hodnoty. Pôvodné hodnoty sa obnovia pri skončení riadenia; vypnuté svetlo sa kvôli obnove nezapne. Ručne zmenené hodnoty majú prednosť.') + '</div>' +
+        (uncertainCapabilities ? '<div class="section-title capability-warning"><span>Možnosti svetla nie sú overené</span>' +
+          help('Možnosti svetla', 'Niektoré svetlo je nedostupné alebo neoznamuje svoje možnosti. Uložené parametre zostávajú zachované. Dostupné ovládače treba overiť po pripojení svetla; plynulý prechod sa ponúka iba pri potvrdenej podpore všetkých svetiel.') + '</div>' : '') +
         (!off && lights.length ? (brightnessSupported ? control('brightness_pct', 'Jas', brightness, 0, 100, 1, '%', data.brightness_pct != null || data.brightness != null) : '') +
           (temperatureSupported && minimum <= maximum ? control('color_temp_kelvin', 'Teplota', kelvin, minimum, maximum, 1, 'K', data.color_temp_kelvin != null || data.kelvin != null || data.color_temp != null,
             'background:linear-gradient(90deg,#ffb35c,#f6f4ee,#9fcaff)') : '') +
@@ -547,7 +556,7 @@ class EntityControllerPanel extends HTMLElement {
             '><option value="">Pôvodný efekt</option>' + [...new Set([...effects, ...(data.effect ? [data.effect] : [])])].map(effect =>
               '<option value="' + esc(effect) + '"' + (data.effect === effect ? ' selected' : '') + '>' + esc(effect) + '</option>').join('') + '</select></label>' : '') : '') +
         (!off && fans ? control('percentage', 'Výkon ventilátora', data.percentage ?? 50, 0, 100, 1, '%', data.percentage != null) : '') +
-        (lights.length ? control('transition', 'Plynulý prechod', data.transition ?? 1, 0, 3600, 0.1, 's', data.transition != null) : '') +
+        (lights.length && transitionSupported ? control('transition', 'Plynulý prechod', data.transition ?? 1, 0, 3600, 0.1, 's', data.transition != null) : '') +
         '</div></details>';
     };
     const entityPicker = (section, key, title, hint, domains, extraMarkup = "") => {
