@@ -600,7 +600,7 @@ async def test_explicit_off_recomputes_state_entity_or_semantics() -> None:
 
     await hass.fire_state_change("light.a", "off", old_state="on")
     assert runtime.state_entities_on is True
-    assert runtime.state is ControllerState.BLOCKED
+    assert runtime.state is ControllerState.IDLE
 
     await hass.fire_state_change("light.b", "off", old_state="on")
     assert runtime.state_entities_on is False

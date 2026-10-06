@@ -160,3 +160,75 @@ async def test_expired_checkpoint_is_rescheduled_for_evaluation_not_blocked():
     assert restored.state is ControllerState.ACTIVE_TIMER
     assert restored.expires_at >= datetime.now(UTC) - timedelta(seconds=1)
     await after.async_unload()
+
+
+class StartupBus:
+    def __init__(self):
+        self.listeners = {}
+
+    def async_listen_once(self, event_type, callback):
+        listeners = self.listeners.setdefault(event_type, [])
+        listeners.append(callback)
+
+        def remove():
+            if callback in listeners:
+                listeners.remove(callback)
+
+        return remove
+
+    async def fire(self, event_type):
+        for callback in tuple(self.listeners.get(event_type, [])):
+            self.listeners[event_type].remove(callback)
+            await callback(None)
+
+
+@pytest.mark.asyncio
+async def test_startup_availability_events_do_not_create_manual_takeover():
+    from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
+
+    hass = FakeHass({"binary_sensor.motion": "unknown", "light.hall": "unavailable"})
+    hass.bus = StartupBus()
+    hass.is_running = False
+    store = MemoryStore()
+    manager = EntityControllerManager(hass, FakeEntry(), runtime_store=store)
+    await manager._restart.async_load()
+    runtime = await manager.async_add_controller(subentry(
+        "hall", trigger_entities=("binary_sensor.motion",), control_entities=("light.hall",),
+    ))
+    await hass.fire_state_change("light.hall", "on", old_state="unavailable")
+    await hass.fire_state_change("binary_sensor.motion", "off", old_state="unknown")
+    assert "hall" in manager._restart.pending
+    assert store.data is None
+    assert not runtime.manual_takeover_pending
+    hass.is_running = True
+    await hass.bus.fire(EVENT_HOMEASSISTANT_STARTED)
+    assert "hall" not in manager._restart.pending
+    assert runtime.state is ControllerState.IDLE
+    assert runtime.manual_release_ready
+    assert store.data["controllers"]["hall"]["entities"]["light.hall"]["state"] == "on"
+    await manager.async_unload()
+
+
+@pytest.mark.asyncio
+async def test_unavailable_sensor_cannot_leave_startup_pending_forever(monkeypatch):
+    scheduled = []
+    monkeypatch.setattr(
+        "homeassistant.helpers.event.async_call_later",
+        lambda hass, delay, callback: scheduled.append((delay, callback)) or (lambda: None),
+    )
+    hass = FakeHass({"binary_sensor.motion": "unavailable", "light.hall": "on"})
+    hass.bus = StartupBus()
+    hass.is_running = True
+    manager = EntityControllerManager(hass, FakeEntry(), runtime_store=MemoryStore())
+    await manager._restart.async_load()
+    runtime = await manager.async_add_controller(subentry(
+        "hall", trigger_entities=("binary_sensor.motion",), control_entities=("light.hall",),
+    ))
+    assert "hall" in manager._restart.pending
+    assert scheduled[0][0] == 30
+    await scheduled[0][1](None)
+    assert "hall" not in manager._restart.pending
+    assert runtime.state is ControllerState.IDLE
+    await hass.fire_state_change("binary_sensor.motion", "on", old_state="unavailable")
+    assert runtime.state is ControllerState.ACTIVE_TIMER
+    await manager.async_unload()
