@@ -14,3 +14,12 @@ missing history.
 
 The panel uses the configured controller and entity registry IDs, so controller
 names and entity IDs remain dynamic and user-renamed entities continue to work.
+
+## Controller settings
+
+The **Základné** and **Všetky nastavenia** editor modes share one
+**Čo a ako dlho ovládať** card. It groups controlled entities, the timeout,
+trigger mode, duration-sensor timer reset, and adaptive backoff in that order.
+The timer-reset option appears only for **Trvanie** mode. The backoff multiplier
+and maximum timeout appear only while adaptive backoff is enabled. Changing the
+trigger mode or hiding the backoff fields does not clear their saved values.
