@@ -1177,6 +1177,21 @@ def test_adaptive_timing_is_grouped_and_conditional_in_both_modes(page):
     card.locator('[data-field="backoff_enabled"]').check()
     expect(card.locator('input[data-field="backoff_factor"]')).to_have_value("1.5")
     expect(card.locator('input[data-duration-manual="timer.backoff_max_seconds"]')).to_have_value("600")
+    assert card.locator(".timing-card").evaluate("""timing => {
+      const selectors = [
+        'input[data-duration-manual="basic.delay_seconds"]',
+        'select[data-field="sensor_type"]',
+        'input[data-field="sensor_resets_timer"]',
+        'input[data-field="backoff_enabled"]',
+        'input[data-field="backoff_factor"]',
+        'input[data-duration-manual="timer.backoff_max_seconds"]',
+      ];
+      const controls = selectors.map(selector => timing.querySelector(selector));
+      return controls.every((control, index) => control && (
+        index === 0 || controls[index - 1].compareDocumentPosition(control)
+          & Node.DOCUMENT_POSITION_FOLLOWING
+      ));
+    }""")
     card.locator('[data-field="backoff_enabled"]').uncheck()
     expect(card.locator('[data-field="backoff_factor"]')).to_have_count(0)
     expect(card.locator('[data-field="backoff_max_seconds"]')).to_have_count(0)
