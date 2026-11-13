@@ -5,7 +5,7 @@ controllers, schedules, manual-control protection, and graphical day/night
 profiles. The integration keeps its internal `entity_controller` domain and
 existing entity and service IDs for compatibility.
 
-Current stable release: 10.7.0. Requires Home Assistant 2026.9.0 or newer.
+Current stable release: 10.7.1. Requires Home Assistant 2026.9.0 or newer.
 
 ## Documentation
 

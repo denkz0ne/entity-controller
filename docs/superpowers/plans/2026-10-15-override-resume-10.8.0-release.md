@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implement issue #37 so Override always suppresses EC-controlled outputs and resumes from current live conditions, then ship the currently unreleased v10 branch changes as Svetlo v tme 10.8.0.
+**Goal:** Implement issue #37 so Override always suppresses EC-controlled outputs and resumes from current live conditions, then ship it as Svetlo v tme 10.8.0 on top of stable 10.7.1.
 
 **Architecture:** Keep `ControllerRuntime` as the FSM owner and `EntityControllerManager` as the Home Assistant state/service adapter. Add a dedicated Override enter/resume path: Override entry bypasses generic Active-exit restore semantics and forces EC outputs OFF; last-Override release evaluates a fresh `ReconcileSnapshot` and performs the required live transition, including immediate reactivation when current trigger/presence state warrants it. Persistent startup/reconfigure reconcile remains side-effect-free.
 
@@ -20,7 +20,7 @@
 - Generic lifecycle Restore/Leave-unchanged behavior must never defeat Override suppression.
 - Existing entity IDs, unique IDs, ConfigEntry/Subentry storage, and migration identity remain stable.
 - Release version is `10.8.0`.
-- Include the nine commits already present on `v10-modernization` after `v10.7.0` (timeline Recorder decoding and restart/session restoration) in the release validation and notes.
+- Stable 10.7.1 includes the Recorder timeline and restart/session restoration fixes. Use 10.7.1 as the release base; do not list those fixes as newly introduced in 10.8.0.
 
 ## Review Focus
 
@@ -249,8 +249,7 @@ Document:
 
 Include:
 - Override suppression/live resume (#37);
-- Recorder compressed-history/timeline fix already ahead of v10.7.0;
-- restart/session restoration fix already ahead of v10.7.0.
+- No configuration migration is required for the Override behavior change.
 
 - [ ] **Step 3: Bump release metadata**
 
@@ -296,7 +295,7 @@ Expected: all tests and lint pass.
 
 - [ ] **Step 2: Compare release range**
 
-Verify `v10.7.0...HEAD` contains only intended unreleased changes plus #37/release-prep changes. Confirm no unexpected version/name regression.
+Verify `v10.7.1...HEAD` contains only intended unreleased changes plus #37/release-prep changes. Confirm no unexpected version/name regression.
 
 - [ ] **Step 3: Open PR against `v10-modernization`**
 
@@ -332,8 +331,6 @@ Release name:
 Release notes should highlight:
 - large/override light immediately suppresses the EC-controlled night light;
 - when the last Override clears, current PIR/presence/rules are re-evaluated immediately and the EC light resumes if still required;
-- fixes for 24h Recorder timeline decoding;
-- restart/session restoration without false manual blocking;
 - no configuration migration required.
 
 - [ ] **Step 8: Post-release verification**

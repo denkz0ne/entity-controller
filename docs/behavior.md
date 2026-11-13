@@ -1,6 +1,6 @@
 # Svetlo v tme v10 behavior
 
-> Source baseline: stable `10.7.0`. This is a source-derived runtime reference, not a description of planned behavior.
+> Source baseline: stable `10.7.1`. This is a source-derived runtime reference, not a description of planned behavior.
 
 Svetlo v tme v10 implements an explicit async finite-state machine. The controller has seven user-visible runtime states and two different ways to change state:
 

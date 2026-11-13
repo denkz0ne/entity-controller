@@ -2,7 +2,7 @@
 
 Svetlo v tme v10 targets Home Assistant 2026.9+ and uses one typed `ConfigEntry.runtime_data` manager per controller device, backed by an explicit async state machine.
 
-## Current stable release: 10.7.0
+## Current stable release: 10.7.1
 
 The v10 line uses one config entry per controller, localized native controller
 entities, runtime diagnostics, and a redacted config-entry diagnostics file.

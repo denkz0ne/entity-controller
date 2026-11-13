@@ -10,6 +10,29 @@ on:
   workflow_dispatch:
 
 jobs:
+  hacs-validation:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Validate HACS integration
+        uses: hacs/action@main
+        with:
+          category: integration
+          comment: false
+
+  hassfest-validation:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Validate Home Assistant integration
+        run: docker run --rm -v "$GITHUB_WORKSPACE:/github/workspace" ghcr.io/home-assistant/hassfest
+
   tests:
     runs-on: ubuntu-latest
 

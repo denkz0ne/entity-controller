@@ -31,11 +31,10 @@
 - Pytest passes for the maintained v10 suite from a clean config fixture.
 - Pytest passes for the maintained v10 suite from a migrated config fixture.
 - HACS metadata advertises the Home Assistant 2026.9 floor.
-- HACS marketplace validation remains required before stable release.
-- Hassfest validation remains required in a real Home Assistant 2026.9 integration environment.
+- The official HACS integration validation and Hassfest checks run in CI and must pass before stable release.
 
 ## known limitations
 
-- GitHub Actions do not pin Home Assistant to the 2026.9 minimum, so the release still needs a smoke test on that supported version.
+- GitHub Actions test against Home Assistant 2026.9.4; the declared support floor is 2026.9.0, so a smoke test on the exact floor remains useful before stable releases.
 - Migration Repairs are guide-only; Svetlo v tme never deletes Helpers or rewrites/removes YAML.
 - The legacy state mirror is transitional compatibility and should remain documented until stable migration feedback is clean.

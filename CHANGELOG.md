@@ -4,6 +4,15 @@ All notable changes to Svetlo v tme v10 are documented here.
 
 ## Unreleased
 
+## 10.7.1 (2026-11-13)
+
+### Fixes
+
+- Decode compressed Home Assistant Recorder history so the sidebar's 24-hour
+  timeline displays correctly.
+- Preserve active controller sessions across Home Assistant restarts without
+  treating startup output observations as manual takeover.
+
 ### Controller settings
 
 - Group trigger mode, duration-sensor timer reset, and adaptive backoff with

@@ -7,7 +7,7 @@ controllers that activate devices from triggers, preserve manual control, and
 apply separate daytime and nighttime behavior. Each controller is represented
 as a Home Assistant device with native state and control entities.
 
-Current stable release: `10.7.0`
+Current stable release: `10.7.1`
 
 The integration includes a compact sidebar panel for monitoring controllers
 and editing their settings. It offers searchable entity selection, graphical
