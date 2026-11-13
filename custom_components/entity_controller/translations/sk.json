@@ -24,14 +24,14 @@
             "name": "Spustenie a časovanie",
             "data": {
               "sensor_type": "Režim spúšťača",
-              "sensor_resets_timer": "Nová aktivita obnoví celý odpočet",
+              "sensor_resets_timer": "Po uvoľnení spúšťača obnoviť celý odpočet",
               "backoff_enabled": "Predlžovať čas pri opakovanom spustení",
               "backoff_factor": "Násobok predĺženia",
               "backoff_max_seconds": "Najdlhší čas do vypnutia"
             },
             "data_description": {
               "sensor_type": "Udalosť spustí jednu aktivitu. Trvanie udrží ovládač aktívny, kým je spúšťač zapnutý.",
-              "sensor_resets_timer": "Pri režime Trvanie začne po vypnutí posledného spúšťača celý čas aktivity odznova.",
+              "sensor_resets_timer": "Len pri režime Trvanie: po uvoľnení spúšťača začne celý čas aktivity odznova.",
               "backoff_enabled": "Pri opakovaných spusteniach sa čas do vypnutia postupne predĺži."
             }
           },
@@ -170,14 +170,14 @@
             "name": "Spustenie a časovanie",
             "data": {
               "sensor_type": "Režim spúšťača",
-              "sensor_resets_timer": "Nová aktivita obnoví celý odpočet",
+              "sensor_resets_timer": "Po uvoľnení spúšťača obnoviť celý odpočet",
               "backoff_enabled": "Predlžovať čas pri opakovanom spustení",
               "backoff_factor": "Násobok predĺženia",
               "backoff_max_seconds": "Najdlhší čas do vypnutia"
             },
             "data_description": {
               "sensor_type": "Udalosť spustí jednu aktivitu. Trvanie udrží ovládač aktívny, kým je spúšťač zapnutý.",
-              "sensor_resets_timer": "Pri režime Trvanie začne po vypnutí posledného spúšťača celý čas aktivity odznova.",
+              "sensor_resets_timer": "Len pri režime Trvanie: po uvoľnení spúšťača začne celý čas aktivity odznova.",
               "backoff_enabled": "Pri opakovaných spusteniach sa čas do vypnutia postupne predĺži."
             }
           },

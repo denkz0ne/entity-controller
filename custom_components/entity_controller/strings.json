@@ -24,14 +24,14 @@
             "name": "Trigger and timer",
             "data": {
               "sensor_type": "Sensor type",
-              "sensor_resets_timer": "Duration sensor resets timer when released",
+              "sensor_resets_timer": "When a trigger is released, restart the full countdown",
               "backoff_enabled": "Increase delay after retriggers",
               "backoff_factor": "Backoff multiplier",
               "backoff_max_seconds": "Maximum backoff delay"
             },
             "data_description": {
               "sensor_type": "Event starts the timer. Duration keeps EC active while the trigger remains active.",
-              "sensor_resets_timer": "For Duration only: starts the full activity time again after the last trigger is released.",
+              "sensor_resets_timer": "For Duration only: restarts the full activity time after a trigger is released.",
               "backoff_enabled": "Repeated triggers can gradually extend activity time."
             }
           },
@@ -170,14 +170,14 @@
             "name": "Trigger and timer",
             "data": {
               "sensor_type": "Sensor type",
-              "sensor_resets_timer": "Duration sensor resets timer when released",
+              "sensor_resets_timer": "When a trigger is released, restart the full countdown",
               "backoff_enabled": "Increase delay after retriggers",
               "backoff_factor": "Backoff multiplier",
               "backoff_max_seconds": "Maximum backoff delay"
             },
             "data_description": {
               "sensor_type": "Event starts the timer. Duration keeps EC active while the trigger remains active.",
-              "sensor_resets_timer": "For Duration only: starts the full activity time again after the last trigger is released.",
+              "sensor_resets_timer": "For Duration only: restarts the full activity time after a trigger is released.",
               "backoff_enabled": "Repeated triggers can gradually extend activity time."
             }
           },

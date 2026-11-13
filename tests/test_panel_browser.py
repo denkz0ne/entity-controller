@@ -1150,6 +1150,56 @@ def test_mobile_help_opens_by_tap_without_changing_draft(mobile_page):
     assert mobile_page.locator(".help-popover:popover-open").count() == 0
 
 
+def test_adaptive_timing_is_grouped_and_conditional_in_both_modes(page):
+    page.evaluate("""() => {
+      const c = panel.controllers[0];
+      c.entry_id = "entry-1";
+      c.form = {
+        basic: {name: c.name, trigger_entities: ["binary_sensor.motion"],
+          control_entities: ["light.room"], delay_seconds: 240},
+        timer: {sensor_type: "duration", sensor_resets_timer: true,
+          backoff_enabled: false, backoff_factor: 1.5, backoff_max_seconds: 600},
+      };
+      panel.hass = {...panel.hass, user: {is_admin: true}};
+    }""")
+    page.locator(".edit-toggle").first.click()
+    card = page.locator(".behavior-card")
+
+    expect(card).to_contain_text("Čo a ako dlho ovládať")
+    expect(card).to_contain_text("Ovládané zariadenia")
+    expect(card.locator('[data-field="sensor_type"]')).to_have_value("duration")
+    expect(card.locator('[data-field="sensor_resets_timer"]')).to_be_visible()
+    expect(card.locator('[data-field="backoff_enabled"]')).not_to_be_checked()
+    expect(card.locator('[data-field="backoff_factor"]')).to_have_count(0)
+    expect(card.locator('[data-field="backoff_max_seconds"]')).to_have_count(0)
+    expect(page.locator('.editor-section[data-editor-section="timer"]')).to_have_count(0)
+
+    card.locator('[data-field="backoff_enabled"]').check()
+    expect(card.locator('input[data-field="backoff_factor"]')).to_have_value("1.5")
+    expect(card.locator('input[data-duration-manual="timer.backoff_max_seconds"]')).to_have_value("600")
+    card.locator('[data-field="backoff_enabled"]').uncheck()
+    expect(card.locator('[data-field="backoff_factor"]')).to_have_count(0)
+    expect(card.locator('[data-field="backoff_max_seconds"]')).to_have_count(0)
+    assert page.evaluate("panel.controllers[0].form.timer.backoff_factor") == 1.5
+    assert page.evaluate("panel.controllers[0].form.timer.backoff_max_seconds") == 600
+    card.locator('[data-field="backoff_enabled"]').check()
+
+    card.locator('[data-field="sensor_type"]').select_option("event")
+    expect(card.locator('[data-field="sensor_resets_timer"]')).to_have_count(0)
+    assert page.evaluate("panel.controllers[0].form.timer.sensor_resets_timer") is True
+
+    page.locator('[data-mode="full"]').click()
+    expect(page.locator('.behavior-card [data-field="sensor_type"]')).to_have_count(1)
+    expect(page.locator('.behavior-card [data-field="backoff_factor"]')).to_have_count(1)
+    expect(page.locator('.editor-section[data-editor-section="timer"]')).to_have_count(0)
+    page.set_viewport_size({"width": 390, "height": 844})
+    assert page.locator(".behavior-card").evaluate("""card => {
+      const selectors = [":scope > .entity-card", ":scope > .timing-card", ":scope > .editor-actions"];
+      const tops = selectors.map(selector => card.querySelector(selector).getBoundingClientRect().top);
+      return tops[0] < tops[1] && tops[1] < tops[2];
+    }""")
+
+
 def test_removing_rule_entity_keeps_rules_and_other_sections_open(page):
     page.evaluate("""() => {
       const c = panel.controllers[0];
@@ -1157,6 +1207,7 @@ def test_removing_rule_entity_keeps_rules_and_other_sections_open(page):
       c.form = {
         basic: {name: c.name, trigger_entities: [], control_entities: [], delay_seconds: 240},
         timer: {backoff_enabled: false, backoff_factor: 2},
+        monitoring: {block_timeout_seconds: 120},
         rules: {override_entities: ["light.room", "binary_sensor.motion"], interlock_entities: []},
       };
       panel.hass = {...panel.hass, user: {is_admin: true}};
@@ -1164,7 +1215,7 @@ def test_removing_rule_entity_keeps_rules_and_other_sections_open(page):
     page.locator(".edit-toggle").first.click()
     page.locator('[data-mode="full"]').click()
     page.locator(".rules-card summary").click()
-    advanced = page.locator(".editor-section").filter(has_text="Adaptívne časovanie")
+    advanced = page.locator(".editor-section").filter(has_text="Automatické odblokovanie")
     advanced.locator("summary").click()
     page.locator('.rules-card [data-remove-entity][data-value="light.room"]').click()
     expect(page.locator(".rules-card")).to_have_attribute("open", "")

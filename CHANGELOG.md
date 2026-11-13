@@ -2,6 +2,14 @@
 
 All notable changes to Svetlo v tme v10 are documented here.
 
+## Unreleased
+
+### Controller settings
+
+- Group trigger mode, duration-sensor timer reset, and adaptive backoff with
+  the controlled entities and timeout in **Čo a ako dlho ovládať** in both
+  editor modes. Backoff multiplier and maximum appear when backoff is enabled.
+
 <a name="10.7.0"></a>
 ## 10.7.0 (2026-10-06)
 
