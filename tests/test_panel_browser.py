@@ -132,7 +132,9 @@ def test_wheel_over_heading_reaches_last_controller_and_footer(page):
     assert page.evaluate("document.scrollingElement.scrollTop") == 0
 
 
-@pytest.mark.parametrize("target", [".chip", ".toggle", ".timeline"])
+@pytest.mark.parametrize(
+    "target", [".chip", ".chip-switch-control", ".toggle", ".timeline"]
+)
 def test_touch_scroll_from_controls_survives_updates(mobile_page, target):
     page = mobile_page
     control = page.locator(".row").nth(2).locator(target).first
@@ -179,19 +181,30 @@ def test_touch_scroll_from_controls_survives_updates(mobile_page, target):
 
 def test_taps_still_toggle_entities_and_open_more_info(mobile_page):
     page = mobile_page
-    page.locator(".chip[data-chip-toggle]").first.tap()
+    page.locator(".chip-main").first.tap()
+    assert page.evaluate("window.moreInfoCalls") == ["light.room"]
+    assert page.evaluate("window.serviceCalls") == []
+
+    page.locator(".chip-toggle").first.evaluate("(element) => element.click()")
+    assert page.evaluate("window.moreInfoCalls") == ["light.room", "light.room"]
+
+    page.locator(".chip-switch-control").first.tap()
     page.wait_for_function("window.serviceCalls.length === 1")
     assert page.evaluate("window.serviceCalls[0]") == [
         "light", "turn_on", {"entity_id": "light.room"}
     ]
+    assert page.evaluate("window.moreInfoCalls") == ["light.room", "light.room"]
+
     page.locator(".toggle").first.tap()
     page.wait_for_function("window.serviceCalls.length === 2")
     assert page.evaluate("window.serviceCalls[1]") == [
         "switch", "turn_off", {"entity_id": "switch.enabled_0"}
     ]
-    page.locator(".chip").first.tap()
-    page.wait_for_function("window.moreInfoCalls.length === 1")
-    assert page.evaluate("window.moreInfoCalls") == ["binary_sensor.motion"]
+    page.locator(".chip[data-entity='binary_sensor.motion']").first.tap()
+    page.wait_for_function("window.moreInfoCalls.length === 3")
+    assert page.evaluate("window.moreInfoCalls") == [
+        "light.room", "light.room", "binary_sensor.motion"
+    ]
 
 
 def test_native_scroll_has_finite_height_without_parent_height(page):

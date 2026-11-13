@@ -288,16 +288,25 @@ class EntityControllerPanel extends HTMLElement {
     const toggleDomain = available && ["switch", "input_boolean", "light"].includes(domain) ? domain : "";
     const switchToggle = Boolean(toggleDomain);
     const stateTitle = state ? " · " + value : " · nedostupná";
-    return '<button class="chip' + activeClass + invalidClass + '" data-entity="' + esc(entityId) +
-      (switchToggle ? '" data-chip-toggle="' + esc(toggleDomain) : '') +
-      '" title="' + esc(name + stateTitle) + '" aria-label="' +
-      esc(name + stateTitle + (switchToggle ? ", prepínač" : "")) + '">' +
-      '<ha-state-icon class="chip-icon" data-entity="' + esc(entityId) + '"></ha-state-icon>' +
-      '<span class="chip-label">' + esc(name) + '</span>' +
-      (switchToggle ? '<span class="chip-switch' + (value === "on" ? " is-on" : "") +
-        '" aria-hidden="true"><i></i></span>' : '') +
-      (available && (triggerActive || outputActive) ? '<i class="chip-active-dot" aria-hidden="true"></i>' : '') +
-      '</button>';
+    const icon = '<ha-state-icon class="chip-icon" data-entity="' + esc(entityId) + '"></ha-state-icon>';
+    const label = '<span class="chip-label">' + esc(name) + '</span>';
+    const activeDot = available && (triggerActive || outputActive)
+      ? '<i class="chip-active-dot" aria-hidden="true"></i>' : '';
+    if (switchToggle) {
+      return '<div class="chip chip-toggle' + activeClass + invalidClass + '" data-entity="' +
+        esc(entityId) + '">' +
+        '<button type="button" class="chip-main" data-entity="' + esc(entityId) +
+        '" title="' + esc(name + stateTitle) + '" aria-label="' + esc(name + stateTitle) + '">' +
+        icon + label + activeDot + '</button>' +
+        '<button type="button" class="chip-switch-control" data-entity="' + esc(entityId) +
+        '" data-chip-toggle="' + esc(toggleDomain) + '" role="switch" aria-checked="' +
+        (value === "on" ? "true" : "false") + '" aria-label="' + esc(name + ", prepínač") + '">' +
+        '<span class="chip-switch' + (value === "on" ? " is-on" : "") +
+        '" aria-hidden="true"><i></i></span></button></div>';
+    }
+    return '<button type="button" class="chip' + activeClass + invalidClass + '" data-entity="' +
+      esc(entityId) + '" title="' + esc(name + stateTitle) + '" aria-label="' +
+      esc(name + stateTitle) + '">' + icon + label + activeDot + '</button>';
   }
 
   _refreshControllerIcons(root = this.shadowRoot) {
@@ -1067,7 +1076,8 @@ class EntityControllerPanel extends HTMLElement {
         '.controller-control{grid-column:1;grid-row:1/3;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:4px}.controller-avatar{width:36px;height:36px;flex:none;border:0;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--ec-row-color) 18%,var(--ha-card-background,var(--card-background-color)));color:var(--ec-row-color)}button.controller-avatar{cursor:pointer}.controller-icon{color:var(--ec-row-color);--mdc-icon-size:24px}.controller-name{grid-column:2;grid-row:1;align-self:center;min-width:0;font-size:16px;line-height:20px;font-weight:var(--mush-card-primary-font-weight,500);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
         '.status{grid-column:2;grid-row:2;min-width:0;display:flex;flex-direction:column;gap:3px;font-size:var(--mush-card-secondary-font-size,12px);color:var(--mush-card-secondary-color,var(--secondary-text-color))}.status-head{display:flex;align-items:center;gap:9px;min-width:0}.status-label{display:flex;align-items:center;gap:7px;color:var(--mush-card-primary-color,var(--primary-text-color));white-space:nowrap}.status-label b{font-size:var(--mush-card-primary-font-size,14px);font-weight:var(--mush-card-primary-font-weight,500)}.status-label i{flex:none;width:10px;height:10px;border-radius:50%;background:var(--ec-row-color)}.status-countdown{white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--mush-card-primary-color,var(--primary-text-color));font-size:var(--mush-card-primary-font-size,14px);font-weight:var(--mush-card-primary-font-weight,500)}.status-meta{display:flex;align-items:baseline;justify-content:space-between;gap:8px;min-width:0}.status-detail{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.status-meta small{flex:none;white-space:nowrap;font-size:var(--mush-card-secondary-font-size,12px);color:var(--mush-card-secondary-color,var(--secondary-text-color))}',
         '.chips{grid-column:2;grid-row:1;min-width:0;display:flex;flex-wrap:wrap;align-items:flex-start;align-content:flex-start;align-self:start;gap:4px;overflow:visible;padding:0}',
-        '.chip-separator{flex:none;padding:0;margin:0 -1px;align-self:center;color:var(--secondary-text-color);font-size:13px;line-height:1;opacity:.7}.chip{height:28px;box-sizing:border-box;flex:0 1 auto;min-width:70px;max-width:175px;display:flex;align-items:center;justify-content:flex-start;gap:7px;padding:0 9px;border:var(--ha-card-border-width,1px) solid var(--ha-card-border-color,var(--divider-color));border-radius:18px;background:var(--chip-background,var(--ha-card-background,var(--card-background-color)));box-shadow:var(--chip-box-shadow,var(--ha-card-box-shadow,none));color:var(--primary-text-color);cursor:pointer;white-space:nowrap;font:inherit;font-size:12px;touch-action:pan-y pinch-zoom;user-select:none;-webkit-user-select:none} .chip span{min-width:0;overflow:hidden;text-overflow:ellipsis;pointer-events:none}.chip.unavailable{color:var(--disabled-text-color,var(--secondary-text-color));border-color:var(--disabled-text-color,var(--divider-color));background:color-mix(in srgb,var(--ha-card-background,var(--card-background-color)) 78%,var(--secondary-text-color));box-shadow:none;opacity:.62;filter:grayscale(1)}.chip.unavailable .chip-label{text-decoration:line-through;text-decoration-thickness:1px}.chip.unavailable .chip-icon{color:var(--disabled-text-color,var(--secondary-text-color))}.chip-switch{position:relative;width:22px;height:13px;flex:none;box-sizing:border-box;border-radius:8px;background:var(--disabled-text-color,#9e9e9e);opacity:.75;transition:background .15s}.chip-switch i{position:absolute;top:2px;left:2px;width:9px;height:9px;border-radius:50%;background:#fff;transition:transform .15s}.chip-switch.is-on{background:var(--success-color,#43a047);opacity:1}.chip-switch.is-on i{transform:translateX(9px)}.chip-icon{--mdc-icon-size:16px;flex:none;color:var(--secondary-text-color);pointer-events:none}.chip.active-trigger{background:rgba(76,175,80,.18);border-color:#43a047;box-shadow:0 0 0 1px rgba(67,160,71,.14)}.chip.active-output{background:rgba(255,213,79,.22);border-color:#d2a500;box-shadow:0 0 0 1px rgba(210,165,0,.14)}.chip.active-override{background:rgba(156,39,176,.14);border-color:#9c27b0;box-shadow:0 0 0 1px rgba(156,39,176,.12)}.chip.active-interlock{background:rgba(3,169,244,.14);border-color:#039be5;box-shadow:0 0 0 1px rgba(3,155,229,.12)}.chip[data-chip-toggle]{cursor:pointer}.chip-active-dot{width:7px;height:7px;flex:none;border-radius:50%;background:#2e8b3c}.chip.active-output .chip-active-dot{background:#b38b00}',
+        '.chip.chip-toggle{gap:0;padding:0;overflow:hidden}.chip-main{height:100%;min-width:0;flex:1;display:flex;align-items:center;gap:7px;padding:0 6px 0 9px;border:0;border-radius:18px;color:inherit;background:transparent;font:inherit;font-size:inherit;text-align:left;cursor:pointer;touch-action:pan-y pinch-zoom}.chip-switch-control{height:26px;width:34px;flex:none;display:flex;align-items:center;justify-content:center;padding:0;border:0;border-radius:13px;background:transparent;cursor:pointer;touch-action:manipulation}.chip-switch-control:hover{background:var(--secondary-background-color,rgba(0,0,0,.06))}.chip-switch-control .chip-switch{pointer-events:none}.chip-main:focus-visible,.chip-switch-control:focus-visible{outline:2px solid var(--primary-color);outline-offset:-2px;z-index:1}.chip-switch-control:active{transform:scale(.96)}',
+        '.chip-separator{flex:none;padding:0;margin:0 -1px;align-self:center;color:var(--secondary-text-color);font-size:13px;line-height:1;opacity:.7}.chip{height:28px;box-sizing:border-box;flex:0 1 auto;min-width:70px;max-width:175px;display:flex;align-items:center;justify-content:flex-start;gap:7px;padding:0 9px;border:var(--ha-card-border-width,1px) solid var(--ha-card-border-color,var(--divider-color));border-radius:18px;background:var(--chip-background,var(--ha-card-background,var(--card-background-color)));box-shadow:var(--chip-box-shadow,var(--ha-card-box-shadow,none));color:var(--primary-text-color);cursor:pointer;white-space:nowrap;font:inherit;font-size:12px;touch-action:pan-y pinch-zoom;user-select:none;-webkit-user-select:none} .chip span{min-width:0;overflow:hidden;text-overflow:ellipsis;pointer-events:none}.chip.unavailable{color:var(--disabled-text-color,var(--secondary-text-color));border-color:var(--disabled-text-color,var(--divider-color));background:color-mix(in srgb,var(--ha-card-background,var(--card-background-color)) 78%,var(--secondary-text-color));box-shadow:none;opacity:.62;filter:grayscale(1)}.chip.unavailable .chip-label{text-decoration:line-through;text-decoration-thickness:1px}.chip.unavailable .chip-icon{color:var(--disabled-text-color,var(--secondary-text-color))}.chip-switch{position:relative;width:22px;height:13px;flex:none;box-sizing:border-box;border-radius:8px;background:var(--disabled-text-color,#9e9e9e);opacity:.75;transition:background .15s}.chip-switch i{position:absolute;top:2px;left:2px;width:9px;height:9px;border-radius:50%;background:#fff;transition:transform .15s}.chip-switch.is-on{background:var(--success-color,#43a047);opacity:1}.chip-switch.is-on i{transform:translateX(9px)}.chip-icon{--mdc-icon-size:16px;flex:none;color:var(--secondary-text-color);pointer-events:none}.chip.active-trigger{background:rgba(76,175,80,.18);border-color:#43a047;box-shadow:0 0 0 1px rgba(67,160,71,.14)}.chip.active-output{background:rgba(255,213,79,.22);border-color:#d2a500;box-shadow:0 0 0 1px rgba(210,165,0,.14)}.chip.active-override{background:rgba(156,39,176,.14);border-color:#9c27b0;box-shadow:0 0 0 1px rgba(156,39,176,.12)}.chip.active-interlock{background:rgba(3,169,244,.14);border-color:#039be5;box-shadow:0 0 0 1px rgba(3,155,229,.12)}.chip-active-dot{width:7px;height:7px;flex:none;border-radius:50%;background:#2e8b3c}.chip.active-output .chip-active-dot{background:#b38b00}',
         '.timeline-line{grid-column:1/-1;grid-row:2;padding-top:2px;min-width:0}.timeline-wrap{width:100%}.timeline{height:16px;position:relative;overflow:hidden;border-radius:5px;background:#d6dbe0;direction:ltr}.tick{position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,.9);opacity:.8;pointer-events:none}.timeline-axis{height:16px;display:flex;justify-content:space-between;align-items:flex-start;color:var(--secondary-text-color);font-size:10px;line-height:14px;padding-top:3px;direction:ltr}.timeline-axis span{white-space:nowrap;flex:none}.timeline-error{font-size:11px;color:var(--error-color);padding-top:3px}',
         '.edit-toggle{position:absolute;right:12px;top:12px;z-index:1;display:flex;align-items:center;gap:5px;min-height:32px;padding:4px 8px;border:1px solid var(--divider-color);border-radius:8px;color:var(--primary-text-color);background:var(--ha-card-background,var(--card-background-color));cursor:pointer}.edit-toggle ha-icon{--mdc-icon-size:20px}.controller-name{padding-right:52px}.row.editing{grid-template-columns:minmax(0,1fr);gap:0}.row.editing .identity{grid-column:1;grid-row:1;grid-template-columns:48px minmax(0,1fr);grid-template-rows:36px auto}.row.editing .controller-name{grid-column:2;grid-row:1}.row.editing .chips{grid-column:1;grid-row:2}.row.editing .timeline-line{grid-column:1;grid-row:3}.editor{grid-column:1;grid-row:4;min-width:0;margin-top:10px;padding-top:12px;border-top:1px solid var(--divider-color)}.editor>header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.edit-modes{display:flex;padding:3px;background:var(--secondary-background-color,var(--divider-color));border-radius:10px}.edit-modes button{border:0;border-radius:8px;padding:7px 12px;color:var(--primary-text-color);background:transparent;cursor:pointer}.edit-modes button.selected{background:var(--ha-card-background,var(--card-background-color));box-shadow:var(--ha-card-box-shadow,0 1px 3px #0002)}.save-state{margin:8px 0;color:var(--secondary-text-color);font-size:12px}.editor-section{margin:8px 0;border:1px solid var(--divider-color);border-radius:10px;background:var(--card-background-color)}.editor-section summary{padding:11px 13px;cursor:pointer;font-weight:500}.editor-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:0 12px 12px}.field{display:flex;flex-direction:column;gap:5px;min-width:0;color:var(--primary-text-color);font-size:13px}.field input:not([type=checkbox]),.field select,.field textarea{box-sizing:border-box;width:100%;min-height:38px;padding:7px 9px;border:1px solid var(--input-fill-color,var(--divider-color));border-radius:7px;color:var(--primary-text-color);background:var(--input-background-color,var(--primary-background-color));font:inherit}.field select[multiple]{height:118px}.field textarea{resize:vertical;font-family:monospace}.field small{color:var(--secondary-text-color);font-size:11px}.field.check{flex-direction:row;align-items:center;min-height:38px}.field.check input{width:18px;height:18px;accent-color:var(--primary-color)}@media(max-width:620px){.editor-fields{grid-template-columns:1fr}.row.editing .identity{grid-template-columns:42px minmax(0,1fr);gap:4px 8px}.edit-toggle{padding:3px 7px}}',
         '.legend{flex:none;box-sizing:border-box;min-height:48px;padding:8px 18px;display:flex;align-items:center;justify-content:space-between;gap:15px;border:var(--ha-card-border-width,1px) solid var(--ha-card-border-color,var(--divider-color));border-radius:var(--ha-card-border-radius,12px);background:var(--ha-card-background,var(--card-background-color));box-shadow:var(--ha-card-box-shadow,none);color:var(--primary-text-color);font-size:13px}.legend-items{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap}.legend-title{font-weight:700}.legend-items span{display:flex;align-items:center;gap:9px;white-space:nowrap}.swatch{width:22px;height:12px;flex:none;border-radius:4px;background:var(--ec-inactive)}.swatch.idle{background:#aab2bd}.swatch.active_timer{background:#28bd57}.swatch.active_stay_on{background:#00a896}.swatch.constrained{background:#1686f5}.swatch.blocked{background:#f04452}.swatch.overridden{background:#9b59d0}.swatch.disabled{background:#667085}.swatch.unknown{background:repeating-linear-gradient(135deg,#d6dbe0 0 3px,#aab2bd 3px 5px)}.count{color:var(--secondary-text-color);white-space:nowrap}',
@@ -1233,11 +1243,28 @@ class EntityControllerPanel extends HTMLElement {
   }
 
   async _handleClick(event) {
+    const chipSwitch = event.composedPath().find((element) =>
+      element.matches?.("button.chip-switch-control[data-entity][data-chip-toggle]"));
+    if (chipSwitch) {
+      const entityId = chipSwitch.dataset.entity;
+      const value = String(this._hass?.states?.[entityId]?.state || "").toLowerCase();
+      await this._hass.callService(chipSwitch.dataset.chipToggle,
+        value === "on" ? "turn_off" : "turn_on", { entity_id: entityId });
+      return;
+    }
     const button = event.composedPath().find((element) =>
-      element.matches?.(".chip[data-entity], button[data-toggle], button[data-edit], button[data-mode], " +
+      element.matches?.("button.chip-main[data-entity], .chip[data-entity], button[data-toggle], button[data-edit], button[data-mode], " +
         "button[data-picker-toggle], button[data-entity-option], button[data-remove-entity], button[data-save], button[data-close], " +
         "button[data-icon-toggle], button[data-icon-value], button[data-offset-step], button[data-help], button[data-native-retry]"));
-    if (!button) return;
+    const chip = event.composedPath().find((element) =>
+      element.matches?.(".chip-toggle[data-entity]"));
+    if (!button) {
+      if (!chip) return;
+      this.dispatchEvent(new CustomEvent("hass-more-info", {
+        bubbles: true, composed: true, detail: { entityId: chip.dataset.entity },
+      }));
+      return;
+    }
     if (button.hasAttribute('data-native-retry')) {this._nativeLoadFailed = false; this._ensureNativeEditors(); return;}
     if (button.dataset.help) {
       const popover = this.shadowRoot.getElementById(button.dataset.help);
@@ -1350,12 +1377,6 @@ class EntityControllerPanel extends HTMLElement {
     }
     const entityId = button.dataset.entity;
     if (!entityId) return;
-    if (button.dataset.chipToggle) {
-      const value = String(this._hass?.states?.[entityId]?.state || "").toLowerCase();
-      await this._hass.callService(button.dataset.chipToggle,
-        value === "on" ? "turn_off" : "turn_on", { entity_id: entityId });
-      return;
-    }
     this.dispatchEvent(new CustomEvent("hass-more-info", {
       bubbles: true, composed: true, detail: { entityId },
     }));
