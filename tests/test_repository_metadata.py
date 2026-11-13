@@ -41,7 +41,7 @@ def test_svetlo_v_tme_rebrand_keeps_internal_domain_and_panel_route() -> None:
 
     assert manifest["name"] == "Svetlo v tme"
     assert manifest["domain"] == "entity_controller"
-    assert manifest["version"] == "10.7.0"
+    assert manifest["version"] == "10.7.1"
     assert hacs["name"] == "Svetlo v tme"
     assert slovak["title"] == english["title"] == "Svetlo v tme"
     assert 'PANEL_URL = "entity-controller"' in panel_module

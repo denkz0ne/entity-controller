@@ -1,13 +1,13 @@
 {
   "domain": "entity_controller",
   "name": "Svetlo v tme",
+  "after_dependencies": ["frontend", "http", "websocket_api", "light", "script"],
   "codeowners": ["@denkz0ne"],
+  "config_flow": true,
   "documentation": "https://github.com/denkz0ne/entity-controller",
   "integration_type": "device",
   "iot_class": "calculated",
-  "config_flow": true,
   "issue_tracker": "https://github.com/denkz0ne/entity-controller/issues",
   "requirements": [],
-  "after_dependencies": ["frontend", "http", "websocket_api", "light", "script"],
-  "version": "10.7.0"
+  "version": "10.7.1"
 }

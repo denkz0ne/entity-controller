@@ -1,6 +1,6 @@
 # Svetlo v tme v10 native entities
 
-> Current stable release: `10.7.0`. Each controller config entry owns one device with five native entities. Each native entity has a stable unique ID, a translated function name, a function-specific icon, and a canonical entity ID.
+> Current stable release: `10.7.1`. Each controller config entry owns one device with five native entities. Each native entity has a stable unique ID, a translated function name, a function-specific icon, and a canonical entity ID.
 
 Each controller config entry owns one virtual Home Assistant device and currently exposes five native entities.
 
