@@ -9,6 +9,9 @@ on:
       - v10-modernization
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   hacs-validation:
     runs-on: ubuntu-latest
@@ -18,7 +21,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Validate HACS integration
-        uses: hacs/action@main
+        uses: hacs/action@d556e736723344f83838d08488c983a15381059a # 22.5.0
         with:
           category: integration
           comment: false
