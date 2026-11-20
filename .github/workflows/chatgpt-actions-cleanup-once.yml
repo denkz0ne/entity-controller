@@ -1,0 +1,87 @@
+name: One-time Actions storage cleanup
+on:
+  push:
+    paths:
+      - '.github/workflows/chatgpt-actions-cleanup-once.yml'
+permissions:
+  actions: write
+  contents: read
+jobs:
+  clean:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Remove superseded runs and artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, json, urllib.request, urllib.error, time, collections
+          repo=os.environ["GITHUB_REPOSITORY"]
+          token=os.environ["GH_TOKEN"]
+          self_run=int(os.environ["GITHUB_RUN_ID"])
+          base=f"https://api.github.com/repos/{repo}"
+          headers={"Authorization":f"Bearer {token}","Accept":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28","User-Agent":"actions-cleanup"}
+          def api(method,path):
+              req=urllib.request.Request(base+path,headers=headers,method=method)
+              for attempt in range(6):
+                  try:
+                      with urllib.request.urlopen(req,timeout=50) as response:
+                          data=response.read()
+                          return json.loads(data) if data else None
+                  except urllib.error.HTTPError as e:
+                      if e.code in (403,429,502,503) and attempt<5:
+                          pause=int(e.headers.get("Retry-After","0")) or min(10*(attempt+1),60)
+                          print(f"API retry {e.code} after {pause}s: {path}",flush=True)
+                          time.sleep(pause)
+                      else:
+                          raise
+          def get_all(endpoint,key):
+              output=[]
+              page=1
+              while True:
+                  data=api("GET",f"{endpoint}{'&' if '?' in endpoint else '?'}per_page=100&page={page}")
+                  rows=data[key]
+                  output.extend(rows)
+                  if len(rows)<100: return output
+                  page+=1
+          runs=get_all("/actions/runs","workflow_runs")
+          artifacts=get_all("/actions/artifacts","artifacts")
+          by_id={int(r["id"]):r for r in runs}
+          run_key=lambda r:(r.get("workflow_id"),r.get("head_branch") or "[none]")
+          groups=collections.defaultdict(list)
+          for r in runs: groups[run_key(r)].append(r)
+          keep_runs={self_run}
+          for group in groups.values():
+              group.sort(key=lambda x:(x["created_at"],x["id"]),reverse=True)
+              keep_runs.add(group[0]["id"])
+              successful=next((r for r in group if r.get("conclusion")=="success"),None)
+              if successful: keep_runs.add(successful["id"])
+              for r in group:
+                  if r.get("status")!="completed": keep_runs.add(r["id"])
+          latest_artifacts={}
+          for a in artifacts:
+              if a.get("expired"): continue
+              runinfo=a.get("workflow_run") or {}
+              rid=runinfo.get("id")
+              r=by_id.get(rid,{})
+              key=(r.get("workflow_id") or "[unknown]",r.get("head_branch") or runinfo.get("head_branch") or "[none]",a["name"])
+              if key not in latest_artifacts or (a["created_at"],a["id"])>(latest_artifacts[key]["created_at"],latest_artifacts[key]["id"]):
+                  latest_artifacts[key]=a
+          keep_artifacts={a["id"] for a in latest_artifacts.values()}
+          keep_runs.update(a.get("workflow_run",{}).get("id") for a in latest_artifacts.values())
+          to_delete_runs=[r for r in runs if r["id"] not in keep_runs and r.get("status")=="completed"]
+          deleting_ids={r["id"] for r in to_delete_runs}
+          to_delete_artifacts=[a for a in artifacts if a["id"] not in keep_artifacts and (a.get("workflow_run") or {}).get("id") not in deleting_ids]
+          print(f"Inventory: {len(runs)} runs, {len(artifacts)} artifacts",flush=True)
+          print(f"Preserve: {len(keep_runs)} runs incl. newest and last success per workflow/branch; {len(keep_artifacts)} newest artifacts",flush=True)
+          print(f"Delete: {len(to_delete_runs)} superseded runs, {len(to_delete_artifacts)} extra artifacts",flush=True)
+          for r in to_delete_runs:
+              api("DELETE",f"/actions/runs/{r['id']}")
+              time.sleep(0.35)
+          for a in to_delete_artifacts:
+              api("DELETE",f"/actions/artifacts/{a['id']}")
+              time.sleep(0.35)
+          print("Cleanup completed.",flush=True)
+          PY
